@@ -7,8 +7,11 @@ pub async fn headers_handler(req: HttpRequest) -> Result<HttpResponse> {
         .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_string()))
         .collect();
     
+    // Filter out reverse proxy and CDN headers
+    let filtered_headers = filter_proxy_headers(headers);
+    
     Ok(HttpResponse::Ok().json(json!({
-        "headers": headers
+        "headers": filtered_headers
     })))
 }
 

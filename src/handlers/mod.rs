@@ -41,6 +41,133 @@ pub use cookies::*;
 pub use images::*;
 pub use status::*;
 
+// Helper function to filter out reverse proxy and CDN headers
+// Uses conservative filtering - only removes headers that are almost certainly from infrastructure
+pub fn filter_proxy_headers(headers: HashMap<String, String>) -> HashMap<String, String> {
+    // Conservative list of headers that are almost certainly added by infrastructure
+    // We only filter headers that are very unlikely to be sent intentionally by users
+    let proxy_headers: Vec<&str> = vec![
+        // Nginx headers
+        "x-real-ip",
+        "x-forwarded-for",
+        "x-forwarded-proto",
+        "x-forwarded-host",
+        "x-forwarded-port",
+        "x-original-uri",
+        "x-original-url",
+        "x-forwarded-ssl",
+        "x-forwarded-scheme",
+        "x-nginx-proxy",
+        
+        // Cloudflare headers
+        "cf-ray",
+        "cf-cache-status", 
+        "cf-connecting-ip",
+        "cf-ipcountry",
+        "cf-visitor",
+        "cf-request-id",
+        "cf-worker",
+        "cf-warp-tag-id",
+        "cf-edge-cache",
+        "cf-cache-tag",
+        "cf-railgun",
+        
+        // AWS CloudFront headers
+        "cloudfront-viewer-address",
+        "cloudfront-viewer-asn",
+        "cloudfront-viewer-country",
+        "cloudfront-viewer-city",
+        "cloudfront-viewer-country-name",
+        "cloudfront-viewer-country-region",
+        "cloudfront-viewer-country-region-name",
+        "cloudfront-viewer-latitude",
+        "cloudfront-viewer-longitude",
+        "cloudfront-viewer-metro-code",
+        "cloudfront-viewer-postal-code",
+        "cloudfront-viewer-time-zone",
+        "cloudfront-viewer-header-order",
+        "cloudfront-viewer-header-count",
+        "cloudfront-forwarded-proto",
+        "cloudfront-is-android-viewer",
+        "cloudfront-is-desktop-viewer",
+        "cloudfront-is-ios-viewer",
+        "cloudfront-is-mobile-viewer",
+        "cloudfront-is-smarttv-viewer",
+        "cloudfront-is-tablet-viewer",
+        "x-amz-cf-id",
+        "x-amz-cf-pop",
+        "x-amz-cloudfront-id",
+        
+        // AWS Load Balancer headers (ALB/ELB)
+        "x-amzn-trace-id",
+        "x-amzn-requestid",
+        "x-amzn-request-id",
+        "x-amz-request-id",
+        "x-amzn-elb-id",
+        "x-amzn-lb-id",
+        
+        // Google Cloud Platform (GCP) headers
+        "x-cloud-trace-context",
+        "x-goog-trace",
+        "x-goog-request-id",
+        "x-google-trace",
+        "x-google-request-id",
+        "x-gfe-request-trace",
+        "x-gfe-response-code-details-trace",
+        "x-goog-iap-jwt-assertion",
+        "x-forwarded-for-original",
+        "x-appengine-city",
+        "x-appengine-citylatlong",
+        "x-appengine-country",
+        "x-appengine-region",
+        "x-appengine-request-id",
+        "x-appengine-datacenter",
+        "x-appengine-default-namespace",
+        "x-appengine-https",
+        "x-appengine-request-log-id",
+        "x-appengine-user-ip",
+        "x-appengine-user-id",
+        "x-appengine-user-email",
+        "x-appengine-user-nickname",
+        "x-appengine-auth-domain",
+        "x-appengine-cron",
+        "x-appengine-taskname",
+        "x-appengine-queuename",
+        "x-appengine-taskretrycount",
+        "x-appengine-taskexecutioncount",
+        "x-appengine-tasketa",
+        
+        // Microsoft Azure headers
+        "x-azure-ref",
+        "x-azure-requestid",
+        "x-azure-request-id",
+        "x-ms-request-id",
+        "x-ms-correlation-request-id",
+        "x-ms-routing-request-id",
+        "x-ms-exchange-crosstenant-originalauthenticatedcontext",
+        "x-ms-exchange-crosstenant-fromentityheader",
+        "x-ms-exchange-crosstenant-id",
+        "x-azure-fdid",
+        "x-azure-socketip",
+        "x-fd-healthprobe",
+        "x-azure-clientip",
+        "x-azure-ref-originshield",
+        "x-cache-remote",
+        "x-p3p",
+        "x-msedge-ref",
+        "x-azure-appliedaccesspolicy",
+        "x-azure-appliedpolicy",
+    ];
+    
+    headers
+        .into_iter()
+        .filter(|(name, _)| {
+            let lowercase_name = name.to_lowercase();
+            !proxy_headers.iter().any(|&proxy_header| lowercase_name == proxy_header)
+        })
+        .collect()
+}
+
 // Helper function to fix URL field in RequestInfo to include full URL
 pub fn fix_request_info_url(req: &HttpRequest, request_info: &mut RequestInfo) {
     let connection_info = req.connection_info();
@@ -57,6 +184,9 @@ pub fn extract_get_request_info(req: &HttpRequest) -> GetRequestInfo {
         .iter()
         .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_string()))
         .collect();
+    
+    // Filter out reverse proxy and CDN headers
+    let filtered_headers = filter_proxy_headers(headers);
 
     let args: HashMap<String, String> = req
         .query_string()
@@ -84,7 +214,7 @@ pub fn extract_get_request_info(req: &HttpRequest) -> GetRequestInfo {
     
     GetRequestInfo {
         args,
-        headers,
+        headers: filtered_headers,
         origin,
         url: full_url,
     }
@@ -97,6 +227,9 @@ pub fn extract_request_info(req: &HttpRequest, body: Option<&str>) -> RequestInf
         .iter()
         .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_string()))
         .collect();
+    
+    // Filter out reverse proxy and CDN headers
+    let filtered_headers = filter_proxy_headers(headers);
 
     let args: HashMap<String, String> = req
         .query_string()
@@ -143,7 +276,7 @@ pub fn extract_request_info(req: &HttpRequest, body: Option<&str>) -> RequestInf
         data: data_string,
         files: HashMap::new(),
         form: form_data,
-        headers,
+        headers: filtered_headers,
         json: body.and_then(|b| {
             if let Some(content_type) = req.headers().get("content-type")
                 .and_then(|v| v.to_str().ok()) {
@@ -173,6 +306,9 @@ pub async fn extract_request_info_multipart(req: &HttpRequest, mut payload: Mult
         .iter()
         .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_string()))
         .collect();
+    
+    // Filter out reverse proxy and CDN headers
+    let filtered_headers = filter_proxy_headers(headers);
 
     let args: HashMap<String, String> = req
         .query_string()
@@ -226,7 +362,7 @@ pub async fn extract_request_info_multipart(req: &HttpRequest, mut payload: Mult
         data: String::new(),
         files,
         form: form_data,
-        headers,
+        headers: filtered_headers,
         json: None,
         method: req.method().to_string(),
         origin,
