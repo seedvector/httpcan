@@ -8,6 +8,7 @@ use actix_multipart::Multipart;
 use serde::Deserialize;
 use serde_json::json;
 use std::collections::HashMap;
+use indexmap::IndexMap;
 use std::time::Duration;
 use futures_util::TryStreamExt;
 use tokio::time::sleep;
@@ -16,6 +17,19 @@ use base64::{Engine as _, engine::general_purpose};
 use uuid::Uuid;
 use url::form_urlencoded;
 use crate::{RequestInfo, GetRequestInfo};
+
+// Helper function to sort HashMap by keys and return IndexMap
+pub fn sort_hashmap(map: HashMap<String, String>) -> IndexMap<String, String> {
+    let mut keys: Vec<_> = map.keys().cloned().collect();
+    keys.sort();
+    let mut sorted_map = IndexMap::new();
+    for key in keys {
+        if let Some(value) = map.get(&key) {
+            sorted_map.insert(key, value.clone());
+        }
+    }
+    sorted_map
+}
 
 pub mod http_methods;
 pub mod anything;
@@ -214,8 +228,8 @@ pub fn extract_get_request_info(req: &HttpRequest) -> GetRequestInfo {
     let full_url = format!("{}://{}{}", scheme, host, req.uri());
     
     GetRequestInfo {
-        args,
-        headers: filtered_headers,
+        args: sort_hashmap(args),
+        headers: sort_hashmap(filtered_headers),
         origin,
         url: full_url,
     }
@@ -273,11 +287,11 @@ pub fn extract_request_info(req: &HttpRequest, body: Option<&str>) -> RequestInf
     }
     
     RequestInfo {
-        args,
+        args: sort_hashmap(args),
         data: data_string,
-        files: HashMap::new(),
-        form: form_data,
-        headers: filtered_headers,
+        files: IndexMap::new(),
+        form: sort_hashmap(form_data),
+        headers: sort_hashmap(filtered_headers),
         json: body.and_then(|b| {
             if let Some(content_type) = req.headers().get("content-type")
                 .and_then(|v| v.to_str().ok()) {
@@ -359,11 +373,11 @@ pub async fn extract_request_info_multipart(req: &HttpRequest, mut payload: Mult
     }
     
     Ok(RequestInfo {
-        args,
+        args: sort_hashmap(args),
         data: String::new(),
-        files,
-        form: form_data,
-        headers: filtered_headers,
+        files: sort_hashmap(files),
+        form: sort_hashmap(form_data),
+        headers: sort_hashmap(filtered_headers),
         json: None,
         method: req.method().to_string(),
         origin,

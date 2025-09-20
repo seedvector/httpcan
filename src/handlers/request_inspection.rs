@@ -11,7 +11,7 @@ pub async fn headers_handler(req: HttpRequest) -> Result<HttpResponse> {
     let filtered_headers = filter_proxy_headers(headers);
     
     Ok(HttpResponse::Ok().json(json!({
-        "headers": filtered_headers
+        "headers": sort_hashmap(filtered_headers)
     })))
 }
 

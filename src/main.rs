@@ -6,7 +6,7 @@ use actix_web::{
 use actix_files as fs;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use indexmap::IndexMap;
 use clap::Parser;
 
 mod handlers;
@@ -25,11 +25,11 @@ struct Args {
 
 #[derive(Serialize, Deserialize)]
 struct RequestInfo {
-    args: HashMap<String, String>,
+    args: IndexMap<String, String>,
     data: String,
-    files: HashMap<String, String>,
-    form: HashMap<String, String>,
-    headers: HashMap<String, String>,
+    files: IndexMap<String, String>,
+    form: IndexMap<String, String>,
+    headers: IndexMap<String, String>,
     json: Option<Value>,
     method: String,
     origin: String,
@@ -40,8 +40,8 @@ struct RequestInfo {
 // Simplified response structure for GET requests (httpbin.org compatible)
 #[derive(Serialize, Deserialize)]
 struct GetRequestInfo {
-    args: HashMap<String, String>,
-    headers: HashMap<String, String>,
+    args: IndexMap<String, String>,
+    headers: IndexMap<String, String>,
     origin: String,
     url: String,
 }
