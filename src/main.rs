@@ -54,11 +54,12 @@ async fn main() -> std::io::Result<()> {
             .route("/anything", web::put().to(anything_handler))
             .route("/anything", web::patch().to(anything_handler))
             .route("/anything", web::delete().to(anything_handler))
-            .route("/anything/{anything}", web::get().to(anything_with_param_handler_get))
-            .route("/anything/{anything}", web::post().to(anything_with_param_handler))
-            .route("/anything/{anything}", web::put().to(anything_with_param_handler))
-            .route("/anything/{anything}", web::patch().to(anything_with_param_handler))
-            .route("/anything/{anything}", web::delete().to(anything_with_param_handler))
+            // Support for any path after /anything (single or multi-segment)
+            .route("/anything/{path:.*}", web::get().to(anything_with_param_handler_get))
+            .route("/anything/{path:.*}", web::post().to(anything_with_param_handler))
+            .route("/anything/{path:.*}", web::put().to(anything_with_param_handler))
+            .route("/anything/{path:.*}", web::patch().to(anything_with_param_handler))
+            .route("/anything/{path:.*}", web::delete().to(anything_with_param_handler))
             
             // Auth endpoints
             .route("/basic-auth/{user}/{passwd}", web::get().to(basic_auth_handler))

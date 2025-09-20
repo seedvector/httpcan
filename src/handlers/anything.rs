@@ -50,7 +50,7 @@ pub async fn anything_with_param_handler_get(
 ) -> Result<HttpResponse> {
     let mut request_info = extract_request_info(&req, None);
     fix_request_info_url(&req, &mut request_info);
-    // Add the path parameter to the response
+    // Add the path parameter to the response (use "anything" as key for consistency)
     request_info.args.insert("anything".to_string(), path.into_inner());
     Ok(HttpResponse::Ok().json(request_info))
 }
@@ -70,12 +70,14 @@ pub async fn anything_with_param_handler(
         match extract_request_info_multipart(&req, multipart).await {
             Ok(mut request_info) => {
                 fix_request_info_url(&req, &mut request_info);
+                // Add the path parameter to the response (use "anything" as key for consistency)
                 request_info.args.insert("anything".to_string(), path.into_inner());
                 Ok(HttpResponse::Ok().json(request_info))
             }
             Err(_) => {
                 let mut request_info = extract_request_info(&req, None);
                 fix_request_info_url(&req, &mut request_info);
+                // Add the path parameter to the response (use "anything" as key for consistency)
                 request_info.args.insert("anything".to_string(), path.into_inner());
                 Ok(HttpResponse::Ok().json(request_info))
             }
@@ -94,6 +96,7 @@ pub async fn anything_with_param_handler(
         let body_string = String::from_utf8_lossy(&body);
         let mut request_info = extract_request_info(&req, Some(&body_string));
         fix_request_info_url(&req, &mut request_info);
+        // Add the path parameter to the response (use "anything" as key for consistency)
         request_info.args.insert("anything".to_string(), path.into_inner());
         Ok(HttpResponse::Ok().json(request_info))
     }
