@@ -2,7 +2,7 @@
   "openapi": "3.0.1",
   "info": {
     "title": "httpcan.org",
-    "description": "A simple HTTP Request & Response Service, with httpbin compatibility.",
+    "description": "A simple HTTP Request & Response Service, with httpbin compatibility. <br/> <br/> <b>Run locally: </b> <code>$ docker run --rm -p 8080:8080 ghcr.io/seedvector/httpcan</code>",
     "contact": {
       "name": "Sean Wong",
       "email": "sean@seedvector.com"
