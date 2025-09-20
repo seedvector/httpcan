@@ -45,7 +45,7 @@ pub async fn relative_redirect_handler(
     } else {
         // Relative redirect to the next step
         Ok(HttpResponse::Found()
-            .append_header(("Location", format!("relative-redirect/{}", n - 1)))
+            .append_header(("Location", format!("/relative-redirect/{}", n - 1)))
             .body(""))
     }
 }
