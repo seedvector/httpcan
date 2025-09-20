@@ -27,10 +27,25 @@ pub async fn status_handler_get(
     };
     
     let status = StatusCode::from_u16(chosen_code).unwrap_or(StatusCode::OK);
-    let request_info = extract_request_info(&req, None);
     
-    Ok(HttpResponse::build(status)
-        .json(request_info))
+    // HTTP status codes that should not have a response body
+    let should_be_empty = match chosen_code {
+        // 1xx Informational responses
+        100..=199 => true,
+        // 204 No Content
+        204 => true,
+        // 304 Not Modified  
+        304 => true,
+        _ => false,
+    };
+    
+    if should_be_empty {
+        Ok(HttpResponse::build(status).finish())
+    } else {
+        Ok(HttpResponse::build(status).json(json!({
+            "status": chosen_code
+        })))
+    }
 }
 
 pub async fn status_handler(
@@ -61,9 +76,23 @@ pub async fn status_handler(
     };
     
     let status = StatusCode::from_u16(chosen_code).unwrap_or(StatusCode::OK);
-    let body_str = if body.is_empty() { None } else { Some(body.as_str()) };
-    let request_info = extract_request_info(&req, body_str);
     
-    Ok(HttpResponse::build(status)
-        .json(request_info))
+    // HTTP status codes that should not have a response body
+    let should_be_empty = match chosen_code {
+        // 1xx Informational responses
+        100..=199 => true,
+        // 204 No Content
+        204 => true,
+        // 304 Not Modified  
+        304 => true,
+        _ => false,
+    };
+    
+    if should_be_empty {
+        Ok(HttpResponse::build(status).finish())
+    } else {
+        Ok(HttpResponse::build(status).json(json!({
+            "status": chosen_code
+        })))
+    }
 }
