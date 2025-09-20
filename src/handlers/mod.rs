@@ -71,6 +71,7 @@ pub fn filter_proxy_headers(headers: HashMap<String, String>) -> HashMap<String,
         "cf-edge-cache",
         "cf-cache-tag",
         "cf-railgun",
+        "cdn-loop",
         
         // AWS CloudFront headers
         "cloudfront-viewer-address",
