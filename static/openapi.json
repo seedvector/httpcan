@@ -238,6 +238,11 @@
           "Auth"
         ],
         "summary": "Prompts the user for authorization using HTTP Basic Auth.",
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "user",
@@ -274,11 +279,9 @@
           "Auth"
         ],
         "summary": "Prompts the user for authorization using bearer authentication.",
-        "parameters": [
+        "security": [
           {
-            "name": "Authorization",
-            "in": "header",
-            "schema": {}
+            "bearerAuth": []
           }
         ],
         "responses": {
@@ -623,6 +626,11 @@
           "Auth"
         ],
         "summary": "Prompts the user for authorization using Digest Auth.",
+        "security": [
+          {
+            "digestAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "qop",
@@ -668,6 +676,11 @@
           "Auth"
         ],
         "summary": "Prompts the user for authorization using Digest Auth + Algorithm.",
+        "security": [
+          {
+            "digestAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "qop",
@@ -724,6 +737,11 @@
         ],
         "summary": "Prompts the user for authorization using Digest Auth + Algorithm.",
         "description": "allow settings the stale_after argument.\n",
+        "security": [
+          {
+            "digestAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "qop",
@@ -926,6 +944,11 @@
           "Auth"
         ],
         "summary": "Prompts the user for authorization using HTTP Basic Auth.",
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "user",
@@ -1644,6 +1667,21 @@
       }
     }
   },
-  "components": {},
+  "components": {
+    "securitySchemes": {
+      "basicAuth": {
+        "type": "http",
+        "scheme": "basic"
+      },
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "digestAuth": {
+        "type": "http",
+        "scheme": "digest"
+      }
+    }
+  },
   "x-original-swagger-version": "2.0"
 }
