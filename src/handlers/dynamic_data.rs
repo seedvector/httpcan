@@ -194,6 +194,18 @@ pub async fn drip_handler(
         .body(random_bytes))
 }
 
+pub async fn delay_handler_get(
+    req: HttpRequest,
+    path: web::Path<u64>,
+) -> Result<HttpResponse> {
+    let delay_seconds = path.into_inner().min(10); // Max 10 seconds
+    
+    sleep(Duration::from_secs(delay_seconds)).await;
+    
+    let request_info = extract_request_info(&req, None);
+    Ok(HttpResponse::Ok().json(request_info))
+}
+
 pub async fn delay_handler(
     req: HttpRequest,
     path: web::Path<u64>,

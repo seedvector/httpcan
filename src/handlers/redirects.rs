@@ -71,21 +71,26 @@ pub async fn absolute_redirect_handler(
     }
 }
 
-pub async fn redirect_to_handler(
+pub async fn redirect_to_handler_get(
     req: HttpRequest,
     query: web::Query<RedirectToQuery>,
-    form: Option<web::Form<RedirectToForm>>,
 ) -> Result<HttpResponse> {
-    let (url, status_code) = if let Some(form_data) = form {
-        (form_data.url.clone(), form_data.status_code)
-    } else {
-        (query.url.clone(), query.status_code)
-    };
-    
-    let status_code = status_code.unwrap_or(302);
+    let status_code = query.status_code.unwrap_or(302);
     let status = StatusCode::from_u16(status_code).unwrap_or(StatusCode::FOUND);
     
     Ok(HttpResponse::build(status)
-        .append_header(("Location", url))
+        .append_header(("Location", query.url.clone()))
+        .body(""))
+}
+
+pub async fn redirect_to_handler(
+    req: HttpRequest,
+    form: web::Form<RedirectToForm>,
+) -> Result<HttpResponse> {
+    let status_code = form.status_code.unwrap_or(302);
+    let status = StatusCode::from_u16(status_code).unwrap_or(StatusCode::FOUND);
+    
+    Ok(HttpResponse::build(status)
+        .append_header(("Location", form.url.clone()))
         .body(""))
 }
