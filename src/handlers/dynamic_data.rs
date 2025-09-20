@@ -202,7 +202,8 @@ pub async fn delay_handler_get(
     
     sleep(Duration::from_secs(delay_seconds)).await;
     
-    let request_info = extract_request_info(&req, None);
+    let mut request_info = extract_request_info(&req, None);
+    fix_request_info_url(&req, &mut request_info);
     Ok(HttpResponse::Ok().json(request_info))
 }
 
@@ -215,6 +216,7 @@ pub async fn delay_handler(
     
     sleep(Duration::from_secs(delay_seconds)).await;
     
-    let request_info = extract_request_info(&req, Some(&body));
+    let mut request_info = extract_request_info(&req, Some(&body));
+    fix_request_info_url(&req, &mut request_info);
     Ok(HttpResponse::Ok().json(request_info))
 }

@@ -15,7 +15,7 @@ use rand::Rng;
 use base64::{Engine as _, engine::general_purpose};
 use uuid::Uuid;
 use url::form_urlencoded;
-use crate::RequestInfo;
+use crate::{RequestInfo, GetRequestInfo};
 
 pub mod http_methods;
 pub mod anything;
@@ -40,6 +40,55 @@ pub use response_inspection::*;
 pub use cookies::*;
 pub use images::*;
 pub use status::*;
+
+// Helper function to fix URL field in RequestInfo to include full URL
+pub fn fix_request_info_url(req: &HttpRequest, request_info: &mut RequestInfo) {
+    let connection_info = req.connection_info();
+    let scheme = connection_info.scheme();
+    let host = connection_info.host();
+    let full_url = format!("{}://{}{}", scheme, host, req.uri());
+    request_info.url = full_url;
+}
+
+// Helper function to extract GET request information (httpbin.org compatible)
+pub fn extract_get_request_info(req: &HttpRequest) -> GetRequestInfo {
+    let headers: HashMap<String, String> = req
+        .headers()
+        .iter()
+        .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_string()))
+        .collect();
+
+    let args: HashMap<String, String> = req
+        .query_string()
+        .split('&')
+        .filter_map(|pair| {
+            if pair.is_empty() {
+                return None;
+            }
+            let mut parts = pair.split('=');
+            match (parts.next(), parts.next()) {
+                (Some(key), Some(value)) => Some((key.to_string(), value.to_string())),
+                (Some(key), None) => Some((key.to_string(), String::new())),
+                _ => None,
+            }
+        })
+        .collect();
+
+    let connection_info = req.connection_info();
+    let origin = connection_info.realip_remote_addr().unwrap_or("127.0.0.1").to_string();
+    
+    // Construct full URL including scheme and host
+    let scheme = connection_info.scheme();
+    let host = connection_info.host();
+    let full_url = format!("{}://{}{}", scheme, host, req.uri());
+    
+    GetRequestInfo {
+        args,
+        headers,
+        origin,
+        url: full_url,
+    }
+}
 
 // Helper function to extract request information
 pub fn extract_request_info(req: &HttpRequest, body: Option<&str>) -> RequestInfo {

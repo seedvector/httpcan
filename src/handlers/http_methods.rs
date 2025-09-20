@@ -1,7 +1,7 @@
 use super::*;
 
 pub async fn get_handler(req: HttpRequest) -> Result<HttpResponse> {
-    let request_info = extract_request_info(&req, None);
+    let request_info = extract_get_request_info(&req);
     Ok(HttpResponse::Ok().json(request_info))
 }
 
@@ -18,7 +18,8 @@ pub async fn post_handler(req: HttpRequest, payload: web::Payload) -> Result<Htt
         match extract_request_info_multipart(&req, multipart).await {
             Ok(request_info) => Ok(HttpResponse::Ok().json(request_info)),
             Err(_) => {
-                let request_info = extract_request_info(&req, None);
+                let mut request_info = extract_request_info(&req, None);
+                fix_request_info_url(&req, &mut request_info);
                 Ok(HttpResponse::Ok().json(request_info))
             }
         }
@@ -35,7 +36,8 @@ pub async fn post_handler(req: HttpRequest, payload: web::Payload) -> Result<Htt
         }
         
         let body_string = String::from_utf8_lossy(&body);
-        let request_info = extract_request_info(&req, Some(&body_string));
+        let mut request_info = extract_request_info(&req, Some(&body_string));
+        fix_request_info_url(&req, &mut request_info);
         Ok(HttpResponse::Ok().json(request_info))
     }
 }
@@ -51,7 +53,8 @@ pub async fn put_handler(req: HttpRequest, payload: web::Payload) -> Result<Http
         match extract_request_info_multipart(&req, multipart).await {
             Ok(request_info) => Ok(HttpResponse::Ok().json(request_info)),
             Err(_) => {
-                let request_info = extract_request_info(&req, None);
+                let mut request_info = extract_request_info(&req, None);
+                fix_request_info_url(&req, &mut request_info);
                 Ok(HttpResponse::Ok().json(request_info))
             }
         }
@@ -67,7 +70,8 @@ pub async fn put_handler(req: HttpRequest, payload: web::Payload) -> Result<Http
         }
         
         let body_string = String::from_utf8_lossy(&body);
-        let request_info = extract_request_info(&req, Some(&body_string));
+        let mut request_info = extract_request_info(&req, Some(&body_string));
+        fix_request_info_url(&req, &mut request_info);
         Ok(HttpResponse::Ok().json(request_info))
     }
 }
@@ -83,7 +87,8 @@ pub async fn patch_handler(req: HttpRequest, payload: web::Payload) -> Result<Ht
         match extract_request_info_multipart(&req, multipart).await {
             Ok(request_info) => Ok(HttpResponse::Ok().json(request_info)),
             Err(_) => {
-                let request_info = extract_request_info(&req, None);
+                let mut request_info = extract_request_info(&req, None);
+                fix_request_info_url(&req, &mut request_info);
                 Ok(HttpResponse::Ok().json(request_info))
             }
         }
@@ -99,7 +104,8 @@ pub async fn patch_handler(req: HttpRequest, payload: web::Payload) -> Result<Ht
         }
         
         let body_string = String::from_utf8_lossy(&body);
-        let request_info = extract_request_info(&req, Some(&body_string));
+        let mut request_info = extract_request_info(&req, Some(&body_string));
+        fix_request_info_url(&req, &mut request_info);
         Ok(HttpResponse::Ok().json(request_info))
     }
 }
@@ -115,7 +121,8 @@ pub async fn delete_handler(req: HttpRequest, payload: web::Payload) -> Result<H
         match extract_request_info_multipart(&req, multipart).await {
             Ok(request_info) => Ok(HttpResponse::Ok().json(request_info)),
             Err(_) => {
-                let request_info = extract_request_info(&req, None);
+                let mut request_info = extract_request_info(&req, None);
+                fix_request_info_url(&req, &mut request_info);
                 Ok(HttpResponse::Ok().json(request_info))
             }
         }
@@ -131,7 +138,8 @@ pub async fn delete_handler(req: HttpRequest, payload: web::Payload) -> Result<H
         }
         
         let body_string = String::from_utf8_lossy(&body);
-        let request_info = extract_request_info(&req, Some(&body_string));
+        let mut request_info = extract_request_info(&req, Some(&body_string));
+        fix_request_info_url(&req, &mut request_info);
         Ok(HttpResponse::Ok().json(request_info))
     }
 }
@@ -142,7 +150,8 @@ pub async fn post_multipart_handler(req: HttpRequest, payload: Multipart) -> Res
         Ok(request_info) => Ok(HttpResponse::Ok().json(request_info)),
         Err(_) => {
             // Fallback to regular handler if multipart parsing fails
-            let request_info = extract_request_info(&req, None);
+            let mut request_info = extract_request_info(&req, None);
+            fix_request_info_url(&req, &mut request_info);
             Ok(HttpResponse::Ok().json(request_info))
         }
     }
@@ -152,7 +161,8 @@ pub async fn put_multipart_handler(req: HttpRequest, payload: Multipart) -> Resu
     match extract_request_info_multipart(&req, payload).await {
         Ok(request_info) => Ok(HttpResponse::Ok().json(request_info)),
         Err(_) => {
-            let request_info = extract_request_info(&req, None);
+            let mut request_info = extract_request_info(&req, None);
+            fix_request_info_url(&req, &mut request_info);
             Ok(HttpResponse::Ok().json(request_info))
         }
     }
@@ -162,7 +172,8 @@ pub async fn patch_multipart_handler(req: HttpRequest, payload: Multipart) -> Re
     match extract_request_info_multipart(&req, payload).await {
         Ok(request_info) => Ok(HttpResponse::Ok().json(request_info)),
         Err(_) => {
-            let request_info = extract_request_info(&req, None);
+            let mut request_info = extract_request_info(&req, None);
+            fix_request_info_url(&req, &mut request_info);
             Ok(HttpResponse::Ok().json(request_info))
         }
     }
@@ -172,7 +183,8 @@ pub async fn delete_multipart_handler(req: HttpRequest, payload: Multipart) -> R
     match extract_request_info_multipart(&req, payload).await {
         Ok(request_info) => Ok(HttpResponse::Ok().json(request_info)),
         Err(_) => {
-            let request_info = extract_request_info(&req, None);
+            let mut request_info = extract_request_info(&req, None);
+            fix_request_info_url(&req, &mut request_info);
             Ok(HttpResponse::Ok().json(request_info))
         }
     }

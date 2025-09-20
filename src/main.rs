@@ -23,6 +23,15 @@ struct RequestInfo {
     user_agent: Option<String>,
 }
 
+// Simplified response structure for GET requests (httpbin.org compatible)
+#[derive(Serialize, Deserialize)]
+struct GetRequestInfo {
+    args: HashMap<String, String>,
+    headers: HashMap<String, String>,
+    origin: String,
+    url: String,
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();

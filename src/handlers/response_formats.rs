@@ -123,7 +123,8 @@ pub async fn utf8_handler(req: HttpRequest) -> Result<HttpResponse> {
 }
 
 pub async fn gzip_handler(req: HttpRequest) -> Result<HttpResponse> {
-    let request_info = extract_request_info(&req, None);
+    let mut request_info = extract_request_info(&req, None);
+    fix_request_info_url(&req, &mut request_info);
     let json_data = serde_json::to_vec(&request_info).unwrap();
     
     let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
@@ -137,7 +138,8 @@ pub async fn gzip_handler(req: HttpRequest) -> Result<HttpResponse> {
 }
 
 pub async fn deflate_handler(req: HttpRequest) -> Result<HttpResponse> {
-    let request_info = extract_request_info(&req, None);
+    let mut request_info = extract_request_info(&req, None);
+    fix_request_info_url(&req, &mut request_info);
     let json_data = serde_json::to_vec(&request_info).unwrap();
     
     let mut encoder = DeflateEncoder::new(Vec::new(), Compression::default());
@@ -151,7 +153,8 @@ pub async fn deflate_handler(req: HttpRequest) -> Result<HttpResponse> {
 }
 
 pub async fn brotli_handler(req: HttpRequest) -> Result<HttpResponse> {
-    let request_info = extract_request_info(&req, None);
+    let mut request_info = extract_request_info(&req, None);
+    fix_request_info_url(&req, &mut request_info);
     let json_data = serde_json::to_vec(&request_info).unwrap();
     
     let mut compressed_data = Vec::new();
