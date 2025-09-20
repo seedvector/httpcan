@@ -5,9 +5,36 @@ pub async fn anything_handler_get(req: HttpRequest) -> Result<HttpResponse> {
     Ok(HttpResponse::Ok().json(request_info))
 }
 
-pub async fn anything_handler(req: HttpRequest, body: String) -> Result<HttpResponse> {
-    let request_info = extract_request_info(&req, Some(&body));
-    Ok(HttpResponse::Ok().json(request_info))
+pub async fn anything_handler(req: HttpRequest, payload: web::Payload) -> Result<HttpResponse> {
+    let content_type = req.headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    if content_type.to_lowercase().starts_with("multipart/form-data") {
+        let multipart = Multipart::new(&req.headers(), payload);
+        match extract_request_info_multipart(&req, multipart).await {
+            Ok(request_info) => Ok(HttpResponse::Ok().json(request_info)),
+            Err(_) => {
+                let request_info = extract_request_info(&req, None);
+                Ok(HttpResponse::Ok().json(request_info))
+            }
+        }
+    } else {
+        use actix_web::web::BytesMut;
+        use futures_util::StreamExt;
+        
+        let mut body = BytesMut::new();
+        let mut payload = payload;
+        while let Some(chunk) = payload.next().await {
+            let chunk = chunk?;
+            body.extend_from_slice(&chunk);
+        }
+        
+        let body_string = String::from_utf8_lossy(&body);
+        let request_info = extract_request_info(&req, Some(&body_string));
+        Ok(HttpResponse::Ok().json(request_info))
+    }
 }
 
 pub async fn anything_with_param_handler_get(
@@ -23,10 +50,69 @@ pub async fn anything_with_param_handler_get(
 pub async fn anything_with_param_handler(
     req: HttpRequest,
     path: web::Path<String>,
-    body: String,
+    payload: web::Payload,
 ) -> Result<HttpResponse> {
-    let mut request_info = extract_request_info(&req, Some(&body));
-    // Add the path parameter to the response
-    request_info.args.insert("anything".to_string(), path.into_inner());
-    Ok(HttpResponse::Ok().json(request_info))
+    let content_type = req.headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    if content_type.to_lowercase().starts_with("multipart/form-data") {
+        let multipart = Multipart::new(&req.headers(), payload);
+        match extract_request_info_multipart(&req, multipart).await {
+            Ok(mut request_info) => {
+                request_info.args.insert("anything".to_string(), path.into_inner());
+                Ok(HttpResponse::Ok().json(request_info))
+            }
+            Err(_) => {
+                let mut request_info = extract_request_info(&req, None);
+                request_info.args.insert("anything".to_string(), path.into_inner());
+                Ok(HttpResponse::Ok().json(request_info))
+            }
+        }
+    } else {
+        use actix_web::web::BytesMut;
+        use futures_util::StreamExt;
+        
+        let mut body = BytesMut::new();
+        let mut payload = payload;
+        while let Some(chunk) = payload.next().await {
+            let chunk = chunk?;
+            body.extend_from_slice(&chunk);
+        }
+        
+        let body_string = String::from_utf8_lossy(&body);
+        let mut request_info = extract_request_info(&req, Some(&body_string));
+        request_info.args.insert("anything".to_string(), path.into_inner());
+        Ok(HttpResponse::Ok().json(request_info))
+    }
+}
+
+// Multipart handlers for anything endpoints
+pub async fn anything_multipart_handler(req: HttpRequest, payload: Multipart) -> Result<HttpResponse> {
+    match extract_request_info_multipart(&req, payload).await {
+        Ok(request_info) => Ok(HttpResponse::Ok().json(request_info)),
+        Err(_) => {
+            let request_info = extract_request_info(&req, None);
+            Ok(HttpResponse::Ok().json(request_info))
+        }
+    }
+}
+
+pub async fn anything_with_param_multipart_handler(
+    req: HttpRequest,
+    path: web::Path<String>,
+    payload: Multipart,
+) -> Result<HttpResponse> {
+    match extract_request_info_multipart(&req, payload).await {
+        Ok(mut request_info) => {
+            request_info.args.insert("anything".to_string(), path.into_inner());
+            Ok(HttpResponse::Ok().json(request_info))
+        }
+        Err(_) => {
+            let mut request_info = extract_request_info(&req, None);
+            request_info.args.insert("anything".to_string(), path.into_inner());
+            Ok(HttpResponse::Ok().json(request_info))
+        }
+    }
 }

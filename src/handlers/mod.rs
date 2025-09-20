@@ -4,15 +4,17 @@ use actix_web::{
     cookie::Cookie,
 };
 use actix_web_httpauth::extractors::{basic::BasicAuth, bearer::BearerAuth};
-use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use actix_multipart::Multipart;
+use serde::Deserialize;
+use serde_json::json;
 use std::collections::HashMap;
 use std::time::Duration;
-use futures_util::StreamExt;
+use futures_util::{StreamExt, TryStreamExt};
 use tokio::time::sleep;
 use rand::Rng;
 use base64::{Engine as _, engine::general_purpose};
 use uuid::Uuid;
+use url::form_urlencoded;
 use crate::RequestInfo;
 
 pub mod http_methods;
@@ -62,13 +64,49 @@ pub fn extract_request_info(req: &HttpRequest, body: Option<&str>) -> RequestInf
     let connection_info = req.connection_info();
     let origin = connection_info.realip_remote_addr().unwrap_or("127.0.0.1").to_string();
     
+    // Parse form data based on content type
+    let mut form_data = HashMap::new();
+    let mut data_string = String::new();
+    
+    if let Some(body_str) = body {
+        let content_type = req.headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+            
+        if content_type.to_lowercase().starts_with("application/x-www-form-urlencoded") {
+            // Parse URL-encoded form data
+            for (key, value) in form_urlencoded::parse(body_str.as_bytes()) {
+                form_data.insert(key.to_string(), value.to_string());
+            }
+        } else if content_type.to_lowercase().starts_with("multipart/form-data") {
+            // For multipart data, put raw data in data field as fallback
+            // The proper multipart parsing should be done via extract_request_info_multipart
+            data_string = body_str.to_string();
+        } else {
+            // For non-form data, put it in the data field
+            data_string = body_str.to_string();
+        }
+    }
+    
     RequestInfo {
         args,
-        data: body.unwrap_or("").to_string(),
+        data: data_string,
         files: HashMap::new(),
-        form: HashMap::new(),
+        form: form_data,
         headers,
-        json: body.and_then(|b| serde_json::from_str(b).ok()),
+        json: body.and_then(|b| {
+            if let Some(content_type) = req.headers().get("content-type")
+                .and_then(|v| v.to_str().ok()) {
+                if content_type.starts_with("application/json") {
+                    serde_json::from_str(b).ok()
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }),
         method: req.method().to_string(),
         origin,
         url: req.uri().to_string(),
@@ -77,4 +115,76 @@ pub fn extract_request_info(req: &HttpRequest, body: Option<&str>) -> RequestInf
             .and_then(|v| v.to_str().ok())
             .map(|s| s.to_string()),
     }
+}
+
+// Helper function to extract request information from multipart data
+pub async fn extract_request_info_multipart(req: &HttpRequest, mut payload: Multipart) -> Result<RequestInfo> {
+    let headers: HashMap<String, String> = req
+        .headers()
+        .iter()
+        .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_string()))
+        .collect();
+
+    let args: HashMap<String, String> = req
+        .query_string()
+        .split('&')
+        .filter_map(|pair| {
+            let mut parts = pair.split('=');
+            match (parts.next(), parts.next()) {
+                (Some(key), Some(value)) => Some((key.to_string(), value.to_string())),
+                _ => None,
+            }
+        })
+        .collect();
+
+    let connection_info = req.connection_info();
+    let origin = connection_info.realip_remote_addr().unwrap_or("127.0.0.1").to_string();
+    
+    let mut form_data = HashMap::new();
+    let mut files = HashMap::new();
+    
+    // Parse multipart data
+    while let Some(mut field) = payload.try_next().await? {
+        let content_disposition = field.content_disposition();
+        let field_name = content_disposition.get_name().map(|s| s.to_string());
+        let filename = content_disposition.get_filename().map(|s| s.to_string());
+        
+        if let Some(name) = field_name {
+            let mut data = Vec::new();
+            
+            // Read field data
+            while let Some(chunk) = field.try_next().await? {
+                data.extend_from_slice(&chunk);
+            }
+            
+            if let Some(filename) = filename {
+                // This is a file upload
+                files.insert(
+                    name,
+                    format!("{} ({} bytes)", filename, data.len())
+                );
+            } else {
+                // This is a regular form field
+                if let Ok(value) = String::from_utf8(data) {
+                    form_data.insert(name, value);
+                }
+            }
+        }
+    }
+    
+    Ok(RequestInfo {
+        args,
+        data: String::new(),
+        files,
+        form: form_data,
+        headers,
+        json: None,
+        method: req.method().to_string(),
+        origin,
+        url: req.uri().to_string(),
+        user_agent: req.headers()
+            .get("user-agent")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string()),
+    })
 }
