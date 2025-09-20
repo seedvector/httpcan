@@ -1,4 +1,5 @@
 use super::*;
+use serde_json::Value;
 
 pub async fn cache_handler(req: HttpRequest) -> Result<HttpResponse> {
     let if_modified_since = req.headers().get("If-Modified-Since");
@@ -62,15 +63,30 @@ pub async fn response_headers_get_handler(
     req: HttpRequest,
     query: web::Query<HashMap<String, String>>,
 ) -> Result<HttpResponse> {
-    let mut request_info = extract_request_info(&req, None);
-    fix_request_info_url(&req, &mut request_info);
     let mut response = HttpResponse::Ok();
     
+    // First, add all query parameters as actual response headers
     for (key, value) in query.iter() {
         response.append_header((key.as_str(), value.as_str()));
     }
     
-    Ok(response.json(request_info))
+    // Prepare the headers map that will be in the JSON response
+    let mut headers_map: HashMap<String, Value> = HashMap::new();
+    
+    // Add query parameters to the JSON response
+    for (key, value) in query.iter() {
+        headers_map.insert(key.clone(), Value::String(value.clone()));
+    }
+    
+    // Add the standard headers that httpbin includes in the JSON response
+    headers_map.insert("content-type".to_string(), Value::String("application/json".to_string()));
+    
+    // Calculate content length for the final JSON
+    let temp_json = serde_json::to_string(&headers_map)?;
+    let final_content_length = temp_json.len().to_string();
+    headers_map.insert("content-length".to_string(), Value::String(final_content_length));
+    
+    Ok(response.json(headers_map))
 }
 
 pub async fn response_headers_post_handler(
@@ -78,13 +94,28 @@ pub async fn response_headers_post_handler(
     query: web::Query<HashMap<String, String>>,
     body: String,
 ) -> Result<HttpResponse> {
-    let mut request_info = extract_request_info(&req, Some(&body));
-    fix_request_info_url(&req, &mut request_info);
     let mut response = HttpResponse::Ok();
     
+    // First, add all query parameters as actual response headers
     for (key, value) in query.iter() {
         response.append_header((key.as_str(), value.as_str()));
     }
     
-    Ok(response.json(request_info))
+    // Prepare the headers map that will be in the JSON response
+    let mut headers_map: HashMap<String, Value> = HashMap::new();
+    
+    // Add query parameters to the JSON response
+    for (key, value) in query.iter() {
+        headers_map.insert(key.clone(), Value::String(value.clone()));
+    }
+    
+    // Add the standard headers that httpbin includes in the JSON response
+    headers_map.insert("Content-Type".to_string(), Value::String("application/json".to_string()));
+    
+    // Calculate content length for the final JSON
+    let temp_json = serde_json::to_string(&headers_map)?;
+    let final_content_length = temp_json.len().to_string();
+    headers_map.insert("Content-Length".to_string(), Value::String(final_content_length));
+    
+    Ok(response.json(headers_map))
 }
