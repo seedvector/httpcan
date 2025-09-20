@@ -9,7 +9,7 @@ pub struct DripQuery {
     delay: Option<f64>,
 }
 
-pub async fn uuid_handler(req: HttpRequest) -> Result<HttpResponse> {
+pub async fn uuid_handler(_req: HttpRequest) -> Result<HttpResponse> {
     let uuid = Uuid::new_v4();
     Ok(HttpResponse::Ok().json(json!({
         "uuid": uuid.to_string()
@@ -17,7 +17,7 @@ pub async fn uuid_handler(req: HttpRequest) -> Result<HttpResponse> {
 }
 
 pub async fn base64_handler(
-    req: HttpRequest,
+    _req: HttpRequest,
     path: web::Path<String>,
 ) -> Result<HttpResponse> {
     let encoded_value = path.into_inner();
@@ -48,7 +48,7 @@ pub async fn base64_handler(
 }
 
 pub async fn bytes_handler(
-    req: HttpRequest,
+    _req: HttpRequest,
     path: web::Path<usize>,
 ) -> Result<HttpResponse> {
     let n = path.into_inner();
@@ -63,7 +63,7 @@ pub async fn bytes_handler(
 }
 
 pub async fn stream_bytes_handler(
-    req: HttpRequest,
+    _req: HttpRequest,
     path: web::Path<usize>,
 ) -> Result<HttpResponse> {
     let n = path.into_inner();
@@ -80,7 +80,7 @@ pub async fn stream_bytes_handler(
 }
 
 pub async fn stream_handler(
-    req: HttpRequest,
+    _req: HttpRequest,
     path: web::Path<usize>,
 ) -> Result<HttpResponse> {
     let n = path.into_inner();
@@ -147,7 +147,7 @@ pub async fn range_handler(
 }
 
 pub async fn links_handler(
-    req: HttpRequest,
+    _req: HttpRequest,
     path: web::Path<(usize, usize)>,
 ) -> Result<HttpResponse> {
     let (n, offset) = path.into_inner();
@@ -171,10 +171,10 @@ pub async fn links_handler(
 }
 
 pub async fn drip_handler(
-    req: HttpRequest,
+    _req: HttpRequest,
     query: web::Query<DripQuery>,
 ) -> Result<HttpResponse> {
-    let duration = query.duration.unwrap_or(2.0);
+    let _duration = query.duration.unwrap_or(2.0);
     let numbytes = query.numbytes.unwrap_or(10);
     let code = query.code.unwrap_or(200);
     let delay = query.delay.unwrap_or(2.0);

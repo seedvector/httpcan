@@ -1,7 +1,7 @@
 use super::*;
 
 pub async fn status_handler_get(
-    req: HttpRequest,
+    _req: HttpRequest,
     path: web::Path<String>,
 ) -> Result<HttpResponse> {
     let codes_str = path.into_inner();
@@ -49,9 +49,9 @@ pub async fn status_handler_get(
 }
 
 pub async fn status_handler(
-    req: HttpRequest,
+    _req: HttpRequest,
     path: web::Path<String>,
-    body: String,
+    _body: String,
 ) -> Result<HttpResponse> {
     let codes_str = path.into_inner();
     

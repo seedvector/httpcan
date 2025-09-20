@@ -2,7 +2,7 @@ use super::*;
 use flate2::{write::GzEncoder, write::DeflateEncoder, Compression};
 use std::io::Write;
 
-pub async fn json_handler(req: HttpRequest) -> Result<HttpResponse> {
+pub async fn json_handler(_req: HttpRequest) -> Result<HttpResponse> {
     let sample_data = json!({
         "slideshow": {
             "author": "Yours Truly",
@@ -30,7 +30,7 @@ pub async fn json_handler(req: HttpRequest) -> Result<HttpResponse> {
         .json(sample_data))
 }
 
-pub async fn xml_handler(req: HttpRequest) -> Result<HttpResponse> {
+pub async fn xml_handler(_req: HttpRequest) -> Result<HttpResponse> {
     let xml_content = r#"<?xml version='1.0' encoding='us-ascii'?>
 <!--  A SAMPLE set of slides  -->
 <slideshow 
@@ -57,7 +57,7 @@ pub async fn xml_handler(req: HttpRequest) -> Result<HttpResponse> {
         .body(xml_content))
 }
 
-pub async fn html_handler(req: HttpRequest) -> Result<HttpResponse> {
+pub async fn html_handler(_req: HttpRequest) -> Result<HttpResponse> {
     let html_content = r#"<!DOCTYPE html>
 <html>
   <head>
@@ -87,7 +87,7 @@ pub async fn html_handler(req: HttpRequest) -> Result<HttpResponse> {
         .body(html_content))
 }
 
-pub async fn robots_txt_handler(req: HttpRequest) -> Result<HttpResponse> {
+pub async fn robots_txt_handler(_req: HttpRequest) -> Result<HttpResponse> {
     let robots_content = "User-agent: *\nDisallow: /deny\n";
     
     Ok(HttpResponse::Ok()
@@ -95,13 +95,13 @@ pub async fn robots_txt_handler(req: HttpRequest) -> Result<HttpResponse> {
         .body(robots_content))
 }
 
-pub async fn deny_handler(req: HttpRequest) -> Result<HttpResponse> {
+pub async fn deny_handler(_req: HttpRequest) -> Result<HttpResponse> {
     Ok(HttpResponse::Ok()
         .content_type("text/plain")
         .body("YOU SHOULDN'T BE HERE"))
 }
 
-pub async fn utf8_handler(req: HttpRequest) -> Result<HttpResponse> {
+pub async fn utf8_handler(_req: HttpRequest) -> Result<HttpResponse> {
     let utf8_content = r#"<!DOCTYPE html>
 <html>
   <head>

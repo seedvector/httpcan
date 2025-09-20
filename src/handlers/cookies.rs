@@ -20,7 +20,7 @@ pub async fn cookies_handler(req: HttpRequest) -> Result<HttpResponse> {
 }
 
 pub async fn cookies_set_handler(
-    req: HttpRequest,
+    _req: HttpRequest,
     query: web::Query<HashMap<String, String>>,
 ) -> Result<HttpResponse> {
     let mut response = HttpResponse::Found();
@@ -38,7 +38,7 @@ pub async fn cookies_set_handler(
 }
 
 pub async fn cookies_set_named_handler(
-    req: HttpRequest,
+    _req: HttpRequest,
     path: web::Path<(String, String)>,
 ) -> Result<HttpResponse> {
     let (name, value) = path.into_inner();
@@ -54,7 +54,7 @@ pub async fn cookies_set_named_handler(
 }
 
 pub async fn cookies_delete_handler(
-    req: HttpRequest,
+    _req: HttpRequest,
     query: web::Query<HashMap<String, String>>,
 ) -> Result<HttpResponse> {
     let mut response = HttpResponse::Found();

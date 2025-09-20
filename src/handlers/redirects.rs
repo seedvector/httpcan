@@ -13,7 +13,7 @@ pub struct RedirectToForm {
 }
 
 pub async fn redirect_handler(
-    req: HttpRequest,
+    _req: HttpRequest,
     path: web::Path<usize>,
 ) -> Result<HttpResponse> {
     let n = path.into_inner();
@@ -32,7 +32,7 @@ pub async fn redirect_handler(
 }
 
 pub async fn relative_redirect_handler(
-    req: HttpRequest,
+    _req: HttpRequest,
     path: web::Path<usize>,
 ) -> Result<HttpResponse> {
     let n = path.into_inner();
@@ -72,7 +72,7 @@ pub async fn absolute_redirect_handler(
 }
 
 pub async fn redirect_to_handler_get(
-    req: HttpRequest,
+    _req: HttpRequest,
     query: web::Query<RedirectToQuery>,
 ) -> Result<HttpResponse> {
     let status_code = query.status_code.unwrap_or(302);
@@ -84,7 +84,7 @@ pub async fn redirect_to_handler_get(
 }
 
 pub async fn redirect_to_handler(
-    req: HttpRequest,
+    _req: HttpRequest,
     form: web::Form<RedirectToForm>,
 ) -> Result<HttpResponse> {
     let status_code = form.status_code.unwrap_or(302);

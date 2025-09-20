@@ -60,7 +60,7 @@ pub async fn etag_handler(
 }
 
 pub async fn response_headers_get_handler(
-    req: HttpRequest,
+    _req: HttpRequest,
     query: web::Query<HashMap<String, String>>,
 ) -> Result<HttpResponse> {
     let mut response = HttpResponse::Ok();
@@ -90,9 +90,9 @@ pub async fn response_headers_get_handler(
 }
 
 pub async fn response_headers_post_handler(
-    req: HttpRequest,
+    _req: HttpRequest,
     query: web::Query<HashMap<String, String>>,
-    body: String,
+    _body: String,
 ) -> Result<HttpResponse> {
     let mut response = HttpResponse::Ok();
     

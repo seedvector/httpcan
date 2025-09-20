@@ -102,37 +102,3 @@ pub async fn anything_with_param_handler(
     }
 }
 
-// Multipart handlers for anything endpoints
-pub async fn anything_multipart_handler(req: HttpRequest, payload: Multipart) -> Result<HttpResponse> {
-    match extract_request_info_multipart(&req, payload).await {
-        Ok(mut request_info) => {
-            fix_request_info_url(&req, &mut request_info);
-            Ok(HttpResponse::Ok().json(request_info))
-        }
-        Err(_) => {
-            let mut request_info = extract_request_info(&req, None);
-            fix_request_info_url(&req, &mut request_info);
-            Ok(HttpResponse::Ok().json(request_info))
-        }
-    }
-}
-
-pub async fn anything_with_param_multipart_handler(
-    req: HttpRequest,
-    path: web::Path<String>,
-    payload: Multipart,
-) -> Result<HttpResponse> {
-    match extract_request_info_multipart(&req, payload).await {
-        Ok(mut request_info) => {
-            fix_request_info_url(&req, &mut request_info);
-            request_info.args.insert("anything".to_string(), path.into_inner());
-            Ok(HttpResponse::Ok().json(request_info))
-        }
-        Err(_) => {
-            let mut request_info = extract_request_info(&req, None);
-            fix_request_info_url(&req, &mut request_info);
-            request_info.args.insert("anything".to_string(), path.into_inner());
-            Ok(HttpResponse::Ok().json(request_info))
-        }
-    }
-}

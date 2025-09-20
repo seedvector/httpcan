@@ -62,25 +62,25 @@ pub async fn image_handler(req: HttpRequest) -> Result<HttpResponse> {
     }
 }
 
-pub async fn image_png_handler(req: HttpRequest) -> Result<HttpResponse> {
+pub async fn image_png_handler(_req: HttpRequest) -> Result<HttpResponse> {
     Ok(HttpResponse::Ok()
         .content_type("image/png")
         .body(PNG_IMAGE))
 }
 
-pub async fn image_jpeg_handler(req: HttpRequest) -> Result<HttpResponse> {
+pub async fn image_jpeg_handler(_req: HttpRequest) -> Result<HttpResponse> {
     Ok(HttpResponse::Ok()
         .content_type("image/jpeg")
         .body(JPEG_IMAGE))
 }
 
-pub async fn image_webp_handler(req: HttpRequest) -> Result<HttpResponse> {
+pub async fn image_webp_handler(_req: HttpRequest) -> Result<HttpResponse> {
     Ok(HttpResponse::Ok()
         .content_type("image/webp")
         .body(WEBP_IMAGE))
 }
 
-pub async fn image_svg_handler(req: HttpRequest) -> Result<HttpResponse> {
+pub async fn image_svg_handler(_req: HttpRequest) -> Result<HttpResponse> {
     let svg_content = r#"<?xml version="1.0" encoding="UTF-8"?>
 <svg width="100" height="100" xmlns="http://www.w3.org/2000/svg">
   <rect width="100" height="100" fill="red"/>
