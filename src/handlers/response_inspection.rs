@@ -79,12 +79,12 @@ pub async fn response_headers_get_handler(
     }
     
     // Add the standard headers that httpbin includes in the JSON response
-    headers_map.insert("content-type".to_string(), Value::String("application/json".to_string()));
+    headers_map.insert("Content-type".to_string(), Value::String("application/json".to_string()));
     
     // Calculate content length for the final JSON
     let temp_json = serde_json::to_string(&headers_map)?;
     let final_content_length = temp_json.len().to_string();
-    headers_map.insert("content-length".to_string(), Value::String(final_content_length));
+    headers_map.insert("Content-length".to_string(), Value::String(final_content_length));
     
     Ok(response.json(headers_map))
 }
