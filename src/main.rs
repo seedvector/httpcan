@@ -1,13 +1,27 @@
 use actix_web::{
     web, App, HttpServer,
     middleware::Logger,
+    HttpResponse, Result,
 };
+use actix_files as fs;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use clap::Parser;
 
 mod handlers;
 use handlers::*;
+
+/// HTTPCan - HTTP testing service similar to httpbin.org
+#[derive(Parser)]
+#[command(name = "httpcan")]
+#[command(about = "A simple HTTP request & response service", long_about = None)]
+#[command(version)]
+struct Args {
+    /// Port number to listen on
+    #[arg(short, long, default_value_t = 8080)]
+    port: u16,
+}
 
 #[derive(Serialize, Deserialize)]
 struct RequestInfo {
@@ -32,15 +46,30 @@ struct GetRequestInfo {
     url: String,
 }
 
+// Handler for serving the index.html file at root path
+async fn index_handler() -> Result<HttpResponse> {
+    Ok(HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(include_str!("../static/index.html")))
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();
 
-    println!("Starting HTTPCan server on http://0.0.0.0:8080");
+    // Parse command line arguments
+    let args = Args::parse();
+    let port = args.port;
+
+    println!("Starting HTTPCan server on http://0.0.0.0:{}", port);
 
     HttpServer::new(|| {
         App::new()
             .wrap(Logger::default())
+            // Root path serving index.html
+            .route("/", web::get().to(index_handler))
+            // Static file service for other static files
+            .service(fs::Files::new("/static", "./static").show_files_listing())
             // HTTP Methods
             .route("/get", web::get().to(get_handler))
             .route("/post", web::post().to(post_handler))
@@ -139,7 +168,7 @@ async fn main() -> std::io::Result<()> {
             .route("/image/webp", web::get().to(image_webp_handler))
             .route("/image/svg", web::get().to(image_svg_handler))
     })
-    .bind("0.0.0.0:8080")?
+    .bind(format!("0.0.0.0:{}", port))?
     .run()
     .await
 }
