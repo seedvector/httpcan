@@ -46,12 +46,7 @@ struct GetRequestInfo {
     url: String,
 }
 
-// Handler for serving the index.html file at root path
-async fn index_handler() -> Result<HttpResponse> {
-    Ok(HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(include_str!("../static/index.html")))
-}
+// Note: index.html is now served by actix-files at root path
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -66,10 +61,9 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
         App::new()
             .wrap(Logger::default())
-            // Root path serving index.html
-            .route("/", web::get().to(index_handler))
-            // Static file service for other static files
+            // Static file service for all static files including index.html at root
             .service(fs::Files::new("/static", "./static").show_files_listing())
+            .service(fs::Files::new("/", "./static").index_file("index.html"))
             // HTTP Methods
             .route("/get", web::get().to(get_handler))
             .route("/post", web::post().to(post_handler))
