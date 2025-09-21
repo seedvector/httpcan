@@ -1,13 +1,14 @@
 use actix_web::{
     web, App, HttpServer,
     middleware::Logger,
-    HttpResponse, Result,
 };
 use actix_files as fs;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use indexmap::IndexMap;
 use clap::Parser;
+use std::env;
+use std::path::PathBuf;
 
 mod handlers;
 use handlers::*;
@@ -46,7 +47,22 @@ struct GetRequestInfo {
     url: String,
 }
 
-// Note: index.html is now served by actix-files at root path
+// Helper function to get static directory path relative to executable
+fn get_static_path() -> PathBuf {
+    let exe_path = env::current_exe().unwrap();
+    let exe_dir = exe_path.parent().unwrap();
+    let static_path = exe_dir.join("static");
+    
+    // Fallback to current directory if static directory doesn't exist next to executable
+    if !static_path.exists() {
+        let current_dir_static = PathBuf::from("./static");
+        if current_dir_static.exists() {
+            return current_dir_static;
+        }
+    }
+    
+    static_path
+}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -59,11 +75,12 @@ async fn main() -> std::io::Result<()> {
     println!("Starting HTTPCan server on http://0.0.0.0:{}", port);
 
     HttpServer::new(|| {
+        let static_path = get_static_path();
         App::new()
             .wrap(Logger::default())
             // Static file service for all static files including index.html at root
-            .service(fs::Files::new("/static", "./static").show_files_listing())
-            .service(fs::Files::new("/", "./static").index_file("index.html"))
+            .service(fs::Files::new("/static", &static_path).show_files_listing())
+            .service(fs::Files::new("/", &static_path).index_file("index.html"))
             // HTTP Methods
             .route("/get", web::get().to(get_handler))
             .route("/post", web::post().to(post_handler))
