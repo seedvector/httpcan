@@ -3,15 +3,12 @@
   "info": {
     "title": "httpcan.org",
     "description": "A simple HTTP Request & Response Service, with httpbin compatibility. <br/> <br/> <b>Run locally: </b> <code>$ docker run --rm -p 8080:8080 ghcr.io/seedvector/httpcan</code>",
-    "contact": {
-      "name": "Sean Wong",
-      "email": "sean@seedvector.com"
-    },
     "version": "0.1.0"
   },
   "servers": [
     {
-      "url": "https://httpcan.org/"
+      "url": "https://httpcan.org/",
+      "description": "Demo server"
     }
   ],
   "tags": [
