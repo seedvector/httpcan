@@ -78,9 +78,8 @@ async fn main() -> std::io::Result<()> {
         let static_path = get_static_path();
         App::new()
             .wrap(Logger::default())
-            // Static file service for all static files including index.html at root
+            // Static file service for explicit /static path
             .service(fs::Files::new("/static", &static_path).show_files_listing())
-            .service(fs::Files::new("/", &static_path).index_file("index.html"))
             // HTTP Methods
             .route("/get", web::get().to(get_handler))
             .route("/post", web::post().to(post_handler))
@@ -178,6 +177,8 @@ async fn main() -> std::io::Result<()> {
             .route("/image/jpeg", web::get().to(image_jpeg_handler))
             .route("/image/webp", web::get().to(image_webp_handler))
             .route("/image/svg", web::get().to(image_svg_handler))
+            // Serve static files from root after all API routes (index.html for root)
+            .service(fs::Files::new("/", &static_path).index_file("index.html"))
     })
     .bind(format!("0.0.0.0:{}", port))?
     .run()
