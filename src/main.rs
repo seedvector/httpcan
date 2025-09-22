@@ -34,7 +34,7 @@ struct Args {
     #[arg(long)]
     no_current_server: bool,
     
-    /// Exclude specific headers from responses. Comma-separated list of header keys, supports wildcard suffix matching (e.g., "foo,bar,x-fc-*")
+    /// Exclude specific headers from responses. Comma-separated list of header keys, supports wildcard suffix matching (e.g., "foo, x-bar-*")
     #[arg(long)]
     exclude_headers: Option<String>,
 }
@@ -110,7 +110,7 @@ async fn openapi_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Resu
         let connection_info = req.connection_info();
         let scheme = connection_info.scheme();
         let host = connection_info.host();
-        let current_server_url = format!("{}://{}/", scheme, host);
+        let current_server_url = format!("{}://{}", scheme, host);
         
         // Get existing servers array from the OpenAPI spec
         let mut servers_array = Vec::new();
