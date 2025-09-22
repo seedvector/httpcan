@@ -1,14 +1,14 @@
 use super::*;
 
-pub async fn headers_handler(req: HttpRequest) -> Result<HttpResponse> {
+pub async fn headers_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Result<HttpResponse> {
     let headers: HashMap<String, String> = req
         .headers()
         .iter()
         .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_string()))
         .collect();
     
-    // Filter out reverse proxy and CDN headers
-    let filtered_headers = filter_proxy_headers(headers);
+    // Filter out reverse proxy and CDN headers, plus custom exclusions
+    let filtered_headers = filter_headers(headers, &config.exclude_headers);
     
     Ok(HttpResponse::Ok().json(json!({
         "headers": sort_hashmap(filtered_headers)

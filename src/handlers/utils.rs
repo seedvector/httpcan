@@ -19,6 +19,35 @@ pub fn sort_hashmap(map: HashMap<String, String>) -> IndexMap<String, String> {
     sorted_map
 }
 
+// Helper function to match header name against pattern (supports wildcard suffix matching)
+fn header_matches_pattern(header_name: &str, pattern: &str) -> bool {
+    let header_lower = header_name.to_lowercase();
+    let pattern_lower = pattern.to_lowercase();
+    
+    if pattern_lower.ends_with('*') {
+        // Wildcard suffix matching
+        let prefix = &pattern_lower[..pattern_lower.len() - 1];
+        header_lower.starts_with(prefix)
+    } else {
+        // Exact matching
+        header_lower == pattern_lower
+    }
+}
+
+// Enhanced header filtering function that supports both proxy filtering and custom exclusions
+pub fn filter_headers(headers: HashMap<String, String>, exclude_patterns: &[String]) -> HashMap<String, String> {
+    // First apply proxy header filtering
+    let proxy_filtered = filter_proxy_headers(headers);
+    
+    // Then apply custom exclusions
+    proxy_filtered
+        .into_iter()
+        .filter(|(name, _)| {
+            !exclude_patterns.iter().any(|pattern| header_matches_pattern(name, pattern))
+        })
+        .collect()
+}
+
 // Helper function to filter out reverse proxy and CDN headers
 // Uses conservative filtering - only removes headers that are almost certainly from infrastructure
 pub fn filter_proxy_headers(headers: HashMap<String, String>) -> HashMap<String, String> {
@@ -157,15 +186,15 @@ pub fn fix_request_info_url(req: &HttpRequest, request_info: &mut RequestInfo) {
 }
 
 // Helper function to extract GET request information (httpbin.org compatible)
-pub fn extract_get_request_info(req: &HttpRequest) -> GetRequestInfo {
+pub fn extract_get_request_info(req: &HttpRequest, exclude_patterns: &[String]) -> GetRequestInfo {
     let headers: HashMap<String, String> = req
         .headers()
         .iter()
         .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_string()))
         .collect();
     
-    // Filter out reverse proxy and CDN headers
-    let filtered_headers = filter_proxy_headers(headers);
+    // Filter out reverse proxy and CDN headers, plus custom exclusions
+    let filtered_headers = filter_headers(headers, exclude_patterns);
 
     let args: HashMap<String, String> = req
         .query_string()
@@ -200,15 +229,15 @@ pub fn extract_get_request_info(req: &HttpRequest) -> GetRequestInfo {
 }
 
 // Helper function to extract request information
-pub fn extract_request_info(req: &HttpRequest, body: Option<&str>) -> RequestInfo {
+pub fn extract_request_info(req: &HttpRequest, body: Option<&str>, exclude_patterns: &[String]) -> RequestInfo {
     let headers: HashMap<String, String> = req
         .headers()
         .iter()
         .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_string()))
         .collect();
     
-    // Filter out reverse proxy and CDN headers
-    let filtered_headers = filter_proxy_headers(headers);
+    // Filter out reverse proxy and CDN headers, plus custom exclusions
+    let filtered_headers = filter_headers(headers, exclude_patterns);
 
     let args: HashMap<String, String> = req
         .query_string()
@@ -279,15 +308,15 @@ pub fn extract_request_info(req: &HttpRequest, body: Option<&str>) -> RequestInf
 }
 
 // Helper function to extract request information from multipart data
-pub async fn extract_request_info_multipart(req: &HttpRequest, mut payload: Multipart) -> Result<RequestInfo> {
+pub async fn extract_request_info_multipart(req: &HttpRequest, mut payload: Multipart, exclude_patterns: &[String]) -> Result<RequestInfo> {
     let headers: HashMap<String, String> = req
         .headers()
         .iter()
         .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_string()))
         .collect();
     
-    // Filter out reverse proxy and CDN headers
-    let filtered_headers = filter_proxy_headers(headers);
+    // Filter out reverse proxy and CDN headers, plus custom exclusions
+    let filtered_headers = filter_headers(headers, exclude_patterns);
 
     let args: HashMap<String, String> = req
         .query_string()

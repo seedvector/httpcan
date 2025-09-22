@@ -197,12 +197,13 @@ pub async fn drip_handler(
 pub async fn delay_handler_get(
     req: HttpRequest,
     path: web::Path<u64>,
+    config: web::Data<AppConfig>,
 ) -> Result<HttpResponse> {
     let delay_seconds = path.into_inner().min(10); // Max 10 seconds
     
     sleep(Duration::from_secs(delay_seconds)).await;
     
-    let mut request_info = extract_request_info(&req, None);
+    let mut request_info = extract_request_info(&req, None, &config.exclude_headers);
     fix_request_info_url(&req, &mut request_info);
     Ok(HttpResponse::Ok().json(request_info))
 }
@@ -211,12 +212,13 @@ pub async fn delay_handler(
     req: HttpRequest,
     path: web::Path<u64>,
     body: String,
+    config: web::Data<AppConfig>,
 ) -> Result<HttpResponse> {
     let delay_seconds = path.into_inner().min(10); // Max 10 seconds
     
     sleep(Duration::from_secs(delay_seconds)).await;
     
-    let mut request_info = extract_request_info(&req, Some(&body));
+    let mut request_info = extract_request_info(&req, Some(&body), &config.exclude_headers);
     fix_request_info_url(&req, &mut request_info);
     Ok(HttpResponse::Ok().json(request_info))
 }

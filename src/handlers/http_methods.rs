@@ -1,12 +1,12 @@
 use super::*;
 
-pub async fn get_handler(req: HttpRequest) -> Result<HttpResponse> {
-    let request_info = extract_get_request_info(&req);
+pub async fn get_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Result<HttpResponse> {
+    let request_info = extract_get_request_info(&req, &config.exclude_headers);
     Ok(HttpResponse::Ok().json(request_info))
 }
 
 // Universal handler that can handle different content types
-pub async fn post_handler(req: HttpRequest, payload: web::Payload) -> Result<HttpResponse> {
+pub async fn post_handler(req: HttpRequest, payload: web::Payload, config: web::Data<AppConfig>) -> Result<HttpResponse> {
     let content_type = req.headers()
         .get("content-type")
         .and_then(|v| v.to_str().ok())
@@ -15,10 +15,10 @@ pub async fn post_handler(req: HttpRequest, payload: web::Payload) -> Result<Htt
     if content_type.to_lowercase().starts_with("multipart/form-data") {
         // Handle multipart form data
         let multipart = Multipart::new(&req.headers(), payload);
-        match extract_request_info_multipart(&req, multipart).await {
+        match extract_request_info_multipart(&req, multipart, &config.exclude_headers).await {
             Ok(request_info) => Ok(HttpResponse::Ok().json(request_info)),
             Err(_) => {
-                let mut request_info = extract_request_info(&req, None);
+                let mut request_info = extract_request_info(&req, None, &config.exclude_headers);
                 fix_request_info_url(&req, &mut request_info);
                 Ok(HttpResponse::Ok().json(request_info))
             }
@@ -36,13 +36,13 @@ pub async fn post_handler(req: HttpRequest, payload: web::Payload) -> Result<Htt
         }
         
         let body_string = String::from_utf8_lossy(&body);
-        let mut request_info = extract_request_info(&req, Some(&body_string));
+        let mut request_info = extract_request_info(&req, Some(&body_string), &config.exclude_headers);
         fix_request_info_url(&req, &mut request_info);
         Ok(HttpResponse::Ok().json(request_info))
     }
 }
 
-pub async fn put_handler(req: HttpRequest, payload: web::Payload) -> Result<HttpResponse> {
+pub async fn put_handler(req: HttpRequest, payload: web::Payload, config: web::Data<AppConfig>) -> Result<HttpResponse> {
     let content_type = req.headers()
         .get("content-type")
         .and_then(|v| v.to_str().ok())
@@ -50,10 +50,10 @@ pub async fn put_handler(req: HttpRequest, payload: web::Payload) -> Result<Http
 
     if content_type.to_lowercase().starts_with("multipart/form-data") {
         let multipart = Multipart::new(&req.headers(), payload);
-        match extract_request_info_multipart(&req, multipart).await {
+        match extract_request_info_multipart(&req, multipart, &config.exclude_headers).await {
             Ok(request_info) => Ok(HttpResponse::Ok().json(request_info)),
             Err(_) => {
-                let mut request_info = extract_request_info(&req, None);
+                let mut request_info = extract_request_info(&req, None, &config.exclude_headers);
                 fix_request_info_url(&req, &mut request_info);
                 Ok(HttpResponse::Ok().json(request_info))
             }
@@ -70,13 +70,13 @@ pub async fn put_handler(req: HttpRequest, payload: web::Payload) -> Result<Http
         }
         
         let body_string = String::from_utf8_lossy(&body);
-        let mut request_info = extract_request_info(&req, Some(&body_string));
+        let mut request_info = extract_request_info(&req, Some(&body_string), &config.exclude_headers);
         fix_request_info_url(&req, &mut request_info);
         Ok(HttpResponse::Ok().json(request_info))
     }
 }
 
-pub async fn patch_handler(req: HttpRequest, payload: web::Payload) -> Result<HttpResponse> {
+pub async fn patch_handler(req: HttpRequest, payload: web::Payload, config: web::Data<AppConfig>) -> Result<HttpResponse> {
     let content_type = req.headers()
         .get("content-type")
         .and_then(|v| v.to_str().ok())
@@ -84,10 +84,10 @@ pub async fn patch_handler(req: HttpRequest, payload: web::Payload) -> Result<Ht
 
     if content_type.to_lowercase().starts_with("multipart/form-data") {
         let multipart = Multipart::new(&req.headers(), payload);
-        match extract_request_info_multipart(&req, multipart).await {
+        match extract_request_info_multipart(&req, multipart, &config.exclude_headers).await {
             Ok(request_info) => Ok(HttpResponse::Ok().json(request_info)),
             Err(_) => {
-                let mut request_info = extract_request_info(&req, None);
+                let mut request_info = extract_request_info(&req, None, &config.exclude_headers);
                 fix_request_info_url(&req, &mut request_info);
                 Ok(HttpResponse::Ok().json(request_info))
             }
@@ -104,13 +104,13 @@ pub async fn patch_handler(req: HttpRequest, payload: web::Payload) -> Result<Ht
         }
         
         let body_string = String::from_utf8_lossy(&body);
-        let mut request_info = extract_request_info(&req, Some(&body_string));
+        let mut request_info = extract_request_info(&req, Some(&body_string), &config.exclude_headers);
         fix_request_info_url(&req, &mut request_info);
         Ok(HttpResponse::Ok().json(request_info))
     }
 }
 
-pub async fn delete_handler(req: HttpRequest, payload: web::Payload) -> Result<HttpResponse> {
+pub async fn delete_handler(req: HttpRequest, payload: web::Payload, config: web::Data<AppConfig>) -> Result<HttpResponse> {
     let content_type = req.headers()
         .get("content-type")
         .and_then(|v| v.to_str().ok())
@@ -118,10 +118,10 @@ pub async fn delete_handler(req: HttpRequest, payload: web::Payload) -> Result<H
 
     if content_type.to_lowercase().starts_with("multipart/form-data") {
         let multipart = Multipart::new(&req.headers(), payload);
-        match extract_request_info_multipart(&req, multipart).await {
+        match extract_request_info_multipart(&req, multipart, &config.exclude_headers).await {
             Ok(request_info) => Ok(HttpResponse::Ok().json(request_info)),
             Err(_) => {
-                let mut request_info = extract_request_info(&req, None);
+                let mut request_info = extract_request_info(&req, None, &config.exclude_headers);
                 fix_request_info_url(&req, &mut request_info);
                 Ok(HttpResponse::Ok().json(request_info))
             }
@@ -138,7 +138,7 @@ pub async fn delete_handler(req: HttpRequest, payload: web::Payload) -> Result<H
         }
         
         let body_string = String::from_utf8_lossy(&body);
-        let mut request_info = extract_request_info(&req, Some(&body_string));
+        let mut request_info = extract_request_info(&req, Some(&body_string), &config.exclude_headers);
         fix_request_info_url(&req, &mut request_info);
         Ok(HttpResponse::Ok().json(request_info))
     }
