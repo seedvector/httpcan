@@ -1,10 +1,10 @@
 use actix_web::{
-    web, App, HttpServer,
+    web, App, HttpServer, HttpResponse, HttpRequest, Result,
     middleware::Logger,
 };
 use actix_files as fs;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, json};
 use indexmap::IndexMap;
 use clap::Parser;
 use std::env;
@@ -12,6 +12,12 @@ use std::path::PathBuf;
 
 mod handlers;
 use handlers::*;
+
+// Application configuration
+#[derive(Clone)]
+struct AppConfig {
+    add_current_server: bool,
+}
 
 /// HTTPCan - HTTP testing service similar to httpbin.org
 #[derive(Parser)]
@@ -22,6 +28,10 @@ struct Args {
     /// Port number to listen on
     #[arg(short, long, default_value_t = 8080)]
     port: u16,
+    
+    /// Do not add current server to OpenAPI specification servers list
+    #[arg(long)]
+    no_current_server: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -64,6 +74,72 @@ fn get_static_path() -> PathBuf {
     static_path
 }
 
+// Generate dynamic OpenAPI specification with current server information
+async fn openapi_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Result<HttpResponse> {
+    let static_path = get_static_path();
+    let openapi_path = static_path.join("openapi.json");
+    
+    // Read the base OpenAPI specification
+    let base_openapi = match std::fs::read_to_string(&openapi_path) {
+        Ok(content) => content,
+        Err(_) => {
+            return Ok(HttpResponse::NotFound().json(json!({
+                "error": "OpenAPI specification not found"
+            })));
+        }
+    };
+    
+    // Parse the base OpenAPI JSON
+    let mut openapi: Value = match serde_json::from_str(&base_openapi) {
+        Ok(spec) => spec,
+        Err(_) => {
+            return Ok(HttpResponse::InternalServerError().json(json!({
+                "error": "Failed to parse OpenAPI specification"
+            })));
+        }
+    };
+    
+    // Handle servers array based on configuration
+    if config.add_current_server {
+        // Get current server information from request
+        let connection_info = req.connection_info();
+        let scheme = connection_info.scheme();
+        let host = connection_info.host();
+        let current_server_url = format!("{}://{}/", scheme, host);
+        
+        // Get existing servers array from the OpenAPI spec
+        let mut servers_array = Vec::new();
+        
+        // Add current server as the first element
+        servers_array.push(json!({
+            "url": current_server_url,
+            "description": "Current server"
+        }));
+        
+        // Add existing servers from the original OpenAPI spec
+        if let Some(existing_servers) = openapi.get("servers").and_then(|s| s.as_array()) {
+            for server in existing_servers {
+                // Skip if it's the same as current server URL to avoid duplicates
+                if let Some(url) = server.get("url").and_then(|u| u.as_str()) {
+                    if url != current_server_url {
+                        servers_array.push(server.clone());
+                    }
+                }
+            }
+        }
+        
+        // Update the servers field
+        if let Some(obj) = openapi.as_object_mut() {
+            obj.insert("servers".to_string(), json!(servers_array));
+        }
+    }
+    // If add_current_server is false, keep the original servers array unchanged
+    
+    Ok(HttpResponse::Ok()
+        .content_type("application/json")
+        .json(openapi))
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();
@@ -71,13 +147,26 @@ async fn main() -> std::io::Result<()> {
     // Parse command line arguments
     let args = Args::parse();
     let port = args.port;
+    let add_current_server = !args.no_current_server; // 反转逻辑
 
     println!("Starting HTTPCan server on http://0.0.0.0:{}", port);
+    if add_current_server {
+        println!("OpenAPI will include current server in servers list");
+    } else {
+        println!("OpenAPI will use static servers list only");
+    }
 
-    HttpServer::new(|| {
+    HttpServer::new(move || {
         let static_path = get_static_path();
+        let config = AppConfig {
+            add_current_server,
+        };
+        
         App::new()
+            .app_data(web::Data::new(config))
             .wrap(Logger::default())
+            // Dynamic OpenAPI specification endpoint
+            .route("/openapi.json", web::get().to(openapi_handler))
             // Static file service for explicit /static path
             .service(fs::Files::new("/static", &static_path).show_files_listing())
             // HTTP Methods
