@@ -152,3 +152,7 @@ curl http://localhost:8080/status/200,404,500  # Random selection
 - Built with actix-web and tokio for async performance
 - Follows the original httpbin API structure where possible
 - All text is in English as requested
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
