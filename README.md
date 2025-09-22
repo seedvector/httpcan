@@ -1,8 +1,12 @@
 # HTTPCan
 
-A Rust implementation of an httpbin-like service using actix-web and tokio.
+A simple HTTP Request & Response Service, with httpbin compatibility.
 
 ## Features
+
+- **Tiny Docker Image** - Less than 6MB image size for fast deployment
+- **Minimal Memory Footprint** - Extremely low memory usage for efficient resource utilization
+- **High Throughput** - Built with Rust and async I/O for maximum performance
 
 This server implements the HTTPBin API with the following endpoints:
 
@@ -83,12 +87,35 @@ This server implements the HTTPBin API with the following endpoints:
 
 ## Usage
 
-### Start the server
+### Command Line Arguments
+
 ```bash
-cargo run
+httpcan [OPTIONS]
 ```
 
-The server will start on `http://0.0.0.0:8080`
+**Options:**
+- `-p, --port <PORT>` - Port number to listen on (default: 8080)
+- `--no-current-server` - Do not add current server to OpenAPI specification servers list
+- `--exclude-headers <HEADERS>` - Exclude specific headers from responses. Comma-separated list of header keys, supports wildcard suffix matching (e.g., "foo, x-bar-*"). Built-in filtering for Nginx, Cloudflare, AWS, GCP, and Azure headers
+- `-h, --help` - Print help information
+- `-V, --version` - Print version information
+
+### Start the server
+```bash
+# Default port 8080
+cargo run
+
+# Custom port
+cargo run -- --port 3000
+
+# Exclude headers
+cargo run -- --exclude-headers "foo, x-bar-*"
+
+# Multiple options
+cargo run -- --port 3000 --no-current-server --exclude-headers "foo, x-bar-*"
+```
+
+The server will start on `http://0.0.0.0:8080` (or specified port)
 
 ### Example requests
 ```bash
@@ -125,10 +152,3 @@ curl http://localhost:8080/status/200,404,500  # Random selection
 - Built with actix-web and tokio for async performance
 - Follows the original httpbin API structure where possible
 - All text is in English as requested
-
-## Dependencies
-
-- actix-web 4.4 - Web framework
-- tokio 1.0 - Async runtime  
-- serde - Serialization
-- Various compression and encoding libraries

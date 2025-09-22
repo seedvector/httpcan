@@ -1,88 +1,17 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <title>HTTPCan - HTTPBin-like API Testing Service | Rust-powered HTTP Request & Response Testing</title>
+    <title>HTTPCan</title>
     <meta charset="utf-8" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1" />
-    
-    <!-- SEO Meta Tags -->
-    <meta name="description" content="HTTPCan is a fast, reliable HTTPBin-like service built with Rust and Actix Web. Test HTTP requests, responses, authentication, cookies, redirects, and more with our comprehensive API testing endpoints." />
-    <meta name="keywords" content="HTTPBin, API testing, HTTP requests, HTTP responses, REST API, testing service, Rust, Actix Web, web development, API development, JSON, XML, authentication, cookies, redirects" />
-    <meta name="author" content="HTTPCan" />
-    <meta name="robots" content="index, follow" />
-    <meta name="language" content="en" />
-    <link rel="canonical" href="https://httpcan.org/" />
-    
-    <!-- Open Graph Meta Tags -->
-    <meta property="og:title" content="HTTPCan - HTTPBin-like API Testing Service" />
-    <meta property="og:description" content="Fast, reliable HTTP request and response testing service built with Rust. Test APIs, authentication, cookies, redirects, and more." />
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://httpcan.org/" />
-    <meta property="og:site_name" content="HTTPCan" />
-    <meta property="og:locale" content="en_US" />
-    
-    <!-- Twitter Card Meta Tags -->
-    <!-- <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="HTTPCan - HTTPBin-like API Testing Service" />
-    <meta name="twitter:description" content="Fast, reliable HTTP request and response testing service built with Rust. Test APIs, authentication, cookies, redirects, and more." />
-    <meta name="twitter:site" content="@httpcan" /> -->
-    
-    <!-- Additional SEO Tags -->
-    <meta name="theme-color" content="#333333" />
-    <meta name="msapplication-TileColor" content="#333333" />
-    
-    <!-- JSON-LD Structured Data -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "HTTPCan",
-      "description": "A fast, reliable HTTPBin-like service for testing HTTP requests and responses, built with Rust and Actix Web",
-      "url": "https://httpcan.org",
-      "applicationCategory": "DeveloperApplication",
-      "operatingSystem": "Any",
-      "programmingLanguage": "Rust",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
-      },
-      "creator": {
-        "@type": "Organization",
-        "name": "HTTPCan"
-      },
-      "featureList": [
-        "HTTP method testing (GET, POST, PUT, PATCH, DELETE)",
-        "Authentication testing (Basic, Bearer, Digest)",
-        "Response format testing (JSON, XML, HTML)",
-        "Cookie management",
-        "Redirect testing",
-        "Request and response inspection",
-        "Dynamic data generation",
-        "Status code testing",
-        "Image serving",
-        "Compression testing"
-      ]
-    }
     </script>
   </head>
 
   <body>
-    <div id="app"></div>
-
-    <!-- Load the Script -->
-    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
-
-    <!-- Initialize the Scalar API Reference -->
-    <script>
-      Scalar.createApiReference('#app', {
-        // The URL of the dynamic OpenAPI/Swagger document
-        url: '/openapi.json',
-        // Avoid CORS issues
-        proxyUrl: 'https://proxy.scalar.com',
-      })
     </script>
+    <script id="api-reference" data-url="./openapi.json"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
   </body>
 </html>
