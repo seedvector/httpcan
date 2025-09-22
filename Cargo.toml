@@ -2,6 +2,28 @@
 name = "httpcan"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+description = "A simple HTTP Request & Response Service, with httpbin compatibility"
+repository = "https://github.com/seedvector/httpcan"
+homepage = "https://github.com/seedvector/httpcan"
+readme = "README.md"
+keywords = ["http", "testing", "development", "httpbin", "api"]
+categories = ["development-tools", "web-programming"]
+exclude = [
+    "target/",
+    ".git/",
+    ".gitignore",
+    "Dockerfile",
+    ".DS_Store",
+    "._*",
+    "**/*.rs.bk",
+    "*.pdb",
+    "*.icloud",
+]
+
+[[bin]]
+name = "httpcan"
+path = "src/main.rs"
 
 [dependencies]
 actix-web = "4.11"
