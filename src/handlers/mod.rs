@@ -13,6 +13,7 @@ use tokio::time::sleep;
 use rand::Rng;
 use base64::{Engine as _, engine::general_purpose};
 use uuid::Uuid;
+use crate::AppConfig;
 
 pub mod utils;
 pub mod http_methods;

@@ -17,6 +17,7 @@ use handlers::*;
 #[derive(Clone)]
 struct AppConfig {
     add_current_server: bool,
+    exclude_headers: Vec<String>,
 }
 
 /// HTTPCan - HTTP testing service similar to httpbin.org
@@ -32,6 +33,10 @@ struct Args {
     /// Do not add current server to OpenAPI specification servers list
     #[arg(long)]
     no_current_server: bool,
+    
+    /// Exclude specific headers from responses. Comma-separated list of header keys, supports wildcard suffix matching (e.g., "foo,bar,x-fc-*")
+    #[arg(long)]
+    exclude_headers: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -148,6 +153,17 @@ async fn main() -> std::io::Result<()> {
     let args = Args::parse();
     let port = args.port;
     let add_current_server = !args.no_current_server; // 反转逻辑
+    
+    // Parse exclude headers
+    let exclude_headers: Vec<String> = args.exclude_headers
+        .map(|headers_str| {
+            headers_str
+                .split(',')
+                .map(|s| s.trim().to_lowercase())
+                .filter(|s| !s.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
 
     println!("Starting HTTPCan server on http://0.0.0.0:{}", port);
     if add_current_server {
@@ -160,6 +176,7 @@ async fn main() -> std::io::Result<()> {
         let static_path = get_static_path();
         let config = AppConfig {
             add_current_server,
+            exclude_headers: exclude_headers.clone(),
         };
         
         App::new()

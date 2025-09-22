@@ -1,14 +1,14 @@
 use super::*;
 use serde_json::Value;
 
-pub async fn cache_handler(req: HttpRequest) -> Result<HttpResponse> {
+pub async fn cache_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Result<HttpResponse> {
     let if_modified_since = req.headers().get("If-Modified-Since");
     let if_none_match = req.headers().get("If-None-Match");
     
     if if_modified_since.is_some() || if_none_match.is_some() {
         Ok(HttpResponse::NotModified().finish())
     } else {
-        let mut request_info = extract_request_info(&req, None);
+        let mut request_info = extract_request_info(&req, None, &config.exclude_headers);
         fix_request_info_url(&req, &mut request_info);
         Ok(HttpResponse::Ok()
             .append_header(("Cache-Control", "public, max-age=60"))
@@ -21,9 +21,10 @@ pub async fn cache_handler(req: HttpRequest) -> Result<HttpResponse> {
 pub async fn cache_control_handler(
     req: HttpRequest,
     path: web::Path<u32>,
+    config: web::Data<AppConfig>,
 ) -> Result<HttpResponse> {
     let seconds = path.into_inner();
-    let mut request_info = extract_request_info(&req, None);
+    let mut request_info = extract_request_info(&req, None, &config.exclude_headers);
     fix_request_info_url(&req, &mut request_info);
     
     Ok(HttpResponse::Ok()
@@ -34,6 +35,7 @@ pub async fn cache_control_handler(
 pub async fn etag_handler(
     req: HttpRequest,
     path: web::Path<String>,
+    config: web::Data<AppConfig>,
 ) -> Result<HttpResponse> {
     let etag = path.into_inner();
     
@@ -52,7 +54,7 @@ pub async fn etag_handler(
         }
     }
     
-    let mut request_info = extract_request_info(&req, None);
+    let mut request_info = extract_request_info(&req, None, &config.exclude_headers);
     fix_request_info_url(&req, &mut request_info);
     Ok(HttpResponse::Ok()
         .append_header(("ETag", format!("\"{}\"", etag)))

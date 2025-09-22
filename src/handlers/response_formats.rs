@@ -122,8 +122,8 @@ pub async fn utf8_handler(_req: HttpRequest) -> Result<HttpResponse> {
         .body(utf8_content))
 }
 
-pub async fn gzip_handler(req: HttpRequest) -> Result<HttpResponse> {
-    let mut request_info = extract_request_info(&req, None);
+pub async fn gzip_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Result<HttpResponse> {
+    let mut request_info = extract_request_info(&req, None, &config.exclude_headers);
     fix_request_info_url(&req, &mut request_info);
     let json_data = serde_json::to_vec(&request_info).unwrap();
     
@@ -137,8 +137,8 @@ pub async fn gzip_handler(req: HttpRequest) -> Result<HttpResponse> {
         .body(compressed_data))
 }
 
-pub async fn deflate_handler(req: HttpRequest) -> Result<HttpResponse> {
-    let mut request_info = extract_request_info(&req, None);
+pub async fn deflate_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Result<HttpResponse> {
+    let mut request_info = extract_request_info(&req, None, &config.exclude_headers);
     fix_request_info_url(&req, &mut request_info);
     let json_data = serde_json::to_vec(&request_info).unwrap();
     
@@ -152,8 +152,8 @@ pub async fn deflate_handler(req: HttpRequest) -> Result<HttpResponse> {
         .body(compressed_data))
 }
 
-pub async fn brotli_handler(req: HttpRequest) -> Result<HttpResponse> {
-    let mut request_info = extract_request_info(&req, None);
+pub async fn brotli_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Result<HttpResponse> {
+    let mut request_info = extract_request_info(&req, None, &config.exclude_headers);
     fix_request_info_url(&req, &mut request_info);
     let json_data = serde_json::to_vec(&request_info).unwrap();
     
