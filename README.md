@@ -1,6 +1,6 @@
 # HTTPCan
 
-A Rust implementation of an httpbin-like service using actix-web and tokio.
+A simple HTTP request & response service built with Rust and Actix Web, with httpbin compatibility.
 
 ## Features
 
