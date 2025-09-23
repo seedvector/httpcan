@@ -27,6 +27,7 @@ pub mod response_inspection;
 pub mod cookies;
 pub mod images;
 pub mod status;
+pub mod openapi;
 
 pub use utils::*;
 pub use http_methods::*;
@@ -40,4 +41,5 @@ pub use response_inspection::*;
 pub use cookies::*;
 pub use images::*;
 pub use status::*;
+pub use openapi::*;
 

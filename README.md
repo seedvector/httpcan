@@ -1,9 +1,10 @@
 # HTTPCan
 
-A simple HTTP Request & Response Service, with httpbin compatibility.
+A Rust implementation of an httpbin-like service using actix-web and tokio.
 
 ## Features
 
+- **HTTPBin Compatible** - Full compatibility with httpbin API for seamless migration and testing
 - **Tiny Docker Image** - Less than 10MB image size for fast deployment
 - **Minimal Memory Footprint** - Extremely low memory usage for efficient resource utilization
 - **High Throughput** - Built with Rust and async I/O for maximum performance
@@ -144,14 +145,6 @@ curl -H "Accept-Encoding: gzip" http://localhost:8080/gzip
 curl http://localhost:8080/status/418
 curl http://localhost:8080/status/200,404,500  # Random selection
 ```
-
-## Implementation Notes
-
-- Uses derive macros for route handlers as requested
-- Endpoints supporting multiple HTTP methods use a single macro with `.method()` calls
-- Built with actix-web and tokio for async performance
-- Follows the original httpbin API structure where possible
-- All text is in English as requested
 
 ## License
 
