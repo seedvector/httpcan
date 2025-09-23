@@ -4,7 +4,7 @@ A simple HTTP Request & Response Service, with httpbin compatibility.
 
 ## Features
 
-- **Tiny Docker Image** - Less than 6MB image size for fast deployment
+- **Tiny Docker Image** - Less than 10MB image size for fast deployment
 - **Minimal Memory Footprint** - Extremely low memory usage for efficient resource utilization
 - **High Throughput** - Built with Rust and async I/O for maximum performance
 

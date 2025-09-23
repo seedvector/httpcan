@@ -3,6 +3,7 @@ use actix_web::{
     middleware::Logger,
 };
 use actix_files as fs;
+use actix_cors::Cors;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use indexmap::IndexMap;
@@ -152,7 +153,7 @@ async fn main() -> std::io::Result<()> {
     // Parse command line arguments
     let args = Args::parse();
     let port = args.port;
-    let add_current_server = !args.no_current_server; // 反转逻辑
+    let add_current_server = !args.no_current_server;
     
     // Parse exclude headers
     let exclude_headers: Vec<String> = args.exclude_headers
@@ -181,6 +182,13 @@ async fn main() -> std::io::Result<()> {
         
         App::new()
             .app_data(web::Data::new(config))
+            .wrap(
+                Cors::default()
+                    .allow_any_origin()
+                    .allow_any_method()
+                    .allow_any_header()
+                    .max_age(3600)
+            )
             .wrap(Logger::default())
             // Dynamic OpenAPI specification endpoint
             .route("/openapi.json", web::get().to(openapi_handler))
