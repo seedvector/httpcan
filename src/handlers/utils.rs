@@ -4,7 +4,50 @@ use std::collections::HashMap;
 use indexmap::IndexMap;
 use futures_util::TryStreamExt;
 use url::form_urlencoded;
-use crate::{RequestInfo, GetRequestInfo};
+use serde::{Serialize, Deserialize};
+use serde_json::Value;
+use std::env;
+use std::path::PathBuf;
+
+#[derive(Serialize, Deserialize)]
+pub struct RequestInfo {
+    pub args: IndexMap<String, String>,
+    pub data: String,
+    pub files: IndexMap<String, String>,
+    pub form: IndexMap<String, String>,
+    pub headers: IndexMap<String, String>,
+    pub json: Option<Value>,
+    pub method: String,
+    pub origin: String,
+    pub url: String,
+    pub user_agent: Option<String>,
+}
+
+// Simplified response structure for GET requests (httpbin.org compatible)
+#[derive(Serialize, Deserialize)]
+pub struct GetRequestInfo {
+    pub args: IndexMap<String, String>,
+    pub headers: IndexMap<String, String>,
+    pub origin: String,
+    pub url: String,
+}
+
+// Helper function to get static directory path relative to executable
+pub fn get_static_path() -> PathBuf {
+    let exe_path = env::current_exe().unwrap();
+    let exe_dir = exe_path.parent().unwrap();
+    let static_path = exe_dir.join("static");
+    
+    // Fallback to current directory if static directory doesn't exist next to executable
+    if !static_path.exists() {
+        let current_dir_static = PathBuf::from("./static");
+        if current_dir_static.exists() {
+            return current_dir_static;
+        }
+    }
+    
+    static_path
+}
 
 // Helper function to sort HashMap by keys and return IndexMap
 pub fn sort_hashmap(map: HashMap<String, String>) -> IndexMap<String, String> {
