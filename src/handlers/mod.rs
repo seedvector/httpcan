@@ -28,6 +28,7 @@ pub mod cookies;
 pub mod images;
 pub mod status;
 pub mod openapi;
+pub mod sse;
 
 pub use utils::*;
 pub use http_methods::*;
@@ -42,4 +43,5 @@ pub use cookies::*;
 pub use images::*;
 pub use status::*;
 pub use openapi::*;
+pub use sse::*;
 

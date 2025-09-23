@@ -59,6 +59,10 @@
     {
       "name": "Anything",
       "description": "Returns anything that is passed to request"
+    },
+    {
+      "name": "Streaming",
+      "description": "Server-Sent Events and NDJSON streaming endpoints"
     }
   ],
   "paths": {
@@ -1663,6 +1667,408 @@
           "200": {
             "description": "An XML document.",
             "content": {}
+          }
+        }
+      }
+    },
+    "/sse": {
+      "get": {
+        "tags": [
+          "Streaming"
+        ],
+        "summary": "Server-Sent Events endpoint with configurable event count, delay, and format.",
+        "parameters": [
+          {
+            "name": "count",
+            "in": "query",
+            "description": "Number of events to send (default: 5, max: 100)",
+            "schema": {
+              "type": "integer",
+              "default": 5,
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "delay",
+            "in": "query",
+            "description": "Delay between events in milliseconds (default: 1000, max: 10000)",
+            "schema": {
+              "type": "integer",
+              "default": 1000,
+              "minimum": 100,
+              "maximum": 10000
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "description": "Message format",
+            "schema": {
+              "type": "string",
+              "enum": ["simple", "openai", "custom"],
+              "default": "simple"
+            }
+          },
+          {
+            "name": "message",
+            "in": "query",
+            "description": "Custom message content (used with format=custom)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "event_type",
+            "in": "query",
+            "description": "SSE event type",
+            "schema": {
+              "type": "string",
+              "default": "message"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Server-sent events stream",
+            "content": {
+              "text/event-stream": {}
+            }
+          }
+        }
+      }
+    },
+    "/sse/{count}": {
+      "get": {
+        "tags": [
+          "Streaming"
+        ],
+        "summary": "Server-Sent Events with specified event count.",
+        "parameters": [
+          {
+            "name": "count",
+            "in": "path",
+            "required": true,
+            "description": "Number of events to send (max: 100)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "delay",
+            "in": "query",
+            "description": "Delay between events in milliseconds (default: 1000, max: 10000)",
+            "schema": {
+              "type": "integer",
+              "default": 1000,
+              "minimum": 100,
+              "maximum": 10000
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "description": "Message format",
+            "schema": {
+              "type": "string",
+              "enum": ["simple", "openai", "custom"],
+              "default": "simple"
+            }
+          },
+          {
+            "name": "message",
+            "in": "query",
+            "description": "Custom message content (used with format=custom)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "event_type",
+            "in": "query",
+            "description": "SSE event type",
+            "schema": {
+              "type": "string",
+              "default": "message"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Server-sent events stream",
+            "content": {
+              "text/event-stream": {}
+            }
+          }
+        }
+      }
+    },
+    "/sse/{count}/{delay}": {
+      "get": {
+        "tags": [
+          "Streaming"
+        ],
+        "summary": "Server-Sent Events with specified event count and delay.",
+        "parameters": [
+          {
+            "name": "count",
+            "in": "path",
+            "required": true,
+            "description": "Number of events to send (max: 100)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "delay",
+            "in": "path",
+            "required": true,
+            "description": "Delay between events in milliseconds (max: 10000)",
+            "schema": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 10000
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "description": "Message format",
+            "schema": {
+              "type": "string",
+              "enum": ["simple", "openai", "custom"],
+              "default": "simple"
+            }
+          },
+          {
+            "name": "message",
+            "in": "query",
+            "description": "Custom message content (used with format=custom)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "event_type",
+            "in": "query",
+            "description": "SSE event type",
+            "schema": {
+              "type": "string",
+              "default": "message"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Server-sent events stream",
+            "content": {
+              "text/event-stream": {}
+            }
+          }
+        }
+      }
+    },
+    "/ndjson": {
+      "get": {
+        "tags": [
+          "Streaming"
+        ],
+        "summary": "NDJSON streaming endpoint with configurable parameters.",
+        "parameters": [
+          {
+            "name": "count",
+            "in": "query",
+            "description": "Number of events to send (default: 5, max: 100)",
+            "schema": {
+              "type": "integer",
+              "default": 5,
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "delay",
+            "in": "query",
+            "description": "Delay between events in milliseconds (default: 1000, max: 10000)",
+            "schema": {
+              "type": "integer",
+              "default": 1000,
+              "minimum": 100,
+              "maximum": 10000
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "description": "Message format",
+            "schema": {
+              "type": "string",
+              "enum": ["simple", "openai", "ollama", "custom"],
+              "default": "simple"
+            }
+          },
+          {
+            "name": "message",
+            "in": "query",
+            "description": "Custom message content (used with format=custom)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "description": "Model name for ollama format",
+            "schema": {
+              "type": "string",
+              "default": "llama2"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "NDJSON stream",
+            "content": {
+              "application/x-ndjson": {}
+            }
+          }
+        }
+      }
+    },
+    "/ndjson/{count}": {
+      "get": {
+        "tags": [
+          "Streaming"
+        ],
+        "summary": "NDJSON streaming with specified event count.",
+        "parameters": [
+          {
+            "name": "count",
+            "in": "path",
+            "required": true,
+            "description": "Number of events to send (max: 100)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "delay",
+            "in": "query",
+            "description": "Delay between events in milliseconds (default: 1000, max: 10000)",
+            "schema": {
+              "type": "integer",
+              "default": 1000,
+              "minimum": 100,
+              "maximum": 10000
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "description": "Message format",
+            "schema": {
+              "type": "string",
+              "enum": ["simple", "openai", "ollama", "custom"],
+              "default": "simple"
+            }
+          },
+          {
+            "name": "message",
+            "in": "query",
+            "description": "Custom message content (used with format=custom)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "description": "Model name for ollama format",
+            "schema": {
+              "type": "string",
+              "default": "llama2"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "NDJSON stream",
+            "content": {
+              "application/x-ndjson": {}
+            }
+          }
+        }
+      }
+    },
+    "/ndjson/{count}/{delay}": {
+      "get": {
+        "tags": [
+          "Streaming"
+        ],
+        "summary": "NDJSON streaming with specified event count and delay.",
+        "parameters": [
+          {
+            "name": "count",
+            "in": "path",
+            "required": true,
+            "description": "Number of events to send (max: 100)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "delay",
+            "in": "path",
+            "required": true,
+            "description": "Delay between events in milliseconds (max: 10000)",
+            "schema": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 10000
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "description": "Message format",
+            "schema": {
+              "type": "string",
+              "enum": ["simple", "openai", "ollama", "custom"],
+              "default": "simple"
+            }
+          },
+          {
+            "name": "message",
+            "in": "query",
+            "description": "Custom message content (used with format=custom)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "description": "Model name for ollama format",
+            "schema": {
+              "type": "string",
+              "default": "llama2"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "NDJSON stream",
+            "content": {
+              "application/x-ndjson": {}
+            }
           }
         }
       }
