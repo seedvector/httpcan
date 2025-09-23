@@ -3,6 +3,7 @@ use actix_web::{
     middleware::Logger,
 };
 use actix_files as fs;
+use actix_cors::Cors;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use indexmap::IndexMap;
@@ -181,6 +182,13 @@ async fn main() -> std::io::Result<()> {
         
         App::new()
             .app_data(web::Data::new(config))
+            .wrap(
+                Cors::default()
+                    .allow_any_origin()
+                    .allow_any_method()
+                    .allow_any_header()
+                    .max_age(3600)
+            )
             .wrap(Logger::default())
             // Dynamic OpenAPI specification endpoint
             .route("/openapi.json", web::get().to(openapi_handler))
