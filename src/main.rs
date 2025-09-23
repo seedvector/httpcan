@@ -158,6 +158,16 @@ async fn main() -> std::io::Result<()> {
             .route("/image/jpeg", web::get().to(image_jpeg_handler))
             .route("/image/webp", web::get().to(image_webp_handler))
             .route("/image/svg", web::get().to(image_svg_handler))
+            
+            // Server-Sent Events (SSE)
+            .route("/sse", web::get().to(sse_handler))
+            .route("/sse/{count}", web::get().to(sse_path_handler))
+            .route("/sse/{count}/{delay}", web::get().to(sse_path_with_delay_handler))
+            
+            // NDJSON streaming endpoints
+            .route("/ndjson", web::get().to(ndjson_handler))
+            .route("/ndjson/{count}", web::get().to(ndjson_path_handler))
+            .route("/ndjson/{count}/{delay}", web::get().to(ndjson_path_with_delay_handler))
             // Serve static files from root after all API routes (index.html for root)
             .service(fs::Files::new("/", &static_path).index_file("index.html"))
     })

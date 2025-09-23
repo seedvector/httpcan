@@ -5,6 +5,7 @@ A Rust implementation of an httpbin-like service using actix-web and tokio.
 ## Features
 
 - **HTTPBin Compatible** - Full compatibility with httpbin API for seamless migration and testing
+- **AI-Era Streaming** - Native support for SSE and NDJSON endpoints with OpenAI/Ollama format compatibility
 - **Tiny Docker Image** - Less than 10MB image size for fast deployment
 - **Minimal Memory Footprint** - Extremely low memory usage for efficient resource utilization
 - **High Throughput** - Built with Rust and async I/O for maximum performance
@@ -86,6 +87,14 @@ This server implements the HTTPBin API with the following endpoints:
 ### Status Codes
 - `/status/{codes}` - Returns given status code or random from list (supports multiple methods)
 
+### Streaming Endpoints
+- `GET /sse` - Server-Sent Events endpoint with configurable event count, delay, and format
+- `GET /sse/{count}` - SSE with specified event count
+- `GET /sse/{count}/{delay}` - SSE with specified event count and delay
+- `GET /ndjson` - NDJSON streaming endpoint with configurable parameters
+- `GET /ndjson/{count}` - NDJSON with specified event count  
+- `GET /ndjson/{count}/{delay}` - NDJSON with specified event count and delay
+
 ## Usage
 
 ### Command Line Arguments
@@ -144,6 +153,16 @@ curl -H "Accept-Encoding: gzip" http://localhost:8080/gzip
 # Status codes
 curl http://localhost:8080/status/418
 curl http://localhost:8080/status/200,404,500  # Random selection
+
+# Server-Sent Events
+curl http://localhost:8080/sse?count=3&format=simple
+curl http://localhost:8080/sse/5?format=openai&delay=2000
+curl http://localhost:8080/sse?format=custom&message="Hello%20World"
+
+# NDJSON streaming
+curl http://localhost:8080/ndjson?count=3&format=simple
+curl http://localhost:8080/ndjson/5?format=ollama&model=llama3&delay=1500
+curl http://localhost:8080/ndjson?format=openai&count=2
 ```
 
 ## License
