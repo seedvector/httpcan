@@ -35,6 +35,32 @@ const WEBP_IMAGE: &[u8] = &[
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 ];
 
+// Parse Accept header to determine preferred image format
+fn parse_preferred_format(req: &HttpRequest) -> Option<String> {
+    if let Some(accept_header) = req.headers().get("accept") {
+        if let Ok(accept_str) = accept_header.to_str() {
+            // Split by comma and check each media type
+            for media_type in accept_str.split(',') {
+                let media_type = media_type.trim().split(';').next().unwrap_or("").trim();
+                match media_type {
+                    "image/png" => return Some("png".to_string()),
+                    "image/jpeg" | "image/jpg" => return Some("jpeg".to_string()),
+                    "image/webp" => return Some("webp".to_string()),
+                    "image/svg+xml" => return Some("svg".to_string()),
+                    "image/*" => {
+                        // If they accept any image, return a random format
+                        let formats = vec!["png", "jpeg", "webp", "svg"];
+                        let mut rng = rand::thread_rng();
+                        return Some(formats[rng.gen_range(0..formats.len())].to_string());
+                    }
+                    _ => continue,
+                }
+            }
+        }
+    }
+    None
+}
+
 // Load image data from JSON file
 fn load_image_data() -> Result<Value, Box<dyn std::error::Error>> {
     let json_str = include_str!("../image_base64.json");
@@ -113,18 +139,38 @@ fn get_random_image_by_format(format: &str) -> Result<(String, String, Vec<u8>),
     Ok((content_type.to_string(), color, image_data))
 }
 
-pub async fn image_handler(_req: HttpRequest) -> Result<HttpResponse> {
+pub async fn image_handler(req: HttpRequest) -> Result<HttpResponse> {
+    // Check if Accept header specifies a preferred image format
+    if let Some(preferred_format) = parse_preferred_format(&req) {
+        // Try to get image in the preferred format
+        match get_random_image_by_format(&preferred_format) {
+            Ok((content_type, color, image_data)) => {
+                return Ok(HttpResponse::Ok()
+                    .content_type(content_type.as_str())
+                    .insert_header(("X-Image-Color", color))
+                    .insert_header(("X-Image-Format-Source", "accept-header"))
+                    .body(image_data));
+            }
+            Err(_) => {
+                // If preferred format fails, fall through to random selection
+            }
+        }
+    }
+    
+    // Default behavior: return random format
     match get_random_image() {
         Ok((content_type, color, image_data)) => {
             Ok(HttpResponse::Ok()
                 .content_type(content_type.as_str())
                 .insert_header(("X-Image-Color", color))
+                .insert_header(("X-Image-Format-Source", "random"))
                 .body(image_data))
         }
         Err(_) => {
             // Fallback to default PNG if there's an error
             Ok(HttpResponse::Ok()
                 .content_type("image/png")
+                .insert_header(("X-Image-Format-Source", "fallback"))
                 .body(PNG_IMAGE))
         }
     }
