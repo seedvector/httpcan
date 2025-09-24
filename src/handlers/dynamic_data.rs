@@ -27,7 +27,7 @@ pub async fn base64_handler(
             match String::from_utf8(decoded_bytes) {
                 Ok(decoded_string) => {
                     Ok(HttpResponse::Ok()
-                        .content_type("text/html")
+                        .content_type("text/plain")
                         .body(decoded_string))
                 }
                 Err(_) => {
