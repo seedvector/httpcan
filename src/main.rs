@@ -47,7 +47,7 @@ async fn main() -> std::io::Result<()> {
             exclude_headers: exclude_headers.clone(),
         };
         
-        App::new()
+        let mut app = App::new()
             .app_data(web::Data::new(config))
             .wrap(
                 Cors::default()
@@ -58,9 +58,14 @@ async fn main() -> std::io::Result<()> {
             )
             .wrap(Logger::default())
             // Dynamic OpenAPI specification endpoint
-            .route("/openapi.json", web::get().to(openapi_handler))
-            // Static file service for explicit /static path
-            .service(fs::Files::new("/static", &static_path).show_files_listing())
+            .route("/openapi.json", web::get().to(openapi_handler));
+        
+        // Only add static file services if the static directory exists
+        if static_path.exists() {
+            app = app.service(fs::Files::new("/static", &static_path).show_files_listing());
+        }
+        
+        app = app
             // HTTP Methods
             .route("/get", web::get().to(get_handler))
             .route("/post", web::post().to(post_handler))
@@ -167,9 +172,14 @@ async fn main() -> std::io::Result<()> {
             // NDJSON streaming endpoints
             .route("/ndjson", web::get().to(ndjson_handler))
             .route("/ndjson/{count}", web::get().to(ndjson_path_handler))
-            .route("/ndjson/{count}/{delay}", web::get().to(ndjson_path_with_delay_handler))
-            // Serve static files from root after all API routes (index.html for root)
-            .service(fs::Files::new("/", &static_path).index_file("index.html"))
+            .route("/ndjson/{count}/{delay}", web::get().to(ndjson_path_with_delay_handler));
+        
+        // Only add root static file service if the static directory exists
+        if static_path.exists() {
+            app = app.service(fs::Files::new("/", &static_path).index_file("index.html"));
+        }
+        
+        app
     })
     .bind(format!("0.0.0.0:{}", port))?
     .run()
