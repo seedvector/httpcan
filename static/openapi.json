@@ -1003,11 +1003,65 @@
         "tags": [
           "Images"
         ],
-        "summary": "Returns a simple image of the type suggest by the Accept header.",
+        "summary": "Returns a random colored image in various formats (png, jpeg, webp, svg). Respects Accept header for format preference.",
+        "description": "Returns a random colored image. If the Accept header specifies an image format (image/png, image/jpeg, image/webp, image/svg+xml), returns an image in that format. Otherwise returns a random format.",
+        "parameters": [
+          {
+            "name": "Accept",
+            "in": "header",
+            "description": "Preferred image format. Supports image/png, image/jpeg, image/webp, image/svg+xml, or image/* for random format.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["image/png", "image/jpeg", "image/webp", "image/svg+xml", "image/*"]
+            },
+            "example": "image/png"
+          }
+        ],
         "responses": {
           "200": {
-            "description": "An image.",
-            "content": {}
+            "description": "A random colored image with X-Image-Color header indicating the color and X-Image-Format-Source indicating how the format was chosen.",
+            "headers": {
+              "X-Image-Color": {
+                "description": "The color name of the returned image",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Image-Format-Source": {
+                "description": "How the image format was determined: 'accept-header', 'random', or 'fallback'",
+                "schema": {
+                  "type": "string",
+                  "enum": ["accept-header", "random", "fallback"]
+                }
+              }
+            },
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/svg+xml": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
           }
         }
       }
@@ -1017,11 +1071,26 @@
         "tags": [
           "Images"
         ],
-        "summary": "Returns a simple JPEG image.",
+        "summary": "Returns a random colored JPEG image.",
         "responses": {
           "200": {
-            "description": "A JPEG image.",
-            "content": {}
+            "description": "A random colored JPEG image with X-Image-Color header indicating the color.",
+            "headers": {
+              "X-Image-Color": {
+                "description": "The color name of the returned image",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
           }
         }
       }
@@ -1031,11 +1100,26 @@
         "tags": [
           "Images"
         ],
-        "summary": "Returns a simple PNG image.",
+        "summary": "Returns a random colored PNG image.",
         "responses": {
           "200": {
-            "description": "A PNG image.",
-            "content": {}
+            "description": "A random colored PNG image with X-Image-Color header indicating the color.",
+            "headers": {
+              "X-Image-Color": {
+                "description": "The color name of the returned image",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
           }
         }
       }
@@ -1045,11 +1129,26 @@
         "tags": [
           "Images"
         ],
-        "summary": "Returns a simple SVG image.",
+        "summary": "Returns a random colored SVG image.",
         "responses": {
           "200": {
-            "description": "An SVG image.",
-            "content": {}
+            "description": "A random colored SVG image with X-Image-Color header indicating the color.",
+            "headers": {
+              "X-Image-Color": {
+                "description": "The color name of the returned image",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "image/svg+xml": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
           }
         }
       }
@@ -1059,11 +1158,26 @@
         "tags": [
           "Images"
         ],
-        "summary": "Returns a simple WEBP image.",
+        "summary": "Returns a random colored WEBP image.",
         "responses": {
           "200": {
-            "description": "A WEBP image.",
-            "content": {}
+            "description": "A random colored WEBP image with X-Image-Color header indicating the color.",
+            "headers": {
+              "X-Image-Color": {
+                "description": "The color name of the returned image",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
           }
         }
       }
@@ -1408,35 +1522,138 @@
         "tags": [
           "Status codes"
         ],
-        "summary": "Return status code or random status code if more than one are given",
+        "summary": "Return specified status code or random status code if multiple are given. Supports custom response body via query parameter.",
         "parameters": [
           {
             "name": "codes",
             "in": "path",
             "required": true,
-            "schema": {}
+            "description": "HTTP status code(s). Multiple codes can be comma-separated (e.g., '200,201,202') for random selection.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+(,[0-9]+)*$",
+              "example": "200"
+            }
+          },
+          {
+            "name": "body",
+            "in": "query",
+            "description": "Custom body content to return in the response",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "100": {
-            "description": "Informational responses",
+            "description": "Informational responses - empty body",
             "content": {}
           },
           "200": {
             "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "The HTTP status code"
+                    },
+                    "body": {
+                      "type": "string",
+                      "description": "Custom body content if provided"
+                    }
+                  },
+                  "example": {
+                    "status": 200
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "description": "Custom body content when Accept header is not application/json"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No Content - empty body",
             "content": {}
           },
           "300": {
             "description": "Redirection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified - empty body",
             "content": {}
           },
           "400": {
             "description": "Client Errors",
-            "content": {}
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "500": {
             "description": "Server Errors",
-            "content": {}
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       },
@@ -1444,35 +1661,147 @@
         "tags": [
           "Status codes"
         ],
-        "summary": "Return status code or random status code if more than one are given",
+        "summary": "Return specified status code or random status code if multiple are given. Supports custom response body via query parameter or request body.",
         "parameters": [
           {
             "name": "codes",
             "in": "path",
             "required": true,
-            "schema": {}
+            "description": "HTTP status code(s). Multiple codes can be comma-separated (e.g., '200,201,202') for random selection.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+(,[0-9]+)*$",
+              "example": "200"
+            }
+          },
+          {
+            "name": "body",
+            "in": "query",
+            "description": "Custom body content to return in the response (overridden by request body if present)",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
+        "requestBody": {
+          "description": "Custom body content for the response (takes priority over query parameter)",
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
         "responses": {
           "100": {
-            "description": "Informational responses",
+            "description": "Informational responses - empty body",
             "content": {}
           },
           "200": {
             "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No Content - empty body",
             "content": {}
           },
           "300": {
             "description": "Redirection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified - empty body",
             "content": {}
           },
           "400": {
             "description": "Client Errors",
-            "content": {}
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "500": {
             "description": "Server Errors",
-            "content": {}
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       },
@@ -1480,35 +1809,147 @@
         "tags": [
           "Status codes"
         ],
-        "summary": "Return status code or random status code if more than one are given",
+        "summary": "Return specified status code or random status code if multiple are given. Supports custom response body via query parameter or request body.",
         "parameters": [
           {
             "name": "codes",
             "in": "path",
             "required": true,
-            "schema": {}
+            "description": "HTTP status code(s). Multiple codes can be comma-separated (e.g., '200,201,202') for random selection.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+(,[0-9]+)*$",
+              "example": "200"
+            }
+          },
+          {
+            "name": "body",
+            "in": "query",
+            "description": "Custom body content to return in the response (overridden by request body if present)",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
+        "requestBody": {
+          "description": "Custom body content for the response (takes priority over query parameter)",
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
         "responses": {
           "100": {
-            "description": "Informational responses",
+            "description": "Informational responses - empty body",
             "content": {}
           },
           "200": {
             "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No Content - empty body",
             "content": {}
           },
           "300": {
             "description": "Redirection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified - empty body",
             "content": {}
           },
           "400": {
             "description": "Client Errors",
-            "content": {}
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "500": {
             "description": "Server Errors",
-            "content": {}
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       },
@@ -1516,35 +1957,147 @@
         "tags": [
           "Status codes"
         ],
-        "summary": "Return status code or random status code if more than one are given",
+        "summary": "Return specified status code or random status code if multiple are given. Supports custom response body via query parameter or request body.",
         "parameters": [
           {
             "name": "codes",
             "in": "path",
             "required": true,
-            "schema": {}
+            "description": "HTTP status code(s). Multiple codes can be comma-separated (e.g., '200,201,202') for random selection.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+(,[0-9]+)*$",
+              "example": "200"
+            }
+          },
+          {
+            "name": "body",
+            "in": "query",
+            "description": "Custom body content to return in the response (overridden by request body if present)",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
+        "requestBody": {
+          "description": "Custom body content for the response (takes priority over query parameter)",
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
         "responses": {
           "100": {
-            "description": "Informational responses",
+            "description": "Informational responses - empty body",
             "content": {}
           },
           "200": {
             "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No Content - empty body",
             "content": {}
           },
           "300": {
             "description": "Redirection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified - empty body",
             "content": {}
           },
           "400": {
             "description": "Client Errors",
-            "content": {}
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "500": {
             "description": "Server Errors",
-            "content": {}
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       },
@@ -1552,35 +2105,147 @@
         "tags": [
           "Status codes"
         ],
-        "summary": "Return status code or random status code if more than one are given",
+        "summary": "Return specified status code or random status code if multiple are given. Supports custom response body via query parameter or request body.",
         "parameters": [
           {
             "name": "codes",
             "in": "path",
             "required": true,
-            "schema": {}
+            "description": "HTTP status code(s). Multiple codes can be comma-separated (e.g., '200,201,202') for random selection.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+(,[0-9]+)*$",
+              "example": "200"
+            }
+          },
+          {
+            "name": "body",
+            "in": "query",
+            "description": "Custom body content to return in the response (overridden by request body if present)",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
+        "requestBody": {
+          "description": "Custom body content for the response (takes priority over query parameter)",
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
         "responses": {
           "100": {
-            "description": "Informational responses",
+            "description": "Informational responses - empty body",
             "content": {}
           },
           "200": {
             "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No Content - empty body",
             "content": {}
           },
           "300": {
             "description": "Redirection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified - empty body",
             "content": {}
           },
           "400": {
             "description": "Client Errors",
-            "content": {}
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "500": {
             "description": "Server Errors",
-            "content": {}
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }
