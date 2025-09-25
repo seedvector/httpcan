@@ -334,6 +334,156 @@
         }
       }
     },
+    "/jwt-bearer": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Validates JWT Bearer tokens and returns detailed token information.",
+        "description": "This endpoint validates JWT Bearer tokens, checks expiration claims, and returns comprehensive token analysis including header, payload, claims, and validation status. Useful for testing JWT authentication implementations.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Valid JWT token with detailed analysis.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "authenticated": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "token": {
+                      "type": "object",
+                      "properties": {
+                        "raw": {
+                          "type": "string",
+                          "description": "Original JWT token string",
+                          "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+                        },
+                        "header": {
+                          "type": "object",
+                          "description": "Decoded JWT header",
+                          "example": {
+                            "alg": "HS256",
+                            "typ": "JWT"
+                          }
+                        },
+                        "payload": {
+                          "type": "object",
+                          "description": "Decoded JWT payload",
+                          "example": {
+                            "sub": "1234567890",
+                            "name": "John Doe",
+                            "iat": 1516239022
+                          }
+                        },
+                        "payloadFormatted": {
+                          "type": "object",
+                          "description": "JWT payload with timestamps replaced by human-readable formatted versions",
+                          "example": {
+                            "sub": "1234567890",
+                            "name": "John Doe",
+                            "iat": "2018-01-18T01:30:22Z",
+                            "exp": "2025-01-18T01:30:22Z"
+                          }
+                        },
+                        "validationStatus": {
+                          "type": "object",
+                          "properties": {
+                            "structure": {
+                              "type": "string",
+                              "enum": ["valid", "invalid"],
+                              "example": "valid"
+                            },
+                            "expiration": {
+                              "type": "string",
+                              "enum": ["valid", "expired", "not_present", "invalid_format"],
+                              "example": "not_present"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid, expired, or missing JWT token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "authenticated": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "error": {
+                      "type": "string",
+                      "description": "Error description",
+                      "example": "Token expired"
+                    },
+                    "token": {
+                      "type": "object",
+                      "description": "Available token information (if any could be extracted)"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request (e.g., invalid Authorization header encoding).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "authenticated": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "error": {
+                      "type": "string",
+                      "example": "Invalid Authorization header encoding"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [],
+        "examples": {
+          "Valid Token": {
+            "summary": "Example with valid JWT token",
+            "description": "Request with a valid JWT token that includes standard claims",
+            "value": {
+              "headers": {
+                "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+              }
+            }
+          },
+          "Expired Token": {
+            "summary": "Example with expired JWT token",
+            "description": "Request with an expired JWT token",
+            "value": {
+              "headers": {
+                "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjE1MTYyMzkwMjJ9.expired_signature"
+              }
+            }
+          }
+        }
+      }
+    },
     "/brotli": {
       "get": {
         "tags": [
