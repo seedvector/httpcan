@@ -66,6 +66,13 @@ async fn main() -> std::io::Result<()> {
         }
         
         app = app
+            // Echo endpoint - mirrors request body and headers
+            .route("/echo", web::get().to(echo_handler_get))
+            .route("/echo", web::post().to(echo_handler))
+            .route("/echo", web::put().to(echo_handler))
+            .route("/echo", web::patch().to(echo_handler))
+            .route("/echo", web::delete().to(echo_handler))
+            
             // HTTP Methods
             .route("/get", web::get().to(get_handler))
             .route("/post", web::post().to(post_handler))
