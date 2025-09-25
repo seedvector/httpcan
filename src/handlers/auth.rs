@@ -2,6 +2,9 @@ use super::*;
 use std::collections::HashMap;
 use md5;
 use sha2::{Sha256, Sha512, Digest};
+use jsonwebtoken::{decode, decode_header, DecodingKey, Validation};
+use serde::{Deserialize, Serialize};
+use chrono::DateTime;
 
 // Function to parse digest authentication header
 fn parse_digest_auth(auth_header: &str) -> HashMap<String, String> {
@@ -497,6 +500,210 @@ pub async fn digest_auth_full_handler(
                 .append_header(("WWW-Authenticate", auth_header.as_str()))
                 .json(json!({
                     "authenticated": false
+                })))
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Claims {
+    #[serde(flatten)]
+    standard_claims: HashMap<String, serde_json::Value>,
+}
+
+fn format_unix_timestamp(timestamp: i64) -> String {
+    DateTime::from_timestamp(timestamp, 0)
+        .map(|dt| dt.format("%Y-%m-%dT%H:%M:%SZ").to_string())
+        .unwrap_or_else(|| "Invalid timestamp".to_string())
+}
+
+fn validate_jwt_structure(token: &str) -> Result<(serde_json::Value, serde_json::Value), String> {
+    // Split token into parts
+    let parts: Vec<&str> = token.split('.').collect();
+    if parts.len() != 3 {
+        return Err("Invalid JWT structure: must have 3 parts separated by dots".to_string());
+    }
+
+    // Decode header
+    let header = match decode_header(token) {
+        Ok(h) => h,
+        Err(e) => return Err(format!("Invalid JWT header: {}", e)),
+    };
+
+    // Try to decode payload (without verification)
+    let mut validation = Validation::default();
+    validation.insecure_disable_signature_validation();
+    validation.validate_exp = false;
+    validation.validate_nbf = false;
+    validation.validate_aud = false;
+    validation.required_spec_claims = std::collections::HashSet::new();
+
+    let payload = match decode::<Claims>(token, &DecodingKey::from_secret(&[]), &validation) {
+        Ok(token_data) => token_data.claims.standard_claims,
+        Err(e) => return Err(format!("Invalid JWT payload: {}", e)),
+    };
+
+    Ok((serde_json::to_value(header).unwrap(), serde_json::to_value(payload).unwrap()))
+}
+
+fn validate_jwt_expiration(payload: &serde_json::Value) -> (String, Option<i64>) {
+    if let Some(exp_value) = payload.get("exp") {
+        if let Some(exp) = exp_value.as_i64() {
+            let now = chrono::Utc::now().timestamp();
+            if exp < now {
+                return ("expired".to_string(), Some(exp));
+            } else {
+                return ("valid".to_string(), Some(exp));
+            }
+        } else if let Some(exp) = exp_value.as_f64() {
+            let exp = exp as i64;
+            let now = chrono::Utc::now().timestamp();
+            if exp < now {
+                return ("expired".to_string(), Some(exp));
+            } else {
+                return ("valid".to_string(), Some(exp));
+            }
+        } else {
+            return ("invalid_format".to_string(), None);
+        }
+    }
+    ("not_present".to_string(), None)
+}
+
+pub async fn jwt_bearer_handler(req: HttpRequest) -> Result<HttpResponse> {
+    // Extract Authorization header
+    let auth_header = req.headers().get("Authorization");
+
+    match auth_header {
+        Some(auth_header_value) => {
+            let auth_str = match auth_header_value.to_str() {
+                Ok(s) => s,
+                Err(_) => {
+                    return Ok(HttpResponse::BadRequest().json(json!({
+                        "authenticated": false,
+                        "error": "Invalid Authorization header encoding"
+                    })));
+                }
+            };
+
+            // Check if it's a Bearer token
+            if !auth_str.starts_with("Bearer ") {
+                return Ok(HttpResponse::Unauthorized()
+                    .append_header(("WWW-Authenticate", "Bearer"))
+                    .json(json!({
+                        "authenticated": false,
+                        "error": "Authorization header must start with 'Bearer '"
+                    })));
+            }
+
+            let token = &auth_str[7..]; // Remove "Bearer " prefix
+
+            if token.is_empty() {
+                return Ok(HttpResponse::Unauthorized()
+                    .append_header(("WWW-Authenticate", "Bearer"))
+                    .json(json!({
+                        "authenticated": false,
+                        "error": "Bearer token is empty"
+                    })));
+            }
+
+            // Validate JWT structure and decode
+            match validate_jwt_structure(token) {
+                Ok((header, payload)) => {
+                    // Validate expiration
+                    let (exp_status, exp_timestamp) = validate_jwt_expiration(&payload);
+                    
+                    let is_valid = exp_status == "valid" || exp_status == "not_present";
+                    
+                    // Build payload formatted object with formatted timestamps
+                    let mut payload_formatted = HashMap::new();
+                    
+                    // Add all claims from payload
+                    if let Some(payload_obj) = payload.as_object() {
+                        for (key, value) in payload_obj {
+                            payload_formatted.insert(key.clone(), value.clone());
+                        }
+                    }
+
+                    // Replace timestamp fields with formatted versions
+                    
+                    if let Some(iat) = payload.get("iat").and_then(|v| v.as_i64()) {
+                        payload_formatted.insert("iat".to_string(), 
+                            json!(format_unix_timestamp(iat)));
+                    }
+                    
+                    if let Some(exp) = exp_timestamp {
+                        payload_formatted.insert("exp".to_string(), 
+                            json!(format_unix_timestamp(exp)));
+                    }
+                    
+                    if let Some(nbf) = payload.get("nbf").and_then(|v| v.as_i64()) {
+                        payload_formatted.insert("nbf".to_string(), 
+                            json!(format_unix_timestamp(nbf)));
+                    }
+
+                    // Build validation status
+                    let validation_status = json!({
+                        "structure": "valid",
+                        "expiration": exp_status
+                    });
+
+                    let response_data = json!({
+                        "authenticated": is_valid,
+                        "token": {
+                            "raw": token,
+                            "header": header,
+                            "payload": payload,
+                            "payloadFormatted": payload_formatted,
+                            "validationStatus": validation_status
+                        }
+                    });
+
+                    if is_valid {
+                        Ok(HttpResponse::Ok().json(response_data))
+                    } else {
+                        let mut error_response = response_data;
+                        error_response["error"] = json!(match exp_status.as_str() {
+                            "expired" => "Token expired",
+                            "invalid_format" => "Invalid expiration claim format",
+                            _ => "Token validation failed"
+                        });
+                        Ok(HttpResponse::Unauthorized()
+                            .append_header(("WWW-Authenticate", "Bearer"))
+                            .json(error_response))
+                    }
+                }
+                Err(validation_error) => {
+                    // Try to extract what we can from the malformed token
+                    let parts: Vec<&str> = token.split('.').collect();
+                    let mut partial_token_info = json!({
+                        "raw": token,
+                        "parts_count": parts.len()
+                    });
+
+                    // Try to decode header if possible
+                    if parts.len() >= 2 {
+                        if let Ok(header) = decode_header(token) {
+                            partial_token_info["header"] = serde_json::to_value(header).unwrap();
+                        }
+                    }
+
+                    Ok(HttpResponse::Unauthorized()
+                        .append_header(("WWW-Authenticate", "Bearer"))
+                        .json(json!({
+                            "authenticated": false,
+                            "error": validation_error,
+                            "token": partial_token_info
+                        })))
+                }
+            }
+        }
+        None => {
+            Ok(HttpResponse::Unauthorized()
+                .append_header(("WWW-Authenticate", "Bearer"))
+                .json(json!({
+                    "authenticated": false,
+                    "error": "Missing Authorization header"
                 })))
         }
     }
