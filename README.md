@@ -25,7 +25,9 @@ This server implements the HTTPBin API with the following endpoints:
 
 ### Authentication
 - `GET /basic-auth/{user}/{passwd}` - Basic authentication
+- `GET /basic-auth/{user}` - Basic authentication with username only (empty password)
 - `GET /hidden-basic-auth/{user}/{passwd}` - Basic auth with 404 on failure
+- `GET /hidden-basic-auth/{user}` - Basic auth with username only, 404 on failure
 - `GET /bearer` - Bearer token authentication
 - `GET /digest-auth/{qop}/{user}/{passwd}` - Digest authentication
 - `GET /digest-auth/{qop}/{user}/{passwd}/{algorithm}` - Digest auth with algorithm
@@ -146,6 +148,9 @@ curl http://localhost:8080/uuid
 
 # Basic authentication
 curl -u username:password http://localhost:8080/basic-auth/username/password
+
+# Basic authentication with username only (empty password)
+curl -u username: http://localhost:8080/basic-auth/username
 
 # Get compressed response
 curl -H "Accept-Encoding: gzip" http://localhost:8080/gzip
