@@ -5,6 +5,78 @@ pub struct StatusQuery {
     body: Option<String>,
 }
 
+fn parse_accept_header(accept_header: Option<&actix_web::http::header::HeaderValue>) -> String {
+    if let Some(accept) = accept_header {
+        if let Ok(accept_str) = accept.to_str() {
+            // Parse Accept header for the first acceptable MIME type
+            // Handle weighted preferences (q=0.9) and multiple types
+            let mut best_type = "text/plain";
+            let mut best_weight = 0.0;
+            
+            for media_range in accept_str.split(',') {
+                let media_range = media_range.trim();
+                let parts: Vec<&str> = media_range.split(';').collect();
+                let mime_type = parts[0].trim();
+                
+                // Extract quality value (default is 1.0)
+                let mut quality = 1.0;
+                for part in parts.iter().skip(1) {
+                    if let Some(q_value) = part.trim().strip_prefix("q=") {
+                        if let Ok(q) = q_value.parse::<f32>() {
+                            quality = q;
+                        }
+                    }
+                }
+                
+                // Skip if quality is 0
+                if quality == 0.0 {
+                    continue;
+                }
+                
+                // Accept wildcard types
+                if mime_type == "*/*" || mime_type == "text/*" {
+                    if quality > best_weight {
+                        best_type = "text/plain";
+                        best_weight = quality;
+                    }
+                } else if quality > best_weight {
+                    best_type = mime_type;
+                    best_weight = quality;
+                }
+            }
+            
+            best_type.to_string()
+        } else {
+            "text/plain".to_string()
+        }
+    } else {
+        "text/plain".to_string()
+    }
+}
+
+fn format_response_body(content: &str, content_type: &str) -> (String, String) {
+    match content_type {
+        "application/json" => {
+            // Try to parse as JSON first
+            match serde_json::from_str::<serde_json::Value>(content) {
+                Ok(_) => {
+                    // Valid JSON, return as is
+                    (content.to_string(), content_type.to_string())
+                }
+                Err(_) => {
+                    // Invalid JSON, wrap in a JSON object
+                    let wrapped = json!({ "body": content });
+                    (wrapped.to_string(), content_type.to_string())
+                }
+            }
+        }
+        _ => {
+            // For all other content types, return as plain text
+            (content.to_string(), content_type.to_string())
+        }
+    }
+}
+
 pub async fn status_handler_get(
     req: HttpRequest,
     path: web::Path<String>,
@@ -50,33 +122,13 @@ pub async fn status_handler_get(
     } else {
         // Check if custom body is provided via query parameter
         if let Some(custom_body) = &query.body {
-            // Check Accept header to determine response format
-            if let Some(accept_header) = req.headers().get("accept") {
-                if let Ok(accept_str) = accept_header.to_str() {
-                    if accept_str.contains("application/json") {
-                        // Return JSON response with custom body as a field
-                        Ok(HttpResponse::build(status).json(json!({
-                            "status": chosen_code,
-                            "body": custom_body
-                        })))
-                    } else {
-                        // Return plain text response
-                        Ok(HttpResponse::build(status)
-                            .content_type("text/plain")
-                            .body(custom_body.clone()))
-                    }
-                } else {
-                    // Default to plain text if Accept header can't be parsed
-                    Ok(HttpResponse::build(status)
-                        .content_type("text/plain")
-                        .body(custom_body.clone()))
-                }
-            } else {
-                // No Accept header, default to plain text like httpstat.us
-                Ok(HttpResponse::build(status)
-                    .content_type("text/plain")
-                    .body(custom_body.clone()))
-            }
+            // Parse Accept header to determine Content-Type
+            let content_type = parse_accept_header(req.headers().get("accept"));
+            let (formatted_body, final_content_type) = format_response_body(custom_body, &content_type);
+            
+            Ok(HttpResponse::build(status)
+                .content_type(final_content_type)
+                .body(formatted_body))
         } else {
             // Default behavior - return JSON with status
             Ok(HttpResponse::build(status).json(json!({
@@ -138,33 +190,13 @@ pub async fn status_handler(
         };
         
         if let Some(custom_body) = custom_body {
-            // Check Accept header to determine response format
-            if let Some(accept_header) = req.headers().get("accept") {
-                if let Ok(accept_str) = accept_header.to_str() {
-                    if accept_str.contains("application/json") {
-                        // Return JSON response with custom body as a field
-                        Ok(HttpResponse::build(status).json(json!({
-                            "status": chosen_code,
-                            "body": custom_body
-                        })))
-                    } else {
-                        // Return plain text response
-                        Ok(HttpResponse::build(status)
-                            .content_type("text/plain")
-                            .body(custom_body))
-                    }
-                } else {
-                    // Default to plain text if Accept header can't be parsed
-                    Ok(HttpResponse::build(status)
-                        .content_type("text/plain")
-                        .body(custom_body))
-                }
-            } else {
-                // No Accept header, default to plain text like httpstat.us
-                Ok(HttpResponse::build(status)
-                    .content_type("text/plain")
-                    .body(custom_body))
-            }
+            // Parse Accept header to determine Content-Type
+            let content_type = parse_accept_header(req.headers().get("accept"));
+            let (formatted_body, final_content_type) = format_response_body(&custom_body, &content_type);
+            
+            Ok(HttpResponse::build(status)
+                .content_type(final_content_type)
+                .body(formatted_body))
         } else {
             // Default behavior - return JSON with status
             Ok(HttpResponse::build(status).json(json!({
