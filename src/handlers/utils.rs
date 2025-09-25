@@ -8,6 +8,7 @@ use serde::{Serialize, Deserialize};
 use serde_json::Value;
 use std::env;
 use std::path::PathBuf;
+use base64::{Engine as _, engine::general_purpose};
 
 #[derive(Serialize, Deserialize)]
 pub struct RequestInfo {
@@ -30,6 +31,31 @@ pub struct GetRequestInfo {
     pub headers: IndexMap<String, String>,
     pub origin: String,
     pub url: String,
+}
+
+// Helper function to check if data appears to be text content
+fn is_text_content(data: &[u8]) -> bool {
+    // Check for null bytes (common in binary files)
+    if data.contains(&0) {
+        return false;
+    }
+    
+    // Check if content is valid UTF-8
+    std::str::from_utf8(data).is_ok()
+}
+
+// Helper function to format file content for display
+fn format_file_content(_filename: &str, data: &[u8]) -> String {
+    if is_text_content(data) {
+        // For text files, return the content directly
+        match std::str::from_utf8(data) {
+            Ok(text) => text.to_string(),
+            Err(_) => "[Invalid UTF-8]".to_string()
+        }
+    } else {
+        // For binary files, return base64 encoding directly
+        general_purpose::STANDARD.encode(data)
+    }
 }
 
 // Helper function to get static directory path relative to executable
@@ -394,10 +420,10 @@ pub async fn extract_request_info_multipart(req: &HttpRequest, mut payload: Mult
             }
             
             if let Some(filename) = filename {
-                // This is a file upload
+                // This is a file upload - format the content based on file type
                 files.insert(
                     name,
-                    format!("{} ({} bytes)", filename, data.len())
+                    format_file_content(&filename, &data)
                 );
             } else {
                 // This is a regular form field
