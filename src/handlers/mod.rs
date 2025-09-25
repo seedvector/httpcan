@@ -29,6 +29,7 @@ pub mod images;
 pub mod status;
 pub mod openapi;
 pub mod sse;
+pub mod echo;
 
 pub use utils::*;
 pub use http_methods::*;
@@ -44,4 +45,5 @@ pub use images::*;
 pub use status::*;
 pub use openapi::*;
 pub use sse::*;
+pub use echo::*;
 

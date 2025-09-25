@@ -2,7 +2,7 @@
   "openapi": "3.0.1",
   "info": {
     "title": "httpcan.org",
-    "description": "A simple HTTP request & response service built with Rust and Actix Web, with httpbin compatibility. <br/> <br/> <b>Run locally: </b> <code>$ docker run --rm -p 8080:8080 ghcr.io/seedvector/httpcan</code> <br/> <br/> <b>Key Features:</b> <ul> <li><b>HTTPBin Compatible</b> - Full compatibility with httpbin API for seamless migration and testing</li> <li><b>AI-Era Streaming</b> - Native support for SSE and NDJSON endpoints with OpenAI/Ollama format compatibility</li> <li><b>Tiny Docker Image</b> - Less than 10MB image size for fast deployment</li> <li><b>Minimal Memory Footprint</b> - Extremely low memory usage for efficient resource utilization</li> <li><b>High Throughput</b> - Built with Rust and async I/O for maximum performance</li> </ul>",
+    "description": "A simple HTTP request & response service built with Rust and Actix Web, with httpbin compatibility. <br/> <br/> <b>Run locally: </b> <code>$ docker run --rm -p 8080:8080 ghcr.io/seedvector/httpcan</code> <br/> <br/> <b>Key Features:</b> <ul> <li><b>HTTPBin Compatible</b> - Full compatibility with httpbin API for seamless migration and testing</li> <li><b>Enhanced File Uploads</b> - Supports multiple files with the same parameter name in multipart/form-data requests</li> <li><b>AI-Era Streaming</b> - Native support for SSE and NDJSON endpoints with OpenAI/Ollama format compatibility</li> <li><b>Tiny Docker Image</b> - Less than 10MB image size for fast deployment</li> <li><b>Minimal Memory Footprint</b> - Extremely low memory usage for efficient resource utilization</li> <li><b>High Throughput</b> - Built with Rust and async I/O for maximum performance</li> </ul>",
     "version": "0.2.0"
   },
   "externalDocs": {
@@ -794,6 +794,292 @@
         }
       }
     },
+    "/echo": {
+      "get": {
+        "tags": [
+          "Request inspection"
+        ],
+        "summary": "Returns an empty response for GET requests (no body to echo).",
+        "description": "Mirrors request headers in the response. GET requests return empty body since there's no request body to echo.",
+        "responses": {
+          "200": {
+            "description": "Empty response with mirrored headers",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": ""
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Request inspection"
+        ],
+        "summary": "Returns the exact request body with mirrored headers.",
+        "description": "Echoes the request body exactly as received and mirrors request headers in the response. Content-Type and custom headers are preserved.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "hello": "world"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              },
+              "example": "Hello, world!"
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Echoed request body with mirrored headers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "hello": "world"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "Hello, world!"
+              },
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Request inspection"
+        ],
+        "summary": "Returns the exact request body with mirrored headers.",
+        "description": "Echoes the request body exactly as received and mirrors request headers in the response. Content-Type and custom headers are preserved.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Echoed request body with mirrored headers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Request inspection"
+        ],
+        "summary": "Returns the exact request body with mirrored headers.",
+        "description": "Echoes the request body exactly as received and mirrors request headers in the response. Content-Type and custom headers are preserved.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Echoed request body with mirrored headers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Request inspection"
+        ],
+        "summary": "Returns the exact request body with mirrored headers.",
+        "description": "Echoes the request body exactly as received and mirrors request headers in the response. Content-Type and custom headers are preserved.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Echoed request body with mirrored headers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/deny": {
       "get": {
         "tags": [
@@ -1473,11 +1759,47 @@
         "tags": [
           "HTTP Methods"
         ],
-        "summary": "The request's POST parameters.",
+        "summary": "The request's POST parameters and uploaded files.",
+        "description": "Supports multipart/form-data file uploads. Multiple files with the same parameter name are returned as an array.",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Supports file uploads. Multiple files with the same field name are returned as an array."
+              }
+            },
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "The request's POST parameters.",
-            "content": {}
+            "description": "The request's POST parameters and uploaded files.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestInfo"
+                }
+              }
+            }
           }
         }
       }
@@ -2956,6 +3278,111 @@
     }
   },
   "components": {
+    "schemas": {
+      "RequestInfo": {
+        "type": "object",
+        "properties": {
+          "args": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Query string parameters"
+          },
+          "data": {
+            "type": "string",
+            "description": "Request body content"
+          },
+          "files": {
+            "type": "object",
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "description": "Single file content (text or base64 encoded)"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "description": "File content (text or base64 encoded)"
+                  },
+                  "description": "Multiple files with the same parameter name"
+                }
+              ]
+            },
+            "description": "Uploaded files. Single files return as string, multiple files with same parameter name return as array.",
+            "example": {
+              "single_file": "file content here",
+              "multiple_files": [
+                "first file content",
+                "second file content"
+              ]
+            }
+          },
+          "form": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Form data fields"
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Request headers (excluding proxy headers)"
+          },
+          "json": {
+            "description": "Parsed JSON content if Content-Type is application/json"
+          },
+          "method": {
+            "type": "string",
+            "description": "HTTP method"
+          },
+          "origin": {
+            "type": "string",
+            "description": "Client IP address"
+          },
+          "url": {
+            "type": "string",
+            "description": "Full request URL"
+          },
+          "user_agent": {
+            "type": "string",
+            "description": "User-Agent header value"
+          }
+        }
+      },
+      "GetRequestInfo": {
+        "type": "object",
+        "properties": {
+          "args": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Query string parameters"
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Request headers (excluding proxy headers)"
+          },
+          "origin": {
+            "type": "string",
+            "description": "Client IP address"
+          },
+          "url": {
+            "type": "string",
+            "description": "Full request URL"
+          }
+        }
+      }
+    },
     "securitySchemes": {
       "basicAuth": {
         "type": "http",
