@@ -88,7 +88,9 @@ async fn main() -> std::io::Result<()> {
             
             // Auth endpoints
             .route("/basic-auth/{user}/{passwd}", web::get().to(basic_auth_handler))
+            .route("/basic-auth/{user}", web::get().to(basic_auth_user_only_handler))
             .route("/hidden-basic-auth/{user}/{passwd}", web::get().to(hidden_basic_auth_handler))
+            .route("/hidden-basic-auth/{user}", web::get().to(hidden_basic_auth_user_only_handler))
             .route("/bearer", web::get().to(bearer_auth_handler))
             .route("/digest-auth/{qop}/{user}/{passwd}", web::get().to(digest_auth_handler))
             .route("/digest-auth/{qop}/{user}/{passwd}/{algorithm}", web::get().to(digest_auth_with_algorithm_handler))

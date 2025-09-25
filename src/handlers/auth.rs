@@ -133,6 +133,41 @@ pub async fn basic_auth_handler(
     }
 }
 
+pub async fn basic_auth_user_only_handler(
+    _req: HttpRequest,
+    path: web::Path<String>,
+    auth: Option<BasicAuth>,
+) -> Result<HttpResponse> {
+    let expected_user = path.into_inner();
+    
+    match auth {
+        Some(auth) => {
+            let user = auth.user_id();
+            let password = auth.password().unwrap_or("");
+            
+            if user == expected_user && password.is_empty() {
+                Ok(HttpResponse::Ok().json(json!({
+                    "authenticated": true,
+                    "user": user
+                })))
+            } else {
+                Ok(HttpResponse::Unauthorized()
+                    .append_header(("WWW-Authenticate", "Basic realm=\"Fake Realm\""))
+                    .json(json!({
+                        "authenticated": false
+                    })))
+            }
+        }
+        None => {
+            Ok(HttpResponse::Unauthorized()
+                .append_header(("WWW-Authenticate", "Basic realm=\"Fake Realm\""))
+                .json(json!({
+                    "authenticated": false
+                })))
+        }
+    }
+}
+
 pub async fn hidden_basic_auth_handler(
     _req: HttpRequest,
     path: web::Path<(String, String)>,
@@ -146,6 +181,37 @@ pub async fn hidden_basic_auth_handler(
             let password = auth.password().unwrap_or("");
             
             if user == expected_user && password == expected_passwd {
+                Ok(HttpResponse::Ok().json(json!({
+                    "authenticated": true,
+                    "user": user
+                })))
+            } else {
+                Ok(HttpResponse::NotFound().json(json!({
+                    "authenticated": false
+                })))
+            }
+        }
+        None => {
+            Ok(HttpResponse::NotFound().json(json!({
+                "authenticated": false
+            })))
+        }
+    }
+}
+
+pub async fn hidden_basic_auth_user_only_handler(
+    _req: HttpRequest,
+    path: web::Path<String>,
+    auth: Option<BasicAuth>,
+) -> Result<HttpResponse> {
+    let expected_user = path.into_inner();
+    
+    match auth {
+        Some(auth) => {
+            let user = auth.user_id();
+            let password = auth.password().unwrap_or("");
+            
+            if user == expected_user && password.is_empty() {
                 Ok(HttpResponse::Ok().json(json!({
                     "authenticated": true,
                     "user": user

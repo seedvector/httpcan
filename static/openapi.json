@@ -278,6 +278,39 @@
         }
       }
     },
+    "/basic-auth/{user}": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Prompts the user for authorization using HTTP Basic Auth with username only (empty password).",
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sucessful authentication.",
+            "content": {}
+          },
+          "401": {
+            "description": "Unsuccessful authentication.",
+            "content": {}
+          }
+        }
+      }
+    },
     "/bearer": {
       "get": {
         "tags": [
@@ -965,6 +998,39 @@
           },
           {
             "name": "passwd",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sucessful authentication.",
+            "content": {}
+          },
+          "404": {
+            "description": "Unsuccessful authentication.",
+            "content": {}
+          }
+        }
+      }
+    },
+    "/hidden-basic-auth/{user}": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Prompts the user for authorization using HTTP Basic Auth with username only (empty password). Returns 404 on failure.",
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user",
             "in": "path",
             "required": true,
             "schema": {
