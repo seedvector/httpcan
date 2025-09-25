@@ -14,7 +14,7 @@ use base64::{Engine as _, engine::general_purpose};
 pub struct RequestInfo {
     pub args: IndexMap<String, String>,
     pub data: String,
-    pub files: IndexMap<String, String>,
+    pub files: IndexMap<String, Value>,
     pub form: IndexMap<String, String>,
     pub headers: IndexMap<String, String>,
     pub json: Option<Value>,
@@ -77,6 +77,19 @@ pub fn get_static_path() -> PathBuf {
 
 // Helper function to sort HashMap by keys and return IndexMap
 pub fn sort_hashmap(map: HashMap<String, String>) -> IndexMap<String, String> {
+    let mut keys: Vec<_> = map.keys().cloned().collect();
+    keys.sort();
+    let mut sorted_map = IndexMap::new();
+    for key in keys {
+        if let Some(value) = map.get(&key) {
+            sorted_map.insert(key, value.clone());
+        }
+    }
+    sorted_map
+}
+
+// Helper function to sort HashMap with Value by keys and return IndexMap
+pub fn sort_hashmap_value(map: HashMap<String, Value>) -> IndexMap<String, Value> {
     let mut keys: Vec<_> = map.keys().cloned().collect();
     keys.sort();
     let mut sorted_map = IndexMap::new();
@@ -403,7 +416,7 @@ pub async fn extract_request_info_multipart(req: &HttpRequest, mut payload: Mult
     let origin = connection_info.realip_remote_addr().unwrap_or("127.0.0.1").to_string();
     
     let mut form_data = HashMap::new();
-    let mut files = HashMap::new();
+    let mut files: HashMap<String, Vec<String>> = HashMap::new();
     
     // Parse multipart data
     while let Some(mut field) = payload.try_next().await? {
@@ -421,10 +434,8 @@ pub async fn extract_request_info_multipart(req: &HttpRequest, mut payload: Mult
             
             if let Some(filename) = filename {
                 // This is a file upload - format the content based on file type
-                files.insert(
-                    name,
-                    format_file_content(&filename, &data)
-                );
+                let file_content = format_file_content(&filename, &data);
+                files.entry(name).or_insert_with(Vec::new).push(file_content);
             } else {
                 // This is a regular form field
                 if let Ok(value) = String::from_utf8(data) {
@@ -434,10 +445,22 @@ pub async fn extract_request_info_multipart(req: &HttpRequest, mut payload: Mult
         }
     }
     
+    // Convert files Vec to appropriate Value (single string or array)
+    let files_map: HashMap<String, Value> = files.into_iter().map(|(key, values)| {
+        let value = if values.len() == 1 {
+            // Single file - return as string for backward compatibility
+            Value::String(values.into_iter().next().unwrap())
+        } else {
+            // Multiple files - return as array
+            Value::Array(values.into_iter().map(Value::String).collect())
+        };
+        (key, value)
+    }).collect();
+    
     Ok(RequestInfo {
         args: sort_hashmap(args),
         data: String::new(),
-        files: sort_hashmap(files),
+        files: sort_hashmap_value(files_map),
         form: sort_hashmap(form_data),
         headers: sort_hashmap(filtered_headers),
         json: None,
