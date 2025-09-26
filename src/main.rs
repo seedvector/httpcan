@@ -145,6 +145,7 @@ async fn main() -> std::io::Result<()> {
             .route("/status/{codes}", web::put().to(status_handler))
             .route("/status/{codes}", web::patch().to(status_handler))
             .route("/status/{codes}", web::delete().to(status_handler))
+            .route("/status/{codes}", web::trace().to(status_handler_get))
             
             // Redirects
             .route("/redirect/{n}", web::get().to(redirect_handler))
