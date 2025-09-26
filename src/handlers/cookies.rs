@@ -1,5 +1,34 @@
 use super::*;
 
+/// Determines if cookies should be secure based on the request
+/// Returns true if the request is over HTTPS or if X-Forwarded-Proto is https
+fn secure_cookie(req: &HttpRequest) -> bool {
+    // Check if the connection is HTTPS
+    if req.connection_info().scheme() == "https" {
+        return true;
+    }
+    
+    // Check X-Forwarded-Proto header for proxy scenarios
+    if let Some(proto_header) = req.headers().get("X-Forwarded-Proto") {
+        if let Ok(proto_str) = proto_header.to_str() {
+            if proto_str.to_lowercase() == "https" {
+                return true;
+            }
+        }
+    }
+    
+    // Check X-Forwarded-Ssl header
+    if let Some(ssl_header) = req.headers().get("X-Forwarded-Ssl") {
+        if let Ok(ssl_str) = ssl_header.to_str() {
+            if ssl_str.to_lowercase() == "on" {
+                return true;
+            }
+        }
+    }
+    
+    false
+}
+
 pub async fn cookies_handler(req: HttpRequest) -> Result<HttpResponse> {
     let mut cookies = HashMap::new();
     
@@ -20,14 +49,16 @@ pub async fn cookies_handler(req: HttpRequest) -> Result<HttpResponse> {
 }
 
 pub async fn cookies_set_handler(
-    _req: HttpRequest,
+    req: HttpRequest,
     query: web::Query<HashMap<String, String>>,
 ) -> Result<HttpResponse> {
     let mut response = HttpResponse::Found();
+    let is_secure = secure_cookie(&req);
     
     for (name, value) in query.iter() {
         let cookie = Cookie::build(name, value)
             .path("/")
+            .secure(is_secure)
             .finish();
         response.cookie(cookie);
     }
@@ -38,13 +69,15 @@ pub async fn cookies_set_handler(
 }
 
 pub async fn cookies_set_named_handler(
-    _req: HttpRequest,
+    req: HttpRequest,
     path: web::Path<(String, String)>,
 ) -> Result<HttpResponse> {
     let (name, value) = path.into_inner();
+    let is_secure = secure_cookie(&req);
     
     let cookie = Cookie::build(&name, &value)
         .path("/")
+        .secure(is_secure)
         .finish();
     
     Ok(HttpResponse::Found()
