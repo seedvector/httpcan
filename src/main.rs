@@ -155,6 +155,7 @@ async fn main() -> std::io::Result<()> {
             .route("/redirect-to", web::put().to(redirect_to_handler_get))
             .route("/redirect-to", web::patch().to(redirect_to_handler_get))
             .route("/redirect-to", web::delete().to(redirect_to_handler_get))
+            .route("/redirect-to", web::trace().to(redirect_to_handler_get))
             
             // Request inspection
             .route("/headers", web::get().to(headers_handler))
