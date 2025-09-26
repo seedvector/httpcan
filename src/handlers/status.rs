@@ -54,6 +54,35 @@ fn parse_accept_header(accept_header: Option<&actix_web::http::header::HeaderVal
     }
 }
 
+fn determine_response_content_type(
+    req: &HttpRequest,
+    has_body: bool,
+) -> String {
+    // Priority: Accept header > request Content-Type header > default
+    
+    // 1. Check Accept header first (highest priority)
+    if let Some(accept_header) = req.headers().get("accept") {
+        let accept_type = parse_accept_header(Some(accept_header));
+        if accept_type != "text/plain" {
+            return accept_type;
+        }
+    }
+    
+    // 2. If request has body and Content-Type header, use that
+    if has_body {
+        if let Some(content_type_header) = req.headers().get("content-type") {
+            if let Ok(content_type_str) = content_type_header.to_str() {
+                // Extract just the MIME type part (before any semicolon)
+                let mime_type = content_type_str.split(';').next().unwrap_or(content_type_str).trim();
+                return mime_type.to_string();
+            }
+        }
+    }
+    
+    // 3. Default fallback
+    "text/plain".to_string()
+}
+
 fn format_response_body(content: &str, content_type: &str) -> (String, String) {
     match content_type {
         "application/json" => {
@@ -122,8 +151,8 @@ pub async fn status_handler_get(
     } else {
         // Check if custom body is provided via query parameter
         if let Some(custom_body) = &query.body {
-            // Parse Accept header to determine Content-Type
-            let content_type = parse_accept_header(req.headers().get("accept"));
+            // Determine Content-Type with proper priority: Accept > Content-Type > default
+            let content_type = determine_response_content_type(&req, false);
             let (formatted_body, final_content_type) = format_response_body(custom_body, &content_type);
             
             Ok(HttpResponse::build(status)
@@ -183,15 +212,16 @@ pub async fn status_handler(
         Ok(HttpResponse::build(status).finish())
     } else {
         // Priority: 1. Request body, 2. Query parameter, 3. Default
-        let custom_body = if !body.trim().is_empty() {
+        let has_request_body = !body.trim().is_empty();
+        let custom_body = if has_request_body {
             Some(body)
         } else {
             query.body.clone()
         };
         
         if let Some(custom_body) = custom_body {
-            // Parse Accept header to determine Content-Type
-            let content_type = parse_accept_header(req.headers().get("accept"));
+            // Determine Content-Type with proper priority: Accept > Content-Type > default
+            let content_type = determine_response_content_type(&req, has_request_body);
             let (formatted_body, final_content_type) = format_response_body(&custom_body, &content_type);
             
             Ok(HttpResponse::build(status)
