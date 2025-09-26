@@ -1,5 +1,5 @@
 use super::*;
-use actix_web::{web::Bytes, HttpResponseBuilder};
+use actix_web::{web::Bytes, HttpResponseBuilder, body::SizedStream};
 
 #[derive(Deserialize)]
 pub struct DripQuery {
@@ -174,24 +174,54 @@ pub async fn drip_handler(
     _req: HttpRequest,
     query: web::Query<DripQuery>,
 ) -> Result<HttpResponse> {
-    let _duration = query.duration.unwrap_or(2.0);
+    let duration = query.duration.unwrap_or(2.0);
     let numbytes = query.numbytes.unwrap_or(10);
     let code = query.code.unwrap_or(200);
-    let delay = query.delay.unwrap_or(2.0);
+    let delay = query.delay.unwrap_or(0.0);
     
-    // Initial delay
-    sleep(Duration::from_secs_f64(delay)).await;
+    // Validate parameters
+    if numbytes == 0 {
+        return Ok(HttpResponse::BadRequest()
+            .json(json!({
+                "error": "number of bytes must be positive"
+            })));
+    }
     
-    let mut rng = rand::thread_rng();
-    let random_bytes: Vec<u8> = (0..numbytes).map(|_| rng.gen()).collect();
+    // Set reasonable limit (10MB)
+    let numbytes = numbytes.min(10 * 1024 * 1024);
     
+    // Validate status code
     let status = StatusCode::from_u16(code).unwrap_or(StatusCode::OK);
     
-    // For simplicity, we'll return all data at once after the delay
-    // In a full implementation, this would drip data over time
+    // Initial delay
+    if delay > 0.0 {
+        sleep(Duration::from_secs_f64(delay)).await;
+    }
+    
+    // Calculate pause between bytes
+    let pause = if numbytes == 1 {
+        Duration::from_secs_f64(duration)
+    } else {
+        Duration::from_secs_f64(duration / (numbytes as f64 - 1.0))
+    };
+    
+    // Create streaming response using SizedStream
+    let stream = async_stream::stream! {
+        for i in 0..numbytes {
+            // Yield a single '*' byte
+            yield Ok::<_, actix_web::Error>(Bytes::from("*"));
+            
+            // Don't pause after the last byte
+            if i < numbytes - 1 && pause.as_nanos() > 0 {
+                sleep(pause).await;
+            }
+        }
+    };
+    
+    // Use SizedStream to set both content length and streaming
     Ok(HttpResponseBuilder::new(status)
         .content_type("application/octet-stream")
-        .body(random_bytes))
+        .body(SizedStream::new(numbytes as u64, Box::pin(stream))))
 }
 
 pub async fn delay_handler_get(
