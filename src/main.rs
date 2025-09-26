@@ -51,10 +51,15 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(config))
             .wrap(
                 Cors::default()
-                    .allow_any_origin()
-                    .allow_any_method()
+                    .allowed_origin_fn(|_origin, _req_head| {
+                        // Dynamically set Origin to fully mimic httpbin behavior
+                        // httpbin: response.headers["Access-Control-Allow-Origin"] = request.headers.get("Origin", "*")
+                        true // Allow all origins, actix-cors will automatically echo Origin header or set to "*"
+                    })
+                    .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
                     .allow_any_header()
-                    .max_age(3600)
+                    .supports_credentials() // Equivalent to Access-Control-Allow-Credentials: true
+                    .max_age(3600) // Equivalent to Access-Control-Max-Age: 3600
             )
             .wrap(Logger::default())
             // Dynamic OpenAPI specification endpoint
