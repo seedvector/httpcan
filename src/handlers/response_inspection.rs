@@ -1,6 +1,7 @@
 use super::*;
 use serde_json::Value;
 use crate::handlers::utils::{parse_multi_value_header, http_date, generate_etag};
+use std::collections::BTreeMap;
 
 pub async fn cache_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Result<HttpResponse> {
     let if_modified_since = req.headers().get("If-Modified-Since");
@@ -80,63 +81,93 @@ pub async fn etag_handler(
         .json(request_info))
 }
 
+/// Parse query string to support multi-value parameters like httpbin
+fn parse_multi_value_query_string(query_string: &str) -> BTreeMap<String, Vec<String>> {
+    let mut params: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    
+    if query_string.is_empty() {
+        return params;
+    }
+    
+    for pair in query_string.split('&') {
+        if let Some((key, value)) = pair.split_once('=') {
+            let decoded_key = urlencoding::decode(key).unwrap_or_else(|_| key.into()).to_string();
+            let decoded_value = urlencoding::decode(value).unwrap_or_else(|_| value.into()).to_string();
+            params.entry(decoded_key).or_insert_with(Vec::new).push(decoded_value);
+        } else if !pair.is_empty() {
+            // Handle keys without values
+            let decoded_key = urlencoding::decode(pair).unwrap_or_else(|_| pair.into()).to_string();
+            params.entry(decoded_key).or_insert_with(Vec::new).push(String::new());
+        }
+    }
+    
+    params
+}
+
 pub async fn response_headers_get_handler(
-    _req: HttpRequest,
-    query: web::Query<HashMap<String, String>>,
+    req: HttpRequest,
+    _query: web::Query<HashMap<String, String>>, // Keep for compatibility but use manual parsing
 ) -> Result<HttpResponse> {
-    let mut response = HttpResponse::Ok();
+    // Parse query string manually to support multi-value parameters
+    let multi_value_params = parse_multi_value_query_string(req.query_string());
     
-    // First, add all query parameters as actual response headers
-    for (key, value) in query.iter() {
-        response.append_header((key.as_str(), value.as_str()));
+    // Build response with iterative header reflection like httpbin
+    let mut iteration_count = 0;
+    const MAX_ITERATIONS: usize = 10; // Prevent infinite loops
+    
+    loop {
+        let mut response_builder = HttpResponse::Ok();
+        
+        // Add query parameters as actual response headers
+        for (key, values) in &multi_value_params {
+            for value in values {
+                response_builder.append_header((key.as_str(), value.as_str()));
+            }
+        }
+        
+        // Prepare the headers map for JSON response
+        let mut headers_map: BTreeMap<String, Value> = BTreeMap::new();
+        
+        // Add query parameters to the JSON response
+        for (key, values) in &multi_value_params {
+            if values.len() == 1 {
+                headers_map.insert(key.clone(), Value::String(values[0].clone()));
+            } else {
+                headers_map.insert(key.clone(), Value::Array(
+                    values.iter().map(|v| Value::String(v.clone())).collect()
+                ));
+            }
+        }
+        
+        // Add standard headers that would be set by the framework
+        headers_map.insert("content-type".to_string(), Value::String("application/json".to_string()));
+        
+        // Calculate content length for the JSON
+        let json_string = serde_json::to_string(&headers_map)?;
+        let content_length = json_string.len().to_string();
+        headers_map.insert("content-length".to_string(), Value::String(content_length.clone()));
+        
+        // Set content-length header on response
+        response_builder.append_header(("content-length", content_length));
+        
+        // Check if we need another iteration (like httpbin does)
+        let _current_json = serde_json::to_string(&headers_map)?;
+        
+        iteration_count += 1;
+        
+        // For simplicity, we'll do a fixed number of iterations like httpbin's logic
+        // In httpbin, it iterates until response data doesn't change
+        if iteration_count >= 2 || iteration_count >= MAX_ITERATIONS {
+            return Ok(response_builder.json(headers_map));
+        }
     }
-    
-    // Prepare the headers map that will be in the JSON response
-    let mut headers_map: HashMap<String, Value> = HashMap::new();
-    
-    // Add query parameters to the JSON response
-    for (key, value) in query.iter() {
-        headers_map.insert(key.clone(), Value::String(value.clone()));
-    }
-    
-    // Add the standard headers that httpbin includes in the JSON response
-    headers_map.insert("content-type".to_string(), Value::String("application/json".to_string()));
-    
-    // Calculate content length for the final JSON
-    let temp_json = serde_json::to_string(&headers_map)?;
-    let final_content_length = temp_json.len().to_string();
-    headers_map.insert("content-length".to_string(), Value::String(final_content_length));
-    
-    Ok(response.json(headers_map))
 }
 
 pub async fn response_headers_post_handler(
-    _req: HttpRequest,
-    query: web::Query<HashMap<String, String>>,
+    req: HttpRequest,
+    _query: web::Query<HashMap<String, String>>, // Keep for compatibility but use manual parsing
     _body: String,
 ) -> Result<HttpResponse> {
-    let mut response = HttpResponse::Ok();
-    
-    // First, add all query parameters as actual response headers
-    for (key, value) in query.iter() {
-        response.append_header((key.as_str(), value.as_str()));
-    }
-    
-    // Prepare the headers map that will be in the JSON response
-    let mut headers_map: HashMap<String, Value> = HashMap::new();
-    
-    // Add query parameters to the JSON response
-    for (key, value) in query.iter() {
-        headers_map.insert(key.clone(), Value::String(value.clone()));
-    }
-    
-    // Add the standard headers that httpbin includes in the JSON response
-    headers_map.insert("content-type".to_string(), Value::String("application/json".to_string()));
-    
-    // Calculate content length for the final JSON
-    let temp_json = serde_json::to_string(&headers_map)?;
-    let final_content_length = temp_json.len().to_string();
-    headers_map.insert("content-length".to_string(), Value::String(final_content_length));
-    
-    Ok(response.json(headers_map))
+    // Use the same logic as GET handler - httpbin treats GET and POST identically for this endpoint
+    response_headers_get_handler(req, _query).await
 }
