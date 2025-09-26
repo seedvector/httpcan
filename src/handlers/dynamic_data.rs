@@ -1,5 +1,8 @@
 use super::*;
 use actix_web::{web::Bytes, HttpResponseBuilder, body::SizedStream};
+use rand::{SeedableRng, Rng};
+use rand::rngs::StdRng;
+use std::time::Duration;
 
 #[derive(Deserialize)]
 pub struct DripQuery {
@@ -7,6 +10,23 @@ pub struct DripQuery {
     numbytes: Option<usize>,
     code: Option<u16>,
     delay: Option<f64>,
+}
+
+#[derive(Deserialize)]
+pub struct BytesQuery {
+    seed: Option<u64>,
+}
+
+#[derive(Deserialize)]
+pub struct StreamBytesQuery {
+    seed: Option<u64>,
+    chunk_size: Option<usize>,
+}
+
+#[derive(Deserialize)]
+pub struct RangeQuery {
+    chunk_size: Option<usize>,
+    duration: Option<f64>,
 }
 
 pub async fn uuid_handler(_req: HttpRequest) -> Result<HttpResponse> {
@@ -50,12 +70,19 @@ pub async fn base64_handler(
 pub async fn bytes_handler(
     _req: HttpRequest,
     path: web::Path<usize>,
+    query: web::Query<BytesQuery>,
 ) -> Result<HttpResponse> {
     let n = path.into_inner();
-    let n = n.min(102400); // Limit to 100KB
+    let n = n.min(100 * 1024); // Limit to 100KB
     
-    let mut rng = rand::thread_rng();
-    let random_bytes: Vec<u8> = (0..n).map(|_| rng.gen()).collect();
+    // Generate random bytes using the same method as httpbin
+    let random_bytes: Vec<u8> = if let Some(seed) = query.seed {
+        let mut rng = StdRng::seed_from_u64(seed);
+        (0..n).map(|_| rng.gen_range(0..=255)).collect()
+    } else {
+        let mut rng = rand::thread_rng();
+        (0..n).map(|_| rng.gen_range(0..=255)).collect()
+    };
     
     Ok(HttpResponse::Ok()
         .content_type("application/octet-stream")
@@ -65,38 +92,75 @@ pub async fn bytes_handler(
 pub async fn stream_bytes_handler(
     _req: HttpRequest,
     path: web::Path<usize>,
+    query: web::Query<StreamBytesQuery>,
 ) -> Result<HttpResponse> {
     let n = path.into_inner();
-    let n = n.min(102400); // Limit to 100KB
+    let n = n.min(100 * 1024); // Limit to 100KB
     
-    let mut rng = rand::thread_rng();
-    let random_bytes: Vec<u8> = (0..n).map(|_| rng.gen()).collect();
+    // Parse chunk_size parameter
+    let chunk_size = query.chunk_size.unwrap_or(10 * 1024).max(1);
+    
+    // Initialize RNG with seed if provided
+    let seed = query.seed;
+    
+    let stream = async_stream::stream! {
+        let mut chunks = Vec::new();
+        
+        if let Some(seed) = seed {
+            let mut rng = StdRng::seed_from_u64(seed);
+            for _ in 0..n {
+                chunks.push(rng.gen_range(0..=255));
+                
+                if chunks.len() == chunk_size {
+                    yield Ok::<_, actix_web::Error>(Bytes::from(chunks.clone()));
+                    chunks.clear();
+                }
+            }
+        } else {
+            let mut rng = rand::thread_rng();
+            for _ in 0..n {
+                chunks.push(rng.gen_range(0..=255));
+                
+                if chunks.len() == chunk_size {
+                    yield Ok::<_, actix_web::Error>(Bytes::from(chunks.clone()));
+                    chunks.clear();
+                }
+            }
+        }
+        
+        // Yield remaining bytes if any
+        if !chunks.is_empty() {
+            yield Ok::<_, actix_web::Error>(Bytes::from(chunks));
+        }
+    };
     
     Ok(HttpResponse::Ok()
         .content_type("application/octet-stream")
-        .streaming(futures_util::stream::once(async move {
-            Ok::<_, actix_web::Error>(Bytes::from(random_bytes))
-        })))
+        .streaming(stream))
 }
 
 pub async fn stream_handler(
-    _req: HttpRequest,
+    req: HttpRequest,
     path: web::Path<usize>,
+    config: web::Data<AppConfig>,
 ) -> Result<HttpResponse> {
     let n = path.into_inner();
     let n = n.min(100); // Limit to 100 lines
     
+    // Extract request information similar to httpbin's get_dict("url", "args", "headers", "origin")
+    let base_response = extract_get_request_info(&req, &config.exclude_headers);
+    
     let stream = futures_util::stream::iter((0..n).map(move |i| {
-        let data = json!({
-            "url": format!("https://httpbin.org/stream/{}", n),
-            "args": {},
-            "headers": {
-                "Host": "httpbin.org"
-            },
-            "origin": "127.0.0.1",
+        let response = json!({
+            "url": base_response.url,
+            "args": base_response.args,
+            "headers": base_response.headers,
+            "origin": base_response.origin,
             "id": i
         });
-        Ok::<_, actix_web::Error>(Bytes::from(format!("{}\n", data)))
+        
+        // Format as JSON string with newline, matching httpbin's json.dumps(response) + "\n"
+        Ok::<_, actix_web::Error>(Bytes::from(format!("{}\n", response)))
     }));
     
     Ok(HttpResponse::Ok()
@@ -107,15 +171,27 @@ pub async fn stream_handler(
 pub async fn range_handler(
     req: HttpRequest,
     path: web::Path<usize>,
+    query: web::Query<RangeQuery>,
 ) -> Result<HttpResponse> {
     let numbytes = path.into_inner();
-    let numbytes = numbytes.min(102400); // Limit to 100KB
     
+    // Check bounds first like httpbin
+    if numbytes == 0 || numbytes > (100 * 1024) {
+        return Ok(HttpResponse::NotFound()
+            .append_header(("ETag", format!("range{}", numbytes)))
+            .append_header(("Accept-Ranges", "bytes"))
+            .body("number of bytes must be in the range (0, 102400]"));
+    }
+    
+    let _chunk_size = query.chunk_size.unwrap_or(10 * 1024).max(1);
+    let _duration = query.duration.unwrap_or(0.0);
+    let _pause_per_byte = if numbytes > 0 { Duration::from_secs_f64(_duration / numbytes as f64) } else { Duration::ZERO };
+    
+    // Generate random bytes (httpbin generates them dynamically, not pre-computed)
     let mut rng = rand::thread_rng();
-    let random_bytes: Vec<u8> = (0..numbytes).map(|_| rng.gen()).collect();
     
-    // Check for Range header
-    if let Some(range_header) = req.headers().get("Range") {
+    // Extract range information from headers
+    let (first_byte_pos, last_byte_pos) = if let Some(range_header) = req.headers().get("Range") {
         if let Ok(range_str) = range_header.to_str() {
             if range_str.starts_with("bytes=") {
                 let range_part = &range_str[6..];
@@ -126,22 +202,54 @@ pub async fn range_handler(
                     } else {
                         end_str.parse().unwrap_or(numbytes - 1).min(numbytes - 1)
                     };
-                    
-                    if start <= end && start < numbytes {
-                        let slice = &random_bytes[start..=end];
-                        return Ok(HttpResponse::PartialContent()
-                            .content_type("application/octet-stream")
-                            .append_header(("Content-Range", format!("bytes {}-{}/{}", start, end, numbytes)))
-                            .append_header(("Accept-Ranges", "bytes"))
-                            .body(slice.to_vec()));
-                    }
+                    (start, end)
+                } else {
+                    (0, numbytes - 1)
                 }
+            } else {
+                (0, numbytes - 1)
             }
+        } else {
+            (0, numbytes - 1)
         }
+    } else {
+        (0, numbytes - 1)
+    };
+    
+    // Validate range like httpbin
+    if first_byte_pos > last_byte_pos 
+        || first_byte_pos >= numbytes 
+        || last_byte_pos >= numbytes {
+        return Ok(HttpResponse::RangeNotSatisfiable()
+            .append_header(("ETag", format!("range{}", numbytes)))
+            .append_header(("Accept-Ranges", "bytes"))
+            .append_header(("Content-Range", format!("bytes */{}", numbytes)))
+            .append_header(("Content-Length", "0"))
+            .finish());
     }
+    
+    let _range_length = (last_byte_pos + 1) - first_byte_pos;
+    
+    // For partial content (range request)
+    if req.headers().contains_key("Range") {
+        let random_bytes: Vec<u8> = (first_byte_pos..=last_byte_pos)
+            .map(|_| rng.gen_range(0..=255))
+            .collect();
+            
+        return Ok(HttpResponse::PartialContent()
+            .content_type("application/octet-stream")
+            .append_header(("ETag", format!("range{}", numbytes)))
+            .append_header(("Accept-Ranges", "bytes"))
+            .append_header(("Content-Range", format!("bytes {}-{}/{}", first_byte_pos, last_byte_pos, numbytes)))
+            .body(random_bytes));
+    }
+    
+    // For full content
+    let random_bytes: Vec<u8> = (0..numbytes).map(|_| rng.gen_range(0..=255)).collect();
     
     Ok(HttpResponse::Ok()
         .content_type("application/octet-stream")
+        .append_header(("ETag", format!("range{}", numbytes)))
         .append_header(("Accept-Ranges", "bytes"))
         .body(random_bytes))
 }
