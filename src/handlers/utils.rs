@@ -33,6 +33,19 @@ pub struct GetRequestInfo {
     pub url: String,
 }
 
+// HTTPBin compatible response structure for POST/PUT/PATCH/DELETE requests
+#[derive(Serialize, Deserialize)]
+pub struct HttpMethodsRequestInfo {
+    pub args: IndexMap<String, String>,
+    pub data: String,
+    pub files: IndexMap<String, Value>,
+    pub form: IndexMap<String, String>,
+    pub headers: IndexMap<String, String>,
+    pub json: Option<Value>,
+    pub origin: String,
+    pub url: String,
+}
+
 // Helper function to check if data appears to be text content
 fn is_text_content(data: &[u8]) -> bool {
     // Check for null bytes (common in binary files)
@@ -265,6 +278,20 @@ pub fn fix_request_info_url(req: &HttpRequest, request_info: &mut RequestInfo) {
     let host = connection_info.host();
     let full_url = format!("{}://{}{}", scheme, host, req.uri());
     request_info.url = full_url;
+}
+
+// Helper function to convert RequestInfo to HTTPBin compatible format
+pub fn to_http_methods_format(request_info: RequestInfo) -> HttpMethodsRequestInfo {
+    HttpMethodsRequestInfo {
+        args: request_info.args,
+        data: request_info.data,
+        files: request_info.files,
+        form: request_info.form,
+        headers: request_info.headers,
+        json: request_info.json,
+        origin: request_info.origin,
+        url: request_info.url,
+    }
 }
 
 // Helper function to extract GET request information (httpbin.org compatible)
