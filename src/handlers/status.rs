@@ -1,8 +1,79 @@
 use super::*;
+use rand::distributions::WeightedIndex;
+use rand::prelude::*;
 
 #[derive(Deserialize)]
 pub struct StatusQuery {
     body: Option<String>,
+}
+
+#[derive(Debug)]
+struct WeightedChoice {
+    code: u16,
+    weight: f64,
+}
+
+fn parse_weighted_codes(codes_str: &str) -> Result<Vec<WeightedChoice>, String> {
+    let mut choices = Vec::new();
+    
+    for choice in codes_str.split(',') {
+        let choice = choice.trim();
+        
+        if choice.is_empty() {
+            continue;
+        }
+        
+        let (code_str, weight) = if choice.contains(':') {
+            let parts: Vec<&str> = choice.split(':').collect();
+            if parts.len() != 2 {
+                return Err("Invalid format".to_string());
+            }
+            (parts[0].trim(), parts[1].trim().parse::<f64>().map_err(|_| "Invalid weight")?)
+        } else {
+            (choice, 1.0)
+        };
+        
+        let code = code_str.parse::<u16>().map_err(|_| "Invalid status code")?;
+        
+        if weight < 0.0 {
+            return Err("Weight cannot be negative".to_string());
+        }
+        
+        choices.push(WeightedChoice { code, weight });
+    }
+    
+    if choices.is_empty() {
+        return Err("No valid status codes found".to_string());
+    }
+    
+    Ok(choices)
+}
+
+fn select_weighted_code(choices: &[WeightedChoice]) -> Result<u16, String> {
+    if choices.len() == 1 {
+        return Ok(choices[0].code);
+    }
+    
+    let weights: Vec<f64> = choices.iter().map(|c| c.weight).collect();
+    
+    // Check if all weights are zero
+    if weights.iter().all(|&w| w == 0.0) {
+        return Err("All weights are zero".to_string());
+    }
+    
+    let mut rng = thread_rng();
+    
+    match WeightedIndex::new(&weights) {
+        Ok(dist) => {
+            let index = dist.sample(&mut rng);
+            Ok(choices[index].code)
+        }
+        Err(_) => {
+            // Fallback to uniform random selection if weights are invalid
+            let index = rng.gen_range(0..choices.len());
+            Ok(choices[index].code)
+        }
+    }
 }
 
 fn parse_accept_header(accept_header: Option<&actix_web::http::header::HeaderValue>) -> String {
@@ -113,24 +184,24 @@ pub async fn status_handler_get(
 ) -> Result<HttpResponse> {
     let codes_str = path.into_inner();
     
-    // Parse the status codes (can be comma-separated)
-    let codes: Vec<u16> = codes_str
-        .split(',')
-        .filter_map(|s| s.trim().parse().ok())
-        .collect();
+    // Parse the status codes (supports both simple and weighted formats)
+    let choices = match parse_weighted_codes(&codes_str) {
+        Ok(choices) => choices,
+        Err(_) => {
+            return Ok(HttpResponse::BadRequest().json(json!({
+                "error": "Invalid status code"
+            })));
+        }
+    };
     
-    if codes.is_empty() {
-        return Ok(HttpResponse::BadRequest().json(json!({
-            "error": "Invalid status code"
-        })));
-    }
-    
-    // If multiple codes, pick one randomly
-    let mut rng = rand::thread_rng();
-    let chosen_code = if codes.len() == 1 {
-        codes[0]
-    } else {
-        codes[rng.gen_range(0..codes.len())]
+    // Select a status code (with weights if specified)
+    let chosen_code = match select_weighted_code(&choices) {
+        Ok(code) => code,
+        Err(_) => {
+            return Ok(HttpResponse::BadRequest().json(json!({
+                "error": "Invalid status code"
+            })));
+        }
     };
     
     let status = StatusCode::from_u16(chosen_code).unwrap_or(StatusCode::OK);
@@ -175,24 +246,24 @@ pub async fn status_handler(
 ) -> Result<HttpResponse> {
     let codes_str = path.into_inner();
     
-    // Parse the status codes (can be comma-separated)
-    let codes: Vec<u16> = codes_str
-        .split(',')
-        .filter_map(|s| s.trim().parse().ok())
-        .collect();
+    // Parse the status codes (supports both simple and weighted formats)
+    let choices = match parse_weighted_codes(&codes_str) {
+        Ok(choices) => choices,
+        Err(_) => {
+            return Ok(HttpResponse::BadRequest().json(json!({
+                "error": "Invalid status code"
+            })));
+        }
+    };
     
-    if codes.is_empty() {
-        return Ok(HttpResponse::BadRequest().json(json!({
-            "error": "Invalid status code"
-        })));
-    }
-    
-    // If multiple codes, pick one randomly
-    let mut rng = rand::thread_rng();
-    let chosen_code = if codes.len() == 1 {
-        codes[0]
-    } else {
-        codes[rng.gen_range(0..codes.len())]
+    // Select a status code (with weights if specified)
+    let chosen_code = match select_weighted_code(&choices) {
+        Ok(code) => code,
+        Err(_) => {
+            return Ok(HttpResponse::BadRequest().json(json!({
+                "error": "Invalid status code"
+            })));
+        }
     };
     
     let status = StatusCode::from_u16(chosen_code).unwrap_or(StatusCode::OK);
