@@ -473,3 +473,61 @@ pub async fn extract_request_info_multipart(req: &HttpRequest, mut payload: Mult
             .map(|s| s.to_string()),
     })
 }
+
+/// Parse multi-value header (like If-None-Match) into a vector of values
+/// Handles comma-separated values and quoted strings properly
+pub fn parse_multi_value_header(header_value: Option<&actix_web::http::header::HeaderValue>) -> Vec<String> {
+    if let Some(value) = header_value {
+        if let Ok(value_str) = value.to_str() {
+            let mut values = Vec::new();
+            let mut current = String::new();
+            let mut in_quotes = false;
+            let mut chars = value_str.chars().peekable();
+            
+            while let Some(ch) = chars.next() {
+                match ch {
+                    '"' => {
+                        in_quotes = !in_quotes;
+                        current.push(ch);
+                    }
+                    ',' if !in_quotes => {
+                        let trimmed = current.trim().to_string();
+                        if !trimmed.is_empty() {
+                            values.push(trimmed);
+                        }
+                        current.clear();
+                    }
+                    _ => {
+                        current.push(ch);
+                    }
+                }
+            }
+            
+            // Add the last value
+            let trimmed = current.trim().to_string();
+            if !trimmed.is_empty() {
+                values.push(trimmed);
+            }
+            
+            values
+        } else {
+            Vec::new()
+        }
+    } else {
+        Vec::new()
+    }
+}
+
+/// Generate HTTP date string (RFC 7231 format)
+pub fn http_date() -> String {
+    use chrono::Utc;
+    let now = Utc::now();
+    now.format("%a, %d %b %Y %H:%M:%S GMT").to_string()
+}
+
+/// Generate a random ETag value
+pub fn generate_etag() -> String {
+    use uuid::Uuid;
+    let uuid = Uuid::new_v4();
+    format!("\"{}\"", uuid.simple().to_string())
+}
