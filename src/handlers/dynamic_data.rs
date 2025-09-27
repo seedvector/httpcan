@@ -61,7 +61,7 @@ pub async fn base64_handler(
         Err(_) => {
             Ok(HttpResponse::BadRequest()
                 .json(json!({
-                    "error": "Invalid base64 encoding"
+                    "error": "Invalid base64 data"
                 })))
         }
     }
@@ -259,16 +259,16 @@ pub async fn links_handler(
     path: web::Path<(usize, usize)>,
 ) -> Result<HttpResponse> {
     let (n, offset) = path.into_inner();
-    let n = n.min(200); // Limit to 200 links
+    let n = n.max(1).min(200); // Limit to between 1 and 200 links
     
     let mut html = String::from("<!DOCTYPE html><html><head><title>Links</title></head><body>");
     
     for i in 0..n {
-        let link_num = offset + i;
-        html.push_str(&format!(
-            "<a href=\"/links/{}/{}\">{}</a><br>",
-            n, link_num, link_num
-        ));
+        if i == offset {
+            html.push_str(&format!("{}<br>", i));
+        } else {
+            html.push_str(&format!("<a href='/links/{}/{}'>{}</a><br>", n, i, i));
+        }
     }
     
     html.push_str("</body></html>");
