@@ -125,7 +125,14 @@ pub async fn utf8_handler(_req: HttpRequest) -> Result<HttpResponse> {
 pub async fn gzip_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Result<HttpResponse> {
     let mut request_info = extract_request_info(&req, None, &config.exclude_headers);
     fix_request_info_url(&req, &mut request_info);
-    let json_data = serde_json::to_vec(&request_info).unwrap();
+    
+    // Add gzipped flag for httpbin compatibility
+    let mut response_data = serde_json::to_value(&request_info).unwrap();
+    if let Some(obj) = response_data.as_object_mut() {
+        obj.insert("gzipped".to_string(), serde_json::Value::Bool(true));
+    }
+    
+    let json_data = serde_json::to_vec(&response_data).unwrap();
     
     let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
     encoder.write_all(&json_data).unwrap();
@@ -140,7 +147,14 @@ pub async fn gzip_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Res
 pub async fn deflate_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Result<HttpResponse> {
     let mut request_info = extract_request_info(&req, None, &config.exclude_headers);
     fix_request_info_url(&req, &mut request_info);
-    let json_data = serde_json::to_vec(&request_info).unwrap();
+    
+    // Add deflated flag for httpbin compatibility
+    let mut response_data = serde_json::to_value(&request_info).unwrap();
+    if let Some(obj) = response_data.as_object_mut() {
+        obj.insert("deflated".to_string(), serde_json::Value::Bool(true));
+    }
+    
+    let json_data = serde_json::to_vec(&response_data).unwrap();
     
     let mut encoder = DeflateEncoder::new(Vec::new(), Compression::default());
     encoder.write_all(&json_data).unwrap();
@@ -155,7 +169,14 @@ pub async fn deflate_handler(req: HttpRequest, config: web::Data<AppConfig>) -> 
 pub async fn brotli_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Result<HttpResponse> {
     let mut request_info = extract_request_info(&req, None, &config.exclude_headers);
     fix_request_info_url(&req, &mut request_info);
-    let json_data = serde_json::to_vec(&request_info).unwrap();
+    
+    // Add brotli flag for httpbin compatibility
+    let mut response_data = serde_json::to_value(&request_info).unwrap();
+    if let Some(obj) = response_data.as_object_mut() {
+        obj.insert("brotli".to_string(), serde_json::Value::Bool(true));
+    }
+    
+    let json_data = serde_json::to_vec(&response_data).unwrap();
     
     let mut compressed_data = Vec::new();
     let mut writer = brotli::CompressorWriter::new(&mut compressed_data, 4096, 6, 22);
