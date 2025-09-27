@@ -130,6 +130,7 @@ async fn main() -> std::io::Result<()> {
             .route("/stream/{n}", web::get().to(stream_handler))
             .route("/range/{numbytes}", web::get().to(range_handler))
             .route("/links/{n}/{offset}", web::get().to(links_handler))
+            .route("/links/{n}", web::get().to(links_redirect_handler))
             .route("/drip", web::get().to(drip_handler))
             
             // Delay endpoint - supporting multiple methods

@@ -140,15 +140,15 @@ pub async fn response_headers_get_handler(
         }
         
         // Add standard headers that would be set by the framework
-        headers_map.insert("content-type".to_string(), Value::String("application/json".to_string()));
+        headers_map.insert("Content-Type".to_string(), Value::String("application/json".to_string()));
         
         // Calculate content length for the JSON
         let json_string = serde_json::to_string(&headers_map)?;
         let content_length = json_string.len().to_string();
-        headers_map.insert("content-length".to_string(), Value::String(content_length.clone()));
+        headers_map.insert("Content-Length".to_string(), Value::String(content_length.clone()));
         
-        // Set content-length header on response
-        response_builder.append_header(("content-length", content_length));
+        // Set Content-Length header on response
+        response_builder.append_header(("Content-Length", content_length));
         
         // Check if we need another iteration (like httpbin does)
         let _current_json = serde_json::to_string(&headers_map)?;

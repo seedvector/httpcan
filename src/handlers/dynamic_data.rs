@@ -278,6 +278,16 @@ pub async fn links_handler(
         .body(html))
 }
 
+pub async fn links_redirect_handler(
+    _req: HttpRequest,
+    path: web::Path<usize>,
+) -> Result<HttpResponse> {
+    let n = path.into_inner();
+    Ok(HttpResponse::Found()
+        .append_header(("Location", format!("/links/{}/0", n)))
+        .body(""))
+}
+
 pub async fn drip_handler(
     _req: HttpRequest,
     query: web::Query<DripQuery>,
