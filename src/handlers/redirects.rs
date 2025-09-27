@@ -129,7 +129,7 @@ pub async fn redirect_to_handler_get(
     let mut status_code = 302u16;
     if let Some(status_str) = params.get("status_code") {
         if let Ok(code) = status_str.parse::<u16>() {
-            if code >= 300 && code < 400 {
+            if (300..400).contains(&code) {
                 status_code = code;
             }
         }
@@ -156,7 +156,7 @@ pub async fn redirect_to_handler(
     let mut status_code = 302u16;
     if let Some(status_str) = params.get("status_code") {
         if let Ok(code) = status_str.parse::<u16>() {
-            if code >= 300 && code < 400 {
+            if (300..400).contains(&code) {
                 status_code = code;
             }
         }

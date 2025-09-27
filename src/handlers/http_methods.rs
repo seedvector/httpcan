@@ -19,7 +19,7 @@ async fn universal_body_handler_httpbin(
 
     if content_type.to_lowercase().starts_with("multipart/form-data") {
         // Handle multipart form data
-        let multipart = Multipart::new(&req.headers(), payload);
+        let multipart = Multipart::new(req.headers(), payload);
         match extract_request_info_multipart(&req, multipart, &config.exclude_headers).await {
             Ok(mut request_info) => {
                 fix_request_info_url(&req, &mut request_info);

@@ -93,11 +93,11 @@ fn parse_multi_value_query_string(query_string: &str) -> BTreeMap<String, Vec<St
         if let Some((key, value)) = pair.split_once('=') {
             let decoded_key = urlencoding::decode(key).unwrap_or_else(|_| key.into()).to_string();
             let decoded_value = urlencoding::decode(value).unwrap_or_else(|_| value.into()).to_string();
-            params.entry(decoded_key).or_insert_with(Vec::new).push(decoded_value);
+            params.entry(decoded_key).or_default().push(decoded_value);
         } else if !pair.is_empty() {
             // Handle keys without values
             let decoded_key = urlencoding::decode(pair).unwrap_or_else(|_| pair.into()).to_string();
-            params.entry(decoded_key).or_insert_with(Vec::new).push(String::new());
+            params.entry(decoded_key).or_default().push(String::new());
         }
     }
     

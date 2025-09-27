@@ -79,11 +79,7 @@ fn get_request_range(req: &HttpRequest, upper_bound: usize) -> (usize, usize) {
         }
         (None, Some(suffix_length)) => {
             // Request the last X bytes (suffix-byte-range-spec: "-500")
-            let first_pos = if upper_bound >= suffix_length {
-                upper_bound - suffix_length
-            } else {
-                0
-            };
+            let first_pos = upper_bound.saturating_sub(suffix_length);
             (first_pos, upper_bound - 1)
         }
         (Some(start), None) => {
@@ -291,7 +287,7 @@ pub async fn range_handler(
                 yield Ok::<_, actix_web::Error>(Bytes::from(chunks.clone()));
                 
                 // Apply timing delay if specified
-                if pause_per_byte.as_nanos() > 0 && chunks.len() > 0 {
+                if pause_per_byte.as_nanos() > 0 && !chunks.is_empty() {
                     tokio::time::sleep(pause_per_byte * chunks.len() as u32).await;
                 }
                 
@@ -324,7 +320,7 @@ pub async fn links_handler(
     path: web::Path<(usize, usize)>,
 ) -> Result<HttpResponse> {
     let (n, offset) = path.into_inner();
-    let n = n.max(1).min(200); // Limit to between 1 and 200 links
+    let n = n.clamp(1, 200); // Limit to between 1 and 200 links
     
     let mut html = String::from("<!DOCTYPE html><html><head><title>Links</title></head><body>");
     

@@ -1,14 +1,15 @@
-use actix_web::{HttpRequest, Result};
+use actix_web::{HttpRequest, Result, web};
 use actix_multipart::Multipart;
 use std::collections::{HashMap, BTreeMap};
 use indexmap::IndexMap;
-use futures_util::TryStreamExt;
+use futures_util::{TryStreamExt, StreamExt};
 use url::form_urlencoded;
 use serde::{Serialize, Deserialize};
 use serde_json::Value;
 use std::env;
 use std::path::PathBuf;
 use base64::{Engine as _, engine::general_purpose};
+use actix_web::web::BytesMut;
 
 #[derive(Serialize, Deserialize)]
 pub struct RequestInfo {
@@ -333,10 +334,10 @@ fn parse_multi_value_query_string(query_string: &str) -> BTreeMap<String, Value>
     
     for pair in query_string.split('&') {
         if let Some((key, value)) = pair.split_once('=') {
-            params.entry(key.to_string()).or_insert_with(Vec::new).push(value.to_string());
+            params.entry(key.to_string()).or_default().push(value.to_string());
         } else if !pair.is_empty() {
             // Handle keys without values
-            params.entry(pair.to_string()).or_insert_with(Vec::new).push(String::new());
+            params.entry(pair.to_string()).or_default().push(String::new());
         }
     }
     
@@ -433,8 +434,7 @@ pub async fn extract_request_info_multipart(req: &HttpRequest, mut payload: Mult
 
     let args = parse_multi_value_query_string(req.query_string());
 
-    let connection_info = req.connection_info();
-    let origin = connection_info.realip_remote_addr().unwrap_or("127.0.0.1").to_string();
+    let origin = req.connection_info().realip_remote_addr().unwrap_or("127.0.0.1").to_string();
     
     let mut form_data = HashMap::new();
     let mut files: HashMap<String, Vec<String>> = HashMap::new();
@@ -456,7 +456,7 @@ pub async fn extract_request_info_multipart(req: &HttpRequest, mut payload: Mult
             if let Some(filename) = filename {
                 // This is a file upload - format the content based on file type
                 let file_content = format_file_content(&filename, &data);
-                files.entry(name).or_insert_with(Vec::new).push(file_content);
+                files.entry(name).or_default().push(file_content);
             } else {
                 // This is a regular form field
                 if let Ok(value) = String::from_utf8(data) {
@@ -503,9 +503,9 @@ pub fn parse_multi_value_header(header_value: Option<&actix_web::http::header::H
             let mut values = Vec::new();
             let mut current = String::new();
             let mut in_quotes = false;
-            let mut chars = value_str.chars().peekable();
+            let chars = value_str.chars();
             
-            while let Some(ch) = chars.next() {
+            for ch in chars {
                 match ch {
                     '"' => {
                         in_quotes = !in_quotes;
@@ -550,5 +550,46 @@ pub fn http_date() -> String {
 pub fn generate_etag() -> String {
     use uuid::Uuid;
     let uuid = Uuid::new_v4();
-    format!("\"{}\"", uuid.simple().to_string())
+    format!("\"{}\"", uuid.simple())
+}
+
+/// Universal handler for processing request payloads with multipart and regular body support
+/// This reduces code duplication across multiple handlers
+pub async fn process_request_payload(
+    req: &HttpRequest,
+    payload: web::Payload,
+    exclude_headers: &[String],
+    path_param: Option<String>,
+) -> Result<RequestInfo> {
+    let content_type = req.headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    let mut request_info = if content_type.to_lowercase().starts_with("multipart/form-data") {
+        let multipart = Multipart::new(req.headers(), payload);
+        match extract_request_info_multipart(req, multipart, exclude_headers).await {
+            Ok(info) => info,
+            Err(_) => extract_request_info(req, None, exclude_headers),
+        }
+    } else {
+        let mut body = BytesMut::new();
+        let mut payload = payload;
+        while let Some(chunk) = payload.next().await {
+            let chunk = chunk?;
+            body.extend_from_slice(&chunk);
+        }
+        
+        let body_string = String::from_utf8_lossy(&body);
+        extract_request_info(req, Some(&body_string), exclude_headers)
+    };
+
+    fix_request_info_url(req, &mut request_info);
+    
+    // Add path parameter if provided
+    if let Some(path) = path_param {
+        request_info.args.insert("anything".to_string(), serde_json::Value::String(path));
+    }
+    
+    Ok(request_info)
 }
