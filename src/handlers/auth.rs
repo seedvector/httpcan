@@ -34,19 +34,24 @@ fn parse_digest_auth(auth_header: &str) -> HashMap<String, String> {
     params
 }
 
+// Parameters for digest authentication calculation
+#[derive(Debug)]
+struct DigestParams<'a> {
+    username: &'a str,
+    password: &'a str,
+    realm: &'a str,
+    method: &'a str,
+    uri: &'a str,
+    nonce: &'a str,
+    algorithm: &'a str,
+    qop: Option<&'a str>,
+    nc: Option<&'a str>,
+    cnonce: Option<&'a str>,
+}
+
 // Function to calculate digest hash with QOP support
-fn calculate_digest_response(
-    username: &str,
-    password: &str,
-    realm: &str,
-    method: &str,
-    uri: &str,
-    nonce: &str,
-    algorithm: &str,
-    qop: Option<&str>,
-    nc: Option<&str>,
-    cnonce: Option<&str>,
-) -> String {
+fn calculate_digest_response(params: DigestParams) -> String {
+    let DigestParams { username, password, realm, method, uri, nonce, algorithm, qop, nc, cnonce } = params;
     let ha1 = match algorithm {
         "MD5" => {
             let hash = md5::compute(format!("{}:{}:{}", username, realm, password));
@@ -409,18 +414,18 @@ pub async fn digest_auth_handler(
             
             // Calculate expected response
             let method = req.method().as_str();
-            let expected_response = calculate_digest_response(
-                &expected_user,
-                &expected_passwd,
-                &realm,
+            let expected_response = calculate_digest_response(DigestParams {
+                username: &expected_user,
+                password: &expected_passwd,
+                realm: &realm,
                 method,
-                &uri,
-                &nonce,
-                &algorithm,
-                effective_qop,
-                nc.as_deref(),
-                cnonce.as_deref(),
-            );
+                uri: &uri,
+                nonce: &nonce,
+                algorithm: &algorithm,
+                qop: effective_qop,
+                nc: nc.as_deref(),
+                cnonce: cnonce.as_deref(),
+            });
             
             // Verify the response hash
             if response == expected_response {
@@ -561,18 +566,18 @@ pub async fn digest_auth_with_algorithm_handler(
             
             // Calculate expected response
             let method = req.method().as_str();
-            let expected_response = calculate_digest_response(
-                &expected_user,
-                &expected_passwd,
-                &realm,
+            let expected_response = calculate_digest_response(DigestParams {
+                username: &expected_user,
+                password: &expected_passwd,
+                realm: &realm,
                 method,
-                &uri,
-                &nonce,
-                &algorithm,
-                effective_qop,
-                nc.as_deref(),
-                cnonce.as_deref(),
-            );
+                uri: &uri,
+                nonce: &nonce,
+                algorithm: &algorithm,
+                qop: effective_qop,
+                nc: nc.as_deref(),
+                cnonce: cnonce.as_deref(),
+            });
             
             // Verify the response hash
             if response == expected_response {
@@ -779,18 +784,18 @@ pub async fn digest_auth_full_handler(
             
             // Calculate expected response
             let method = req.method().as_str();
-            let expected_response = calculate_digest_response(
-                &expected_user,
-                &expected_passwd,
-                &realm,
+            let expected_response = calculate_digest_response(DigestParams {
+                username: &expected_user,
+                password: &expected_passwd,
+                realm: &realm,
                 method,
-                &uri,
-                &nonce,
-                &algorithm,
-                effective_qop,
-                nc.as_deref(),
-                cnonce.as_deref(),
-            );
+                uri: &uri,
+                nonce: &nonce,
+                algorithm: &algorithm,
+                qop: effective_qop,
+                nc: nc.as_deref(),
+                cnonce: cnonce.as_deref(),
+            });
             
             // Verify the response hash
             if response == expected_response {
