@@ -83,15 +83,13 @@ async fn extract_body_params(req: &HttpRequest, mut payload: web::Payload) -> Re
         }
         
         let body_string = String::from_utf8_lossy(&body);
-        if let Ok(json_value) = serde_json::from_str::<Value>(&body_string) {
-            if let Value::Object(obj) = json_value {
-                for (key, value) in obj {
-                    if let Value::String(string_value) = value {
-                        params.insert(key, string_value);
-                    } else {
-                        // Convert non-string JSON values to strings
-                        params.insert(key, value.to_string().trim_matches('"').to_string());
-                    }
+        if let Ok(Value::Object(obj)) = serde_json::from_str::<Value>(&body_string) {
+            for (key, value) in obj {
+                if let Value::String(string_value) = value {
+                    params.insert(key, string_value);
+                } else {
+                    // Convert non-string JSON values to strings
+                    params.insert(key, value.to_string().trim_matches('"').to_string());
                 }
             }
         }
