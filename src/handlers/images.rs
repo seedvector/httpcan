@@ -39,26 +39,34 @@ const WEBP_IMAGE: &[u8] = &[
 fn parse_preferred_format(req: &HttpRequest) -> Option<String> {
     if let Some(accept_header) = req.headers().get("accept") {
         if let Ok(accept_str) = accept_header.to_str() {
-            // Split by comma and check each media type
-            for media_type in accept_str.split(',') {
-                let media_type = media_type.trim().split(';').next().unwrap_or("").trim();
-                match media_type {
-                    "image/png" => return Some("png".to_string()),
-                    "image/jpeg" | "image/jpg" => return Some("jpeg".to_string()),
-                    "image/webp" => return Some("webp".to_string()),
-                    "image/svg+xml" => return Some("svg".to_string()),
-                    "image/*" => {
-                        // If they accept any image, return a random format
-                        let formats = vec!["png", "jpeg", "webp", "svg"];
-                        let mut rng = rand::thread_rng();
-                        return Some(formats[rng.gen_range(0..formats.len())].to_string());
-                    }
-                    _ => continue,
-                }
+            let accept_lower = accept_str.to_lowercase();
+            
+            // Check in priority order like httpbin: webp → svg → jpeg → png/image/*
+            if accept_lower.contains("image/webp") {
+                return Some("webp".to_string());
+            } else if accept_lower.contains("image/svg+xml") {
+                return Some("svg".to_string());
+            } else if accept_lower.contains("image/jpeg") {
+                return Some("jpeg".to_string());
+            } else if accept_lower.contains("image/png") || accept_lower.contains("image/*") {
+                return Some("png".to_string());
             }
         }
     }
     None
+}
+
+// Check if Accept header should be treated as "no preference" (use httpcan's random behavior)
+fn should_use_default(req: &HttpRequest) -> bool {
+    if let Some(accept_header) = req.headers().get("accept") {
+        if let Ok(accept_str) = accept_header.to_str() {
+            let accept_lower = accept_str.to_lowercase();
+            // Treat */* as "no preference" - use httpcan's random behavior
+            return accept_lower.contains("*/*");
+        }
+    }
+    // No Accept header means use httpcan's random behavior
+    true
 }
 
 // Load image data from JSON file
@@ -140,6 +148,27 @@ fn get_random_image_by_format(format: &str) -> Result<(String, String, Vec<u8>),
 }
 
 pub async fn image_handler(req: HttpRequest) -> Result<HttpResponse> {
+    // Check if we should use default behavior (no Accept header or */* )
+    if should_use_default(&req) {
+        // Default behavior: return random format (maintaining httpcan's behavior)
+        match get_random_image() {
+            Ok((content_type, color, image_data)) => {
+                return Ok(HttpResponse::Ok()
+                    .content_type(content_type.as_str())
+                    .insert_header(("X-Image-Color", color))
+                    .insert_header(("X-Image-Format-Source", "random"))
+                    .body(image_data));
+            }
+            Err(_) => {
+                // Fallback to default PNG if there's an error
+                return Ok(HttpResponse::Ok()
+                    .content_type("image/png")
+                    .insert_header(("X-Image-Format-Source", "fallback"))
+                    .body(PNG_IMAGE));
+            }
+        }
+    }
+    
     // Check if Accept header specifies a preferred image format
     if let Some(preferred_format) = parse_preferred_format(&req) {
         // Try to get image in the preferred format
@@ -152,28 +181,15 @@ pub async fn image_handler(req: HttpRequest) -> Result<HttpResponse> {
                     .body(image_data));
             }
             Err(_) => {
-                // If preferred format fails, fall through to random selection
+                // If preferred format fails, fall through to 406
             }
         }
     }
     
-    // Default behavior: return random format
-    match get_random_image() {
-        Ok((content_type, color, image_data)) => {
-            Ok(HttpResponse::Ok()
-                .content_type(content_type.as_str())
-                .insert_header(("X-Image-Color", color))
-                .insert_header(("X-Image-Format-Source", "random"))
-                .body(image_data))
-        }
-        Err(_) => {
-            // Fallback to default PNG if there's an error
-            Ok(HttpResponse::Ok()
-                .content_type("image/png")
-                .insert_header(("X-Image-Format-Source", "fallback"))
-                .body(PNG_IMAGE))
-        }
-    }
+    // Accept header present but no supported image format found
+    Ok(HttpResponse::NotAcceptable().json(json!({
+        "error": "Unsupported media type"
+    })))
 }
 
 pub async fn image_png_handler(_req: HttpRequest) -> Result<HttpResponse> {
