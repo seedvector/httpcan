@@ -139,6 +139,7 @@ async fn main() -> std::io::Result<()> {
             .route("/delay/{delay}", web::put().to(delay_handler))
             .route("/delay/{delay}", web::patch().to(delay_handler))
             .route("/delay/{delay}", web::delete().to(delay_handler))
+            .route("/delay/{delay}", web::trace().to(delay_handler_get))
             
             // Status codes - supporting multiple methods
             .route("/status/{codes}", web::get().to(status_handler_get))
