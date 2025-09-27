@@ -148,6 +148,7 @@ async fn main() -> std::io::Result<()> {
             .route("/status/{codes}", web::patch().to(status_handler))
             .route("/status/{codes}", web::delete().to(status_handler))
             .route("/status/{codes}", web::trace().to(status_handler_get))
+            .route("/status/{codes}", web::method(actix_web::http::Method::OPTIONS).to(status_options_handler))
             
             // Redirects
             .route("/redirect/{n}", web::get().to(redirect_handler))
