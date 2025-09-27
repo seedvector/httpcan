@@ -27,7 +27,7 @@ pub struct RequestInfo {
 // Simplified response structure for GET requests (httpbin.org compatible)
 #[derive(Serialize, Deserialize)]
 pub struct GetRequestInfo {
-    pub args: IndexMap<String, String>,
+    pub args: BTreeMap<String, Value>,
     pub headers: IndexMap<String, String>,
     pub origin: String,
     pub url: String,
@@ -305,21 +305,7 @@ pub fn extract_get_request_info(req: &HttpRequest, exclude_patterns: &[String]) 
     // Filter out reverse proxy and CDN headers, plus custom exclusions
     let filtered_headers = filter_headers(headers, exclude_patterns);
 
-    let args: HashMap<String, String> = req
-        .query_string()
-        .split('&')
-        .filter_map(|pair| {
-            if pair.is_empty() {
-                return None;
-            }
-            let mut parts = pair.split('=');
-            match (parts.next(), parts.next()) {
-                (Some(key), Some(value)) => Some((key.to_string(), value.to_string())),
-                (Some(key), None) => Some((key.to_string(), String::new())),
-                _ => None,
-            }
-        })
-        .collect();
+    let args = parse_multi_value_query_string(req.query_string());
 
     let connection_info = req.connection_info();
     let origin = connection_info.realip_remote_addr().unwrap_or("127.0.0.1").to_string();
@@ -330,7 +316,7 @@ pub fn extract_get_request_info(req: &HttpRequest, exclude_patterns: &[String]) 
     let full_url = format!("{}://{}{}", scheme, host, req.uri());
     
     GetRequestInfo {
-        args: sort_hashmap(args),
+        args,
         headers: sort_hashmap(filtered_headers),
         origin,
         url: full_url,
