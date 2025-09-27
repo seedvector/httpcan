@@ -22,7 +22,6 @@ pub struct RequestInfo {
     pub method: String,
     pub origin: String,
     pub url: String,
-    pub user_agent: Option<String>,
 }
 
 // Simplified response structure for GET requests (httpbin.org compatible)
@@ -432,10 +431,6 @@ pub fn extract_request_info(req: &HttpRequest, body: Option<&str>, exclude_patte
         method: req.method().to_string(),
         origin,
         url: req.uri().to_string(),
-        user_agent: req.headers()
-            .get("user-agent")
-            .and_then(|v| v.to_str().ok())
-            .map(|s| s.to_string()),
     }
 }
 
@@ -517,10 +512,6 @@ pub async fn extract_request_info_multipart(req: &HttpRequest, mut payload: Mult
         method: req.method().to_string(),
         origin,
         url: req.uri().to_string(),
-        user_agent: req.headers()
-            .get("user-agent")
-            .and_then(|v| v.to_str().ok())
-            .map(|s| s.to_string()),
     })
 }
 
