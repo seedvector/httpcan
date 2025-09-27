@@ -16,7 +16,7 @@ pub struct RequestInfo {
     pub args: BTreeMap<String, Value>,
     pub data: String,
     pub files: IndexMap<String, Value>,
-    pub form: IndexMap<String, String>,
+    pub form: IndexMap<String, Value>,
     pub headers: IndexMap<String, String>,
     pub json: Option<Value>,
     pub method: String,
@@ -40,7 +40,7 @@ pub struct HttpMethodsRequestInfo {
     pub args: BTreeMap<String, Value>,
     pub data: String,
     pub files: IndexMap<String, Value>,
-    pub form: IndexMap<String, String>,
+    pub form: IndexMap<String, Value>,
     pub headers: IndexMap<String, String>,
     pub json: Option<Value>,
     pub origin: String,
@@ -352,6 +352,26 @@ fn parse_multi_value_query_string(query_string: &str) -> BTreeMap<String, Value>
     }).collect()
 }
 
+/// Parse form data to support multi-value parameters (similar to query string parsing)
+fn parse_multi_value_form_data(form_data: &str) -> BTreeMap<String, Value> {
+    let mut params: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    
+    // Use form_urlencoded to properly decode the form data
+    for (key, value) in form_urlencoded::parse(form_data.as_bytes()) {
+        params.entry(key.to_string()).or_default().push(value.to_string());
+    }
+    
+    // Convert to BTreeMap<String, Value> - single values as strings, multiple as arrays
+    params.into_iter().map(|(key, values)| {
+        let value = if values.len() == 1 {
+            Value::String(values.into_iter().next().unwrap())
+        } else {
+            Value::Array(values.into_iter().map(Value::String).collect())
+        };
+        (key, value)
+    }).collect()
+}
+
 // Helper function to extract request information
 pub fn extract_request_info(req: &HttpRequest, body: Option<&str>, exclude_patterns: &[String]) -> RequestInfo {
     let headers: HashMap<String, String> = req
@@ -369,7 +389,7 @@ pub fn extract_request_info(req: &HttpRequest, body: Option<&str>, exclude_patte
     let origin = connection_info.realip_remote_addr().unwrap_or("127.0.0.1").to_string();
     
     // Parse form data based on content type
-    let mut form_data = HashMap::new();
+    let mut form_data_values: BTreeMap<String, Value> = BTreeMap::new();
     let mut data_string = String::new();
     
     if let Some(body_str) = body {
@@ -379,10 +399,8 @@ pub fn extract_request_info(req: &HttpRequest, body: Option<&str>, exclude_patte
             .unwrap_or("");
             
         if content_type.to_lowercase().starts_with("application/x-www-form-urlencoded") {
-            // Parse URL-encoded form data
-            for (key, value) in form_urlencoded::parse(body_str.as_bytes()) {
-                form_data.insert(key.to_string(), value.to_string());
-            }
+            // Parse URL-encoded form data with support for duplicate keys
+            form_data_values = parse_multi_value_form_data(body_str);
         } else if content_type.to_lowercase().starts_with("multipart/form-data") {
             // For multipart data, put raw data in data field as fallback
             // The proper multipart parsing should be done via extract_request_info_multipart
@@ -397,7 +415,7 @@ pub fn extract_request_info(req: &HttpRequest, body: Option<&str>, exclude_patte
         args,
         data: data_string,
         files: IndexMap::new(),
-        form: sort_hashmap(form_data),
+        form: sort_hashmap_value(form_data_values.into_iter().collect()),
         headers: sort_hashmap(filtered_headers),
         json: body.and_then(|b| {
             if let Some(content_type) = req.headers().get("content-type")
@@ -436,7 +454,7 @@ pub async fn extract_request_info_multipart(req: &HttpRequest, mut payload: Mult
 
     let origin = req.connection_info().realip_remote_addr().unwrap_or("127.0.0.1").to_string();
     
-    let mut form_data = HashMap::new();
+    let mut form_data: HashMap<String, Vec<String>> = HashMap::new();
     let mut files: HashMap<String, Vec<String>> = HashMap::new();
     
     // Parse multipart data
@@ -458,9 +476,9 @@ pub async fn extract_request_info_multipart(req: &HttpRequest, mut payload: Mult
                 let file_content = format_file_content(&filename, &data);
                 files.entry(name).or_default().push(file_content);
             } else {
-                // This is a regular form field
+                // This is a regular form field - support multiple values for same field name
                 if let Ok(value) = String::from_utf8(data) {
-                    form_data.insert(name, value);
+                    form_data.entry(name).or_default().push(value);
                 }
             }
         }
@@ -478,11 +496,22 @@ pub async fn extract_request_info_multipart(req: &HttpRequest, mut payload: Mult
         (key, value)
     }).collect();
     
+    // Convert form_data Vec to Value (similar to URL-encoded form handling)
+    let form_map: HashMap<String, Value> = form_data.into_iter().map(|(key, values)| {
+        let value = if values.len() == 1 {
+            Value::String(values.into_iter().next().unwrap())
+        } else {
+            // For multiple values, return as array
+            Value::Array(values.into_iter().map(Value::String).collect())
+        };
+        (key, value)
+    }).collect();
+    
     Ok(RequestInfo {
         args,
         data: String::new(),
         files: sort_hashmap_value(files_map),
-        form: sort_hashmap(form_data),
+        form: sort_hashmap_value(form_map),
         headers: sort_hashmap(filtered_headers),
         json: None,
         method: req.method().to_string(),
