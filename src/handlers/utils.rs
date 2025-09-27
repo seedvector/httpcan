@@ -1,6 +1,6 @@
 use actix_web::{HttpRequest, Result};
 use actix_multipart::Multipart;
-use std::collections::HashMap;
+use std::collections::{HashMap, BTreeMap};
 use indexmap::IndexMap;
 use futures_util::TryStreamExt;
 use url::form_urlencoded;
@@ -12,7 +12,7 @@ use base64::{Engine as _, engine::general_purpose};
 
 #[derive(Serialize, Deserialize)]
 pub struct RequestInfo {
-    pub args: IndexMap<String, String>,
+    pub args: BTreeMap<String, Value>,
     pub data: String,
     pub files: IndexMap<String, Value>,
     pub form: IndexMap<String, String>,
@@ -36,7 +36,7 @@ pub struct GetRequestInfo {
 // HTTPBin compatible response structure for POST/PUT/PATCH/DELETE requests
 #[derive(Serialize, Deserialize)]
 pub struct HttpMethodsRequestInfo {
-    pub args: IndexMap<String, String>,
+    pub args: BTreeMap<String, Value>,
     pub data: String,
     pub files: IndexMap<String, Value>,
     pub form: IndexMap<String, String>,
@@ -337,6 +337,34 @@ pub fn extract_get_request_info(req: &HttpRequest, exclude_patterns: &[String]) 
     }
 }
 
+/// Parse query string to support multi-value parameters
+fn parse_multi_value_query_string(query_string: &str) -> BTreeMap<String, Value> {
+    let mut params: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    
+    if query_string.is_empty() {
+        return BTreeMap::new();
+    }
+    
+    for pair in query_string.split('&') {
+        if let Some((key, value)) = pair.split_once('=') {
+            params.entry(key.to_string()).or_insert_with(Vec::new).push(value.to_string());
+        } else if !pair.is_empty() {
+            // Handle keys without values
+            params.entry(pair.to_string()).or_insert_with(Vec::new).push(String::new());
+        }
+    }
+    
+    // Convert to BTreeMap<String, Value> - single values as strings, multiple as arrays
+    params.into_iter().map(|(key, values)| {
+        let value = if values.len() == 1 {
+            Value::String(values.into_iter().next().unwrap())
+        } else {
+            Value::Array(values.into_iter().map(Value::String).collect())
+        };
+        (key, value)
+    }).collect()
+}
+
 // Helper function to extract request information
 pub fn extract_request_info(req: &HttpRequest, body: Option<&str>, exclude_patterns: &[String]) -> RequestInfo {
     let headers: HashMap<String, String> = req
@@ -348,17 +376,7 @@ pub fn extract_request_info(req: &HttpRequest, body: Option<&str>, exclude_patte
     // Filter out reverse proxy and CDN headers, plus custom exclusions
     let filtered_headers = filter_headers(headers, exclude_patterns);
 
-    let args: HashMap<String, String> = req
-        .query_string()
-        .split('&')
-        .filter_map(|pair| {
-            let mut parts = pair.split('=');
-            match (parts.next(), parts.next()) {
-                (Some(key), Some(value)) => Some((key.to_string(), value.to_string())),
-                _ => None,
-            }
-        })
-        .collect();
+    let args = parse_multi_value_query_string(req.query_string());
 
     let connection_info = req.connection_info();
     let origin = connection_info.realip_remote_addr().unwrap_or("127.0.0.1").to_string();
@@ -389,7 +407,7 @@ pub fn extract_request_info(req: &HttpRequest, body: Option<&str>, exclude_patte
     }
     
     RequestInfo {
-        args: sort_hashmap(args),
+        args,
         data: data_string,
         files: IndexMap::new(),
         form: sort_hashmap(form_data),
@@ -427,17 +445,7 @@ pub async fn extract_request_info_multipart(req: &HttpRequest, mut payload: Mult
     // Filter out reverse proxy and CDN headers, plus custom exclusions
     let filtered_headers = filter_headers(headers, exclude_patterns);
 
-    let args: HashMap<String, String> = req
-        .query_string()
-        .split('&')
-        .filter_map(|pair| {
-            let mut parts = pair.split('=');
-            match (parts.next(), parts.next()) {
-                (Some(key), Some(value)) => Some((key.to_string(), value.to_string())),
-                _ => None,
-            }
-        })
-        .collect();
+    let args = parse_multi_value_query_string(req.query_string());
 
     let connection_info = req.connection_info();
     let origin = connection_info.realip_remote_addr().unwrap_or("127.0.0.1").to_string();
@@ -485,7 +493,7 @@ pub async fn extract_request_info_multipart(req: &HttpRequest, mut payload: Mult
     }).collect();
     
     Ok(RequestInfo {
-        args: sort_hashmap(args),
+        args,
         data: String::new(),
         files: sort_hashmap_value(files_map),
         form: sort_hashmap(form_data),
