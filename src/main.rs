@@ -155,8 +155,8 @@ async fn main() -> std::io::Result<()> {
             .route("/absolute-redirect/{n}", web::get().to(absolute_redirect_handler))
             .route("/redirect-to", web::get().to(redirect_to_handler_get))
             .route("/redirect-to", web::post().to(redirect_to_handler))
-            .route("/redirect-to", web::put().to(redirect_to_handler_get))
-            .route("/redirect-to", web::patch().to(redirect_to_handler_get))
+            .route("/redirect-to", web::put().to(redirect_to_handler))
+            .route("/redirect-to", web::patch().to(redirect_to_handler))
             .route("/redirect-to", web::delete().to(redirect_to_handler_get))
             .route("/redirect-to", web::trace().to(redirect_to_handler_get))
             

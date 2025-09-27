@@ -1,9 +1,21 @@
 use super::*;
+use std::collections::HashMap;
 
-#[derive(Deserialize)]
-pub struct RedirectToQuery {
-    url: String,
-    status_code: Option<u16>,
+// Helper function to create case-insensitive parameter map
+fn to_case_insensitive_map(params: &web::Query<HashMap<String, String>>) -> HashMap<String, String> {
+    let mut case_insensitive = HashMap::new();
+    for (key, value) in params.iter() {
+        case_insensitive.insert(key.to_lowercase(), value.clone());
+    }
+    case_insensitive
+}
+
+fn to_case_insensitive_form_map(params: &web::Form<HashMap<String, String>>) -> HashMap<String, String> {
+    let mut case_insensitive = HashMap::new();
+    for (key, value) in params.iter() {
+        case_insensitive.insert(key.to_lowercase(), value.clone());
+    }
+    case_insensitive
 }
 
 #[derive(Deserialize)]
@@ -11,11 +23,6 @@ pub struct RedirectQuery {
     absolute: Option<String>,
 }
 
-#[derive(Deserialize)]
-pub struct RedirectToForm {
-    url: String,
-    status_code: Option<u16>,
-}
 
 pub async fn redirect_handler(
     req: HttpRequest,
@@ -112,40 +119,54 @@ pub async fn absolute_redirect_handler(
 
 pub async fn redirect_to_handler_get(
     _req: HttpRequest,
-    query: web::Query<RedirectToQuery>,
+    query: web::Query<HashMap<String, String>>,
 ) -> Result<HttpResponse> {
-    let mut status_code = 302;
-    if let Some(code) = query.status_code {
-        if code >= 300 && code < 400 {
-            status_code = code;
+    let params = to_case_insensitive_map(&query);
+    
+    let url = params.get("url")
+        .ok_or_else(|| actix_web::error::ErrorBadRequest("Missing required parameter: url"))?;
+    
+    let mut status_code = 302u16;
+    if let Some(status_str) = params.get("status_code") {
+        if let Ok(code) = status_str.parse::<u16>() {
+            if code >= 300 && code < 400 {
+                status_code = code;
+            }
         }
     }
     let status = StatusCode::from_u16(status_code).unwrap_or(StatusCode::FOUND);
     
-    // Ensure UTF-8 encoding of the URL like httpbin does
-    let location = query.url.as_bytes();
+    // Match httpbin's exact UTF-8 encoding behavior
+    let location_bytes = url.as_bytes();
     
     Ok(HttpResponse::build(status)
-        .append_header(("Location", String::from_utf8_lossy(location).to_string()))
+        .append_header(("Location", location_bytes))
         .body(""))
 }
 
 pub async fn redirect_to_handler(
     _req: HttpRequest,
-    form: web::Form<RedirectToForm>,
+    form: web::Form<HashMap<String, String>>,
 ) -> Result<HttpResponse> {
-    let mut status_code = 302;
-    if let Some(code) = form.status_code {
-        if code >= 300 && code < 400 {
-            status_code = code;
+    let params = to_case_insensitive_form_map(&form);
+    
+    let url = params.get("url")
+        .ok_or_else(|| actix_web::error::ErrorBadRequest("Missing required parameter: url"))?;
+    
+    let mut status_code = 302u16;
+    if let Some(status_str) = params.get("status_code") {
+        if let Ok(code) = status_str.parse::<u16>() {
+            if code >= 300 && code < 400 {
+                status_code = code;
+            }
         }
     }
     let status = StatusCode::from_u16(status_code).unwrap_or(StatusCode::FOUND);
     
-    // Ensure UTF-8 encoding of the URL like httpbin does
-    let location = form.url.as_bytes();
+    // Match httpbin's exact UTF-8 encoding behavior
+    let location_bytes = url.as_bytes();
     
     Ok(HttpResponse::build(status)
-        .append_header(("Location", String::from_utf8_lossy(location).to_string()))
+        .append_header(("Location", location_bytes))
         .body(""))
 }
