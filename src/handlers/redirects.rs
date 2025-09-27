@@ -1,5 +1,10 @@
 use super::*;
 use std::collections::HashMap;
+use actix_multipart::Multipart;
+use futures_util::{TryStreamExt, StreamExt};
+use url::form_urlencoded;
+use serde_json::Value;
+use actix_web::web::BytesMut;
 
 // Helper function to create case-insensitive parameter map
 fn to_case_insensitive_map(params: &web::Query<HashMap<String, String>>) -> HashMap<String, String> {
@@ -10,17 +15,124 @@ fn to_case_insensitive_map(params: &web::Query<HashMap<String, String>>) -> Hash
     case_insensitive
 }
 
-fn to_case_insensitive_form_map(params: &web::Form<HashMap<String, String>>) -> HashMap<String, String> {
+
+#[derive(Deserialize)]
+pub struct RedirectQuery {
+    absolute: Option<String>,
+}
+
+// Helper function to parse query string into HashMap
+fn parse_query_params(query_string: &str) -> HashMap<String, String> {
+    let mut params = HashMap::new();
+    
+    if query_string.is_empty() {
+        return params;
+    }
+    
+    for pair in query_string.split('&') {
+        if let Some((key, value)) = pair.split_once('=') {
+            // URL decode the key and value
+            if let (Ok(decoded_key), Ok(decoded_value)) = (
+                urlencoding::decode(key),
+                urlencoding::decode(value)
+            ) {
+                params.insert(decoded_key.to_string(), decoded_value.to_string());
+            }
+        } else if !pair.is_empty() {
+            // Handle keys without values
+            if let Ok(decoded_key) = urlencoding::decode(pair) {
+                params.insert(decoded_key.to_string(), String::new());
+            }
+        }
+    }
+    
+    params
+}
+
+// Helper function to extract parameters from request body based on content type
+async fn extract_body_params(req: &HttpRequest, mut payload: web::Payload) -> Result<HashMap<String, String>> {
+    let content_type = req.headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    let mut params = HashMap::new();
+
+    if content_type.to_lowercase().starts_with("application/x-www-form-urlencoded") {
+        // Parse URL-encoded form data
+        let mut body = BytesMut::new();
+        while let Some(chunk) = payload.next().await {
+            let chunk = chunk?;
+            body.extend_from_slice(&chunk);
+        }
+        
+        let body_string = String::from_utf8_lossy(&body);
+        for (key, value) in form_urlencoded::parse(body_string.as_bytes()) {
+            params.insert(key.to_string(), value.to_string());
+        }
+    } else if content_type.to_lowercase().starts_with("multipart/form-data") {
+        // Parse multipart form data
+        let multipart = Multipart::new(req.headers(), payload);
+        params = extract_multipart_params(multipart).await?;
+    } else if content_type.to_lowercase().starts_with("application/json") {
+        // Parse JSON data
+        let mut body = BytesMut::new();
+        while let Some(chunk) = payload.next().await {
+            let chunk = chunk?;
+            body.extend_from_slice(&chunk);
+        }
+        
+        let body_string = String::from_utf8_lossy(&body);
+        if let Ok(json_value) = serde_json::from_str::<Value>(&body_string) {
+            if let Value::Object(obj) = json_value {
+                for (key, value) in obj {
+                    if let Value::String(string_value) = value {
+                        params.insert(key, string_value);
+                    } else {
+                        // Convert non-string JSON values to strings
+                        params.insert(key, value.to_string().trim_matches('"').to_string());
+                    }
+                }
+            }
+        }
+    }
+    
+    Ok(params)
+}
+
+// Helper function to extract parameters from multipart form data
+async fn extract_multipart_params(mut multipart: Multipart) -> Result<HashMap<String, String>> {
+    let mut params = HashMap::new();
+    
+    while let Some(mut field) = multipart.try_next().await? {
+        let content_disposition = field.content_disposition();
+        let field_name = content_disposition.get_name().map(|s| s.to_string());
+        
+        if let Some(name) = field_name {
+            let mut data = Vec::new();
+            
+            // Read field data
+            while let Some(chunk) = field.try_next().await? {
+                data.extend_from_slice(&chunk);
+            }
+            
+            // Only handle text fields for redirect parameters
+            if let Ok(value) = String::from_utf8(data) {
+                params.insert(name, value);
+            }
+        }
+    }
+    
+    Ok(params)
+}
+
+// Helper function to convert HashMap to case-insensitive HashMap
+fn to_case_insensitive_hashmap(params: &HashMap<String, String>) -> HashMap<String, String> {
     let mut case_insensitive = HashMap::new();
     for (key, value) in params.iter() {
         case_insensitive.insert(key.to_lowercase(), value.clone());
     }
     case_insensitive
-}
-
-#[derive(Deserialize)]
-pub struct RedirectQuery {
-    absolute: Option<String>,
 }
 
 
@@ -145,10 +257,21 @@ pub async fn redirect_to_handler_get(
 }
 
 pub async fn redirect_to_handler(
-    _req: HttpRequest,
-    form: web::Form<HashMap<String, String>>,
+    req: HttpRequest,
+    payload: web::Payload,
 ) -> Result<HttpResponse> {
-    let params = to_case_insensitive_form_map(&form);
+    // Extract parameters from query string first (lower priority)
+    let query_params = parse_query_params(req.query_string());
+    
+    // Extract parameters from request body based on content type
+    let body_params = extract_body_params(&req, payload).await?;
+    
+    // Merge parameters with body taking priority over query
+    let mut all_params = query_params;
+    all_params.extend(body_params);
+    
+    // Convert to case-insensitive map
+    let params = to_case_insensitive_hashmap(&all_params);
     
     let url = params.get("url")
         .ok_or_else(|| actix_web::error::ErrorBadRequest("Missing required parameter: url"))?;
