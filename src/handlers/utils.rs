@@ -10,6 +10,7 @@ use std::env;
 use std::path::PathBuf;
 use base64::{Engine as _, engine::general_purpose};
 use actix_web::web::BytesMut;
+use urlencoding;
 
 #[derive(Serialize, Deserialize)]
 pub struct RequestInfo {
@@ -323,7 +324,7 @@ pub fn extract_get_request_info(req: &HttpRequest, exclude_patterns: &[String]) 
     }
 }
 
-/// Parse query string to support multi-value parameters
+/// Parse query string to support multi-value parameters with robust UTF-8 handling
 fn parse_multi_value_query_string(query_string: &str) -> BTreeMap<String, Value> {
     let mut params: BTreeMap<String, Vec<String>> = BTreeMap::new();
     
@@ -333,10 +334,26 @@ fn parse_multi_value_query_string(query_string: &str) -> BTreeMap<String, Value>
     
     for pair in query_string.split('&') {
         if let Some((key, value)) = pair.split_once('=') {
-            params.entry(key.to_string()).or_default().push(value.to_string());
+            // Handle both encoded and raw UTF-8 characters
+            let decoded_key = if key.contains('%') {
+                urlencoding::decode(key).unwrap_or_else(|_| key.into()).to_string()
+            } else {
+                key.to_string()
+            };
+            let decoded_value = if value.contains('%') {
+                urlencoding::decode(value).unwrap_or_else(|_| value.into()).to_string()
+            } else {
+                value.to_string()
+            };
+            params.entry(decoded_key).or_default().push(decoded_value);
         } else if !pair.is_empty() {
             // Handle keys without values
-            params.entry(pair.to_string()).or_default().push(String::new());
+            let decoded_key = if pair.contains('%') {
+                urlencoding::decode(pair).unwrap_or_else(|_| pair.into()).to_string()
+            } else {
+                pair.to_string()
+            };
+            params.entry(decoded_key).or_default().push(String::new());
         }
     }
     
