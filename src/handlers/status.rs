@@ -306,3 +306,15 @@ pub async fn status_handler(
         }
     }
 }
+
+pub async fn status_options_handler(
+    _req: HttpRequest,
+    _path: web::Path<String>,
+) -> Result<HttpResponse> {
+    // Return appropriate CORS headers for OPTIONS preflight requests
+    Ok(HttpResponse::Ok()
+        .append_header(("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, TRACE, OPTIONS"))
+        .append_header(("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept, X-Requested-With"))
+        .append_header(("Access-Control-Max-Age", "3600"))
+        .finish())
+}
