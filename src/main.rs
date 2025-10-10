@@ -1,6 +1,5 @@
 use actix_web::{
     web, App, HttpServer,
-    middleware::Logger,
 };
 use actix_files as fs;
 use actix_cors::Cors;
@@ -8,9 +7,11 @@ use clap::Parser;
 
 mod config;
 mod handlers;
+mod middleware;
 
 use config::{AppConfig, Args};
 use handlers::*;
+use middleware::RequestLogger;
 
 
 #[actix_web::main]
@@ -61,7 +62,7 @@ async fn main() -> std::io::Result<()> {
                     .supports_credentials() // Equivalent to Access-Control-Allow-Credentials: true
                     .max_age(3600) // Equivalent to Access-Control-Max-Age: 3600
             )
-            .wrap(Logger::default())
+            .wrap(RequestLogger)
             // Dynamic OpenAPI specification endpoint
             .route("/openapi.json", web::get().to(openapi_handler));
         
