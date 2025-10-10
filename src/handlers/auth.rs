@@ -158,14 +158,15 @@ fn is_require_cookie_enabled(req: &HttpRequest) -> bool {
 // Function to generate digest challenge response
 fn generate_digest_challenge(host: &str, qop: &str, algorithm: &str, stale: bool) -> String {
     let nonce = format!("{:x}", rand::random::<u64>());
+    let opaque = format!("{:x}", rand::random::<u64>());
+    
     let mut challenge = format!(
-        "Digest realm=\"httpbin@{}\", nonce=\"{}\", qop=\"{}\"",
-        host, nonce, qop
+        "Digest realm=\"httpcan@{}\", nonce=\"{}\", opaque=\"{}\", qop=\"{}\"",
+        host, nonce, opaque, qop
     );
     
-    if algorithm != "MD5" {
-        challenge.push_str(&format!(", algorithm=\"{}\"", algorithm));
-    }
+    // Always include algorithm for clarity, even for MD5
+    challenge.push_str(&format!(", algorithm=\"{}\"", algorithm));
     
     if stale {
         challenge.push_str(", stale=TRUE");
@@ -345,10 +346,19 @@ pub async fn digest_auth_handler(
             
             // Check cookie requirement if enabled
             if require_cookie && req.headers().get("Cookie").is_none() {
-                return Ok(HttpResponse::Unauthorized().json(json!({
-                    "authenticated": false,
-                    "error": "Cookie header required but missing"
-                })));
+                let challenge = generate_digest_challenge(
+                    req.connection_info().host(),
+                    if qop_param == "auth" || qop_param == "auth-int" { &qop_param } else { "auth" },
+                    "MD5",
+                    false
+                );
+                
+                return Ok(HttpResponse::Unauthorized()
+                    .append_header(("WWW-Authenticate", challenge.as_str()))
+                    .json(json!({
+                        "authenticated": false,
+                        "error": "Cookie header required but missing"
+                    })));
             }
             
             if require_cookie {
@@ -362,10 +372,19 @@ pub async fn digest_auth_handler(
                         })));
                     }
                 } else {
-                    return Ok(HttpResponse::Unauthorized().json(json!({
-                        "authenticated": false,
-                        "error": "Cookie header required but missing"
-                    })));
+                    let challenge = generate_digest_challenge(
+                        req.connection_info().host(),
+                        if qop_param == "auth" || qop_param == "auth-int" { &qop_param } else { "auth" },
+                        "MD5",
+                        false
+                    );
+                    
+                    return Ok(HttpResponse::Unauthorized()
+                        .append_header(("WWW-Authenticate", challenge.as_str()))
+                        .json(json!({
+                            "authenticated": false,
+                            "error": "Cookie header required but missing"
+                        })));
                 }
             }
             
@@ -382,10 +401,19 @@ pub async fn digest_auth_handler(
             
             // Verify username matches expected
             if username != expected_user {
-                return Ok(HttpResponse::Unauthorized().json(json!({
-                    "authenticated": false,
-                    "error": format!("Username mismatch. Expected '{}' but got '{}'", expected_user, username)
-                })));
+                let challenge = generate_digest_challenge(
+                    req.connection_info().host(),
+                    if qop_param == "auth" || qop_param == "auth-int" { &qop_param } else { "auth" },
+                    "MD5",
+                    false
+                );
+                
+                return Ok(HttpResponse::Unauthorized()
+                    .append_header(("WWW-Authenticate", challenge.as_str()))
+                    .json(json!({
+                        "authenticated": false,
+                        "error": format!("Username mismatch. Expected '{}' but got '{}'", expected_user, username)
+                    })));
             }
             
             // Validate QOP parameter
@@ -399,16 +427,34 @@ pub async fn digest_auth_handler(
             if let Some(expected_qop) = effective_qop {
                 if let Some(provided_qop) = &qop {
                     if provided_qop != expected_qop {
-                        return Ok(HttpResponse::Unauthorized().json(json!({
-                            "authenticated": false,
-                            "error": format!("QOP mismatch. Expected '{}' but got '{}'", expected_qop, provided_qop)
-                        })));
+                        let challenge = generate_digest_challenge(
+                            req.connection_info().host(),
+                            if qop_param == "auth" || qop_param == "auth-int" { &qop_param } else { "auth" },
+                            &algorithm,
+                            false
+                        );
+                        
+                        return Ok(HttpResponse::Unauthorized()
+                            .append_header(("WWW-Authenticate", challenge.as_str()))
+                            .json(json!({
+                                "authenticated": false,
+                                "error": format!("QOP mismatch. Expected '{}' but got '{}'", expected_qop, provided_qop)
+                            })));
                     }
                 } else if expected_qop != "auth" && expected_qop != "auth-int" {
-                    return Ok(HttpResponse::Unauthorized().json(json!({
-                        "authenticated": false,
-                        "error": "QOP parameter required but missing from Authorization header"
-                    })));
+                    let challenge = generate_digest_challenge(
+                        req.connection_info().host(),
+                        if qop_param == "auth" || qop_param == "auth-int" { &qop_param } else { "auth" },
+                        &algorithm,
+                        false
+                    );
+                    
+                    return Ok(HttpResponse::Unauthorized()
+                        .append_header(("WWW-Authenticate", challenge.as_str()))
+                        .json(json!({
+                            "authenticated": false,
+                            "error": "QOP parameter required but missing from Authorization header"
+                        })));
                 }
             }
             
@@ -434,10 +480,19 @@ pub async fn digest_auth_handler(
                     "user": expected_user
                 })))
             } else {
-                Ok(HttpResponse::Unauthorized().json(json!({
-                    "authenticated": false,
-                    "error": "Invalid credentials"
-                })))
+                let challenge = generate_digest_challenge(
+                    req.connection_info().host(),
+                    if qop_param == "auth" || qop_param == "auth-int" { &qop_param } else { "auth" },
+                    "MD5",
+                    false
+                );
+                
+                Ok(HttpResponse::Unauthorized()
+                    .append_header(("WWW-Authenticate", challenge.as_str()))
+                    .json(json!({
+                        "authenticated": false,
+                        "error": "Invalid credentials"
+                    })))
             }
         }
         None => {
@@ -489,10 +544,19 @@ pub async fn digest_auth_with_algorithm_handler(
             
             // Check cookie requirement if enabled
             if require_cookie && req.headers().get("Cookie").is_none() {
-                return Ok(HttpResponse::Unauthorized().json(json!({
-                    "authenticated": false,
-                    "error": "Cookie header required but missing"
-                })));
+                let challenge = generate_digest_challenge(
+                    req.connection_info().host(),
+                    if qop_param == "auth" || qop_param == "auth-int" { &qop_param } else { "auth" },
+                    &algorithm,
+                    false
+                );
+                
+                return Ok(HttpResponse::Unauthorized()
+                    .append_header(("WWW-Authenticate", challenge.as_str()))
+                    .json(json!({
+                        "authenticated": false,
+                        "error": "Cookie header required but missing"
+                    })));
             }
             
             if require_cookie {
@@ -506,10 +570,19 @@ pub async fn digest_auth_with_algorithm_handler(
                         })));
                     }
                 } else {
-                    return Ok(HttpResponse::Unauthorized().json(json!({
-                        "authenticated": false,
-                        "error": "Cookie header required but missing"
-                    })));
+                    let challenge = generate_digest_challenge(
+                        req.connection_info().host(),
+                        if qop_param == "auth" || qop_param == "auth-int" { &qop_param } else { "auth" },
+                        &algorithm,
+                        false
+                    );
+                    
+                    return Ok(HttpResponse::Unauthorized()
+                        .append_header(("WWW-Authenticate", challenge.as_str()))
+                        .json(json!({
+                            "authenticated": false,
+                            "error": "Cookie header required but missing"
+                        })));
                 }
             }
             
@@ -526,18 +599,36 @@ pub async fn digest_auth_with_algorithm_handler(
             
             // Check if algorithm in Authorization header matches URL parameter
             if auth_algorithm != algorithm {
-                return Ok(HttpResponse::Unauthorized().json(json!({
-                    "authenticated": false,
-                    "error": format!("Algorithm mismatch. URL specifies '{}' but Authorization header uses '{}'", algorithm, auth_algorithm)
-                })));
+                let challenge = generate_digest_challenge(
+                    req.connection_info().host(),
+                    if qop_param == "auth" || qop_param == "auth-int" { &qop_param } else { "auth" },
+                    &algorithm,
+                    false
+                );
+                
+                return Ok(HttpResponse::Unauthorized()
+                    .append_header(("WWW-Authenticate", challenge.as_str()))
+                    .json(json!({
+                        "authenticated": false,
+                        "error": format!("Algorithm mismatch. URL specifies '{}' but Authorization header uses '{}'", algorithm, auth_algorithm)
+                    })));
             }
             
             // Verify username matches expected
             if username != expected_user {
-                return Ok(HttpResponse::Unauthorized().json(json!({
-                    "authenticated": false,
-                    "error": format!("Username mismatch. Expected '{}' but got '{}'", expected_user, username)
-                })));
+                let challenge = generate_digest_challenge(
+                    req.connection_info().host(),
+                    if qop_param == "auth" || qop_param == "auth-int" { &qop_param } else { "auth" },
+                    &algorithm,
+                    false
+                );
+                
+                return Ok(HttpResponse::Unauthorized()
+                    .append_header(("WWW-Authenticate", challenge.as_str()))
+                    .json(json!({
+                        "authenticated": false,
+                        "error": format!("Username mismatch. Expected '{}' but got '{}'", expected_user, username)
+                    })));
             }
             
             // Validate QOP parameter
@@ -551,16 +642,34 @@ pub async fn digest_auth_with_algorithm_handler(
             if let Some(expected_qop) = effective_qop {
                 if let Some(provided_qop) = &qop {
                     if provided_qop != expected_qop {
-                        return Ok(HttpResponse::Unauthorized().json(json!({
-                            "authenticated": false,
-                            "error": format!("QOP mismatch. Expected '{}' but got '{}'", expected_qop, provided_qop)
-                        })));
+                        let challenge = generate_digest_challenge(
+                            req.connection_info().host(),
+                            if qop_param == "auth" || qop_param == "auth-int" { &qop_param } else { "auth" },
+                            &algorithm,
+                            false
+                        );
+                        
+                        return Ok(HttpResponse::Unauthorized()
+                            .append_header(("WWW-Authenticate", challenge.as_str()))
+                            .json(json!({
+                                "authenticated": false,
+                                "error": format!("QOP mismatch. Expected '{}' but got '{}'", expected_qop, provided_qop)
+                            })));
                     }
                 } else if expected_qop != "auth" && expected_qop != "auth-int" {
-                    return Ok(HttpResponse::Unauthorized().json(json!({
-                        "authenticated": false,
-                        "error": "QOP parameter required but missing from Authorization header"
-                    })));
+                    let challenge = generate_digest_challenge(
+                        req.connection_info().host(),
+                        if qop_param == "auth" || qop_param == "auth-int" { &qop_param } else { "auth" },
+                        &algorithm,
+                        false
+                    );
+                    
+                    return Ok(HttpResponse::Unauthorized()
+                        .append_header(("WWW-Authenticate", challenge.as_str()))
+                        .json(json!({
+                            "authenticated": false,
+                            "error": "QOP parameter required but missing from Authorization header"
+                        })));
                 }
             }
             
@@ -587,10 +696,19 @@ pub async fn digest_auth_with_algorithm_handler(
                     "algorithm": algorithm
                 })))
             } else {
-                Ok(HttpResponse::Unauthorized().json(json!({
-                    "authenticated": false,
-                    "error": "Invalid credentials"
-                })))
+                let challenge = generate_digest_challenge(
+                    req.connection_info().host(),
+                    if qop_param == "auth" || qop_param == "auth-int" { &qop_param } else { "auth" },
+                    &algorithm,
+                    false
+                );
+                
+                Ok(HttpResponse::Unauthorized()
+                    .append_header(("WWW-Authenticate", challenge.as_str()))
+                    .json(json!({
+                        "authenticated": false,
+                        "error": "Invalid credentials"
+                    })))
             }
         }
         None => {
@@ -672,10 +790,21 @@ pub async fn digest_auth_full_handler(
                             })));
                     }
                 } else {
-                    return Ok(HttpResponse::Unauthorized().json(json!({
-                        "authenticated": false,
-                        "error": "Cookie header required but missing"
-                    })));
+                    let challenge = generate_digest_challenge(
+                        req.connection_info().host(),
+                        if qop_param == "auth" || qop_param == "auth-int" { &qop_param } else { "auth" },
+                        &algorithm,
+                        false
+                    );
+                    
+                    return Ok(HttpResponse::Unauthorized()
+                        .append_header(("WWW-Authenticate", challenge.as_str()))
+                        .cookie(actix_web::cookie::Cookie::new("stale_after", &stale_after))
+                        .cookie(actix_web::cookie::Cookie::new("fake", "fake_value"))
+                        .json(json!({
+                            "authenticated": false,
+                            "error": "Cookie header required but missing"
+                        })));
                 }
             }
             
@@ -692,18 +821,36 @@ pub async fn digest_auth_full_handler(
             
             // Check if algorithm in Authorization header matches URL parameter
             if auth_algorithm != algorithm {
-                return Ok(HttpResponse::Unauthorized().json(json!({
-                    "authenticated": false,
-                    "error": format!("Algorithm mismatch. URL specifies '{}' but Authorization header uses '{}'", algorithm, auth_algorithm)
-                })));
+                let challenge = generate_digest_challenge(
+                    req.connection_info().host(),
+                    if qop_param == "auth" || qop_param == "auth-int" { &qop_param } else { "auth" },
+                    &algorithm,
+                    false
+                );
+                
+                return Ok(HttpResponse::Unauthorized()
+                    .append_header(("WWW-Authenticate", challenge.as_str()))
+                    .json(json!({
+                        "authenticated": false,
+                        "error": format!("Algorithm mismatch. URL specifies '{}' but Authorization header uses '{}'", algorithm, auth_algorithm)
+                    })));
             }
             
             // Verify username matches expected
             if username != expected_user {
-                return Ok(HttpResponse::Unauthorized().json(json!({
-                    "authenticated": false,
-                    "error": format!("Username mismatch. Expected '{}' but got '{}'", expected_user, username)
-                })));
+                let challenge = generate_digest_challenge(
+                    req.connection_info().host(),
+                    if qop_param == "auth" || qop_param == "auth-int" { &qop_param } else { "auth" },
+                    &algorithm,
+                    false
+                );
+                
+                return Ok(HttpResponse::Unauthorized()
+                    .append_header(("WWW-Authenticate", challenge.as_str()))
+                    .json(json!({
+                        "authenticated": false,
+                        "error": format!("Username mismatch. Expected '{}' but got '{}'", expected_user, username)
+                    })));
             }
             
             // Get stale_after value from cookies
@@ -769,16 +916,34 @@ pub async fn digest_auth_full_handler(
             if let Some(expected_qop) = effective_qop {
                 if let Some(provided_qop) = &qop {
                     if provided_qop != expected_qop {
-                        return Ok(HttpResponse::Unauthorized().json(json!({
-                            "authenticated": false,
-                            "error": format!("QOP mismatch. Expected '{}' but got '{}'", expected_qop, provided_qop)
-                        })));
+                        let challenge = generate_digest_challenge(
+                            req.connection_info().host(),
+                            if qop_param == "auth" || qop_param == "auth-int" { &qop_param } else { "auth" },
+                            &algorithm,
+                            false
+                        );
+                        
+                        return Ok(HttpResponse::Unauthorized()
+                            .append_header(("WWW-Authenticate", challenge.as_str()))
+                            .json(json!({
+                                "authenticated": false,
+                                "error": format!("QOP mismatch. Expected '{}' but got '{}'", expected_qop, provided_qop)
+                            })));
                     }
                 } else if expected_qop != "auth" && expected_qop != "auth-int" {
-                    return Ok(HttpResponse::Unauthorized().json(json!({
-                        "authenticated": false,
-                        "error": "QOP parameter required but missing from Authorization header"
-                    })));
+                    let challenge = generate_digest_challenge(
+                        req.connection_info().host(),
+                        if qop_param == "auth" || qop_param == "auth-int" { &qop_param } else { "auth" },
+                        &algorithm,
+                        false
+                    );
+                    
+                    return Ok(HttpResponse::Unauthorized()
+                        .append_header(("WWW-Authenticate", challenge.as_str()))
+                        .json(json!({
+                            "authenticated": false,
+                            "error": "QOP parameter required but missing from Authorization header"
+                        })));
                 }
             }
             
