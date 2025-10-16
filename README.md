@@ -62,7 +62,7 @@ httpcan --port 3000 --no-current-server --exclude-headers "x-forwarded-*,cf-*"
 ### 🛠️ From Source
 
 ```bash
-git clone https://github.com/<your-org-or-user>/httpcan.git
+git clone https://github.com/seedvector/httpcan.git
 cd httpcan
 
 # Default (8080)
