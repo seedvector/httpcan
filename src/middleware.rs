@@ -86,21 +86,17 @@ where
             let timestamp: DateTime<Utc> = Utc::now();
             let timestamp_str = timestamp.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string();
 
-            // Format the log message
+            // Format the log message in the specified format
             let log_message = format!(
-                "time={} msg=\"{} {} {} {:.2}ms\" status={} method={} uri={} size_bytes={} duration_ms={:.2} user_agent={} client_ip={}",
+                "time={} level=info method={} uri={} status={} duration_ms={:.2} size_bytes={} client_ip={} user_agent=\"{}\"",
                 timestamp_str,
-                status,
                 method,
                 uri,
+                status,
                 duration_ms,
-                status,
-                method,
-                uri,
                 size_bytes,
-                duration_ms,
-                user_agent,
-                client_ip
+                client_ip,
+                user_agent
             );
             
             // Log in the specified format
