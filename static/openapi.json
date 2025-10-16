@@ -2,7 +2,7 @@
   "openapi": "3.0.1",
   "info": {
     "title": "httpcan.org",
-    "description": "A simple HTTP request & response service built with Rust and Actix Web, with httpbin compatibility. <br/> <br/> <b>Run locally: </b> <code>$ docker run --rm -p 8080:8080 ghcr.io/seedvector/httpcan</code> <br/> <br/> <b>Key Features:</b> <ul> <li><b>HTTPBin Compatible</b> - Full compatibility with httpbin API for seamless migration and testing</li> <li><b>AI-Era Streaming</b> - Native support for SSE and NDJSON endpoints with OpenAI/Ollama format compatibility</li> <li><b>Tiny Docker Image</b> - Less than 10MB image size for fast deployment</li> <li><b>Minimal Memory Footprint</b> - Extremely low memory usage for efficient resource utilization</li> <li><b>High Throughput</b> - Built with Rust and async I/O for maximum performance</li> </ul>",
+    "description": "A simple, high‑performance HTTP request & response service built with Rust and Actix Web. Fully compatible with [httpbin.org](https://httpbin.org), with modern streaming and AI‑friendly enhancements. <br/> <br/> <b>Run locally:</b> <code>$ docker run -p 8080:8080 ghcr.io/seedvector/httpcan:latest</code> <br/> <br/> <b>✨ Features</b> <ul> <li><b>HTTPBin compatible</b>: Use as a drop‑in replacement for testing/migration</li> <li><b>Modern streaming</b>: Native SSE and NDJSON, AI‑compatible formats (OpenAI/Ollama)</li> <li><b>Tiny Docker image</b>: <10MB, fast to pull and start</li> <li><b>Minimal memory footprint</b>: Efficient async Rust I/O</li> <li><b>High throughput</b>: Actix Web + Tokio</li> </ul>",
     "version": "0.5.1"
   },
   "externalDocs": {

@@ -17,7 +17,7 @@ pub async fn openapi_handler(req: HttpRequest, config: web::Data<AppConfig>) -> 
                 "info": {
                     "title": "HTTPCan",
                     "version": option_env!("CARGO_PKG_VERSION").unwrap_or("unknown"),
-                    "description": "A simple HTTP request & response service built with Rust and Actix Web, with httpbin compatibility."
+                    "description": "A simple, high‑performance HTTP request & response service built with Rust and Actix Web. Fully compatible with [httpbin.org](https://httpbin.org), with modern streaming and AI‑friendly enhancements."
                 },
                 "error": "OpenAPI specification not found",
                 "message": "Please download openapi.json from https://httpcan.org. Then create a static directory in the directory where the httpcan binary file is located, and place the downloaded openapi.json into that directory."

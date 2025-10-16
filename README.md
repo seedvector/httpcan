@@ -1,175 +1,234 @@
 # HTTPCan
 
-A simple HTTP request & response service built with Rust and Actix Web, with httpbin compatibility.
+A simple, high‑performance HTTP request & response service built with Rust and Actix Web. Fully compatible with [httpbin.org](https://httpbin.org), with modern streaming and AI‑friendly enhancements.
 
-## Features
+[![Crates.io](https://img.shields.io/crates/v/httpcan.svg)](https://crates.io/crates/httpcan)
+[![ghcr.io](https://img.shields.io/badge/ghcr.io-seedvector%2Fhttpcan-1f6feb?logo=github)](https://github.com/orgs/seedvector/packages/container/package/httpcan)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-- **HTTPBin Compatible** - Full compatibility with httpbin API for seamless migration and testing
-- **AI-Era Streaming** - Native support for SSE and NDJSON endpoints with OpenAI/Ollama format compatibility
-- **Tiny Docker Image** - Less than 10MB image size for fast deployment
-- **Minimal Memory Footprint** - Extremely low memory usage for efficient resource utilization
-- **High Throughput** - Built with Rust and async I/O for maximum performance
+Quick Links: [Quick Start](#quick-start) · [Installation](#installation) · [Configuration](#-configuration) · [Examples](#usage-examples) · [OpenAPI & Web UI](#openapi--web-ui) · [API Reference](#api-reference) · [Library](#-library-usage) · [Development](#development) · [License](#license)
 
-This server implements the HTTPBin API with the following endpoints:
+## ✨ Features
 
-### HTTP Methods
-- `GET /get` - Returns request data for GET requests
-- `POST /post` - Returns request data for POST requests  
-- `PUT /put` - Returns request data for PUT requests
-- `PATCH /patch` - Returns request data for PATCH requests
-- `DELETE /delete` - Returns request data for DELETE requests
+- **HTTPBin compatible**: Use as a drop‑in replacement for testing/migration
+- **Modern streaming**: Native SSE and NDJSON, AI‑compatible formats (OpenAI/Ollama)
+- **Tiny Docker image**: <10MB, fast to pull and start
+- **Minimal memory footprint**: Efficient async Rust I/O
+- **High throughput**: Actix Web + Tokio
 
-### Anything Endpoints (Multiple HTTP Methods)
-- `/anything` - Accepts GET, POST, PUT, PATCH, DELETE, TRACE
-- `/anything/{anything}` - Same as above with path parameter
+## Quick Start
 
-### Authentication
-- `GET /basic-auth/{user}/{passwd}` - Basic authentication
-- `GET /basic-auth/{user}` - Basic authentication with username only (empty password)
-- `GET /hidden-basic-auth/{user}/{passwd}` - Basic auth with 404 on failure
-- `GET /hidden-basic-auth/{user}` - Basic auth with username only, 404 on failure
-- `GET /bearer` - Bearer token authentication
-- `GET /digest-auth/{qop}/{user}/{passwd}` - Digest authentication
-- `GET /digest-auth/{qop}/{user}/{passwd}/{algorithm}` - Digest auth with algorithm
-- `GET /digest-auth/{qop}/{user}/{passwd}/{algorithm}/{stale_after}` - Full digest auth
-
-### Response Formats
-- `GET /json` - Returns JSON response
-- `GET /xml` - Returns XML response
-- `GET /html` - Returns HTML response
-- `GET /robots.txt` - Returns robots.txt
-- `GET /deny` - Returns denied message
-- `GET /encoding/utf8` - Returns UTF-8 encoded response
-- `GET /gzip` - Returns gzip-compressed response
-- `GET /deflate` - Returns deflate-compressed response
-- `GET /brotli` - Returns brotli-compressed response
-
-### Dynamic Data
-- `GET /uuid` - Returns a UUID4
-- `GET /base64/{value}` - Decodes base64-encoded string
-- `GET /bytes/{n}` - Returns n random bytes
-- `GET /stream-bytes/{n}` - Streams n random bytes
-- `GET /stream/{n}` - Streams n JSON responses
-- `GET /range/{numbytes}` - Returns bytes with range support
-- `GET /links/{n}/{offset}` - Returns page with n links
-- `GET /drip` - Drips data over time
-- `/delay/{delay}` - Returns delayed response (supports multiple methods)
-
-### Redirects
-- `GET /redirect/{n}` - 302 redirects n times
-- `GET /relative-redirect/{n}` - Relative 302 redirects n times  
-- `GET /absolute-redirect/{n}` - Absolute 302 redirects n times
-- `/redirect-to` - 302 redirects to given URL (supports multiple methods)
-
-### Request Inspection
-- `GET /headers` - Returns request headers
-- `GET /ip` - Returns client IP address
-- `GET /user-agent` - Returns User-Agent header
-
-### Response Inspection
-- `GET /cache` - Returns 304 if caching headers present
-- `GET /cache/{value}` - Sets Cache-Control header
-- `GET /etag/{etag}` - Returns given ETag
-- `GET /response-headers` - Returns custom response headers from query
-- `POST /response-headers` - Returns custom response headers from query
-
-### Cookies
-- `GET /cookies` - Returns cookies
-- `GET /cookies/set` - Sets cookies from query string
-- `GET /cookies/set/{name}/{value}` - Sets specific cookie
-- `GET /cookies/delete` - Deletes cookies from query string
-
-### Images
-- `GET /image` - Returns image based on Accept header
-- `GET /image/png` - Returns PNG image
-- `GET /image/jpeg` - Returns JPEG image
-- `GET /image/webp` - Returns WebP image
-- `GET /image/svg` - Returns SVG image
-
-### Status Codes
-- `/status/{codes}` - Returns given status code or random from list (supports multiple methods)
-
-### Streaming Endpoints
-- `GET /sse` - Server-Sent Events endpoint with configurable event count, delay, and format
-- `GET /sse/{count}` - SSE with specified event count
-- `GET /sse/{count}/{delay}` - SSE with specified event count and delay
-- `GET /ndjson` - NDJSON streaming endpoint with configurable parameters
-- `GET /ndjson/{count}` - NDJSON with specified event count  
-- `GET /ndjson/{count}/{delay}` - NDJSON with specified event count and delay
-
-## Usage
-
-### Command Line Arguments
+Choose one way to run:
 
 ```bash
-httpcan [OPTIONS]
+# Docker (recommended)
+docker run -p 8080:8080 ghcr.io/seedvector/httpcan:latest
+curl http://localhost:8080/get
+
+# Cargo
+cargo install httpcan
+httpcan
+curl http://localhost:8080/get
 ```
 
-**Options:**
-- `-p, --port <PORT>` - Port number to listen on (default: 8080)
-- `--no-current-server` - Do not add current server to OpenAPI specification servers list
-- `--exclude-headers <HEADERS>` - Exclude specific headers from responses. Comma-separated list of header keys, supports wildcard suffix matching (e.g., "foo, x-bar-*"). Built-in filtering for Nginx, Cloudflare, AWS, GCP, and Azure headers
-- `-h, --help` - Print help information
-- `-V, --version` - Print version information
+## Installation
 
-### Start the server
+### 🐳 Docker
+
 ```bash
-# Default port 8080
+# Latest image
+docker run -p 8080:8080 ghcr.io/seedvector/httpcan:latest
+
+# Custom port
+docker run -p 3000:3000 ghcr.io/seedvector/httpcan:latest --port 3000
+
+# Header filtering
+docker run -p 8080:8080 ghcr.io/seedvector/httpcan:latest --exclude-headers "foo, x-bar-*"
+```
+
+### 📦 Cargo
+
+```bash
+# Install globally
+cargo install httpcan
+
+# Run
+httpcan
+httpcan --port 3000
+httpcan --exclude-headers "foo, x-bar-*"
+httpcan --port 3000 --no-current-server --exclude-headers "x-forwarded-*,cf-*"
+```
+
+### 🛠️ From Source
+
+```bash
+git clone https://github.com/<your-org-or-user>/httpcan.git
+cd httpcan
+
+# Default (8080)
 cargo run
 
 # Custom port
 cargo run -- --port 3000
 
-# Exclude headers
-cargo run -- --exclude-headers "foo, x-bar-*"
-
-# Multiple options
-cargo run -- --port 3000 --no-current-server --exclude-headers "foo, x-bar-*"
+# Release build
+cargo build --release
+./target/release/httpcan --port 8080
 ```
 
-The server will start on `http://0.0.0.0:8080` (or specified port)
+## 🧰 Configuration
 
-### Example requests
+CLI flags:
+
+| Option                         | Description                                                                                                       | Default | Example                                                    |
+|--------------------------------|-------------------------------------------------------------------------------------------------------------------|---------|------------------------------------------------------------|
+| `-p, --port <PORT>`            | Port number to listen on                                                                                          | `8080`  | `--port 3000`                                             |
+| `--no-current-server`          | Do not add current server to OpenAPI `servers` list                                                               | `false` | `--no-current-server`                                     |
+| `--exclude-headers <HEADERS>`  | Exclude headers in responses; comma‑separated; supports wildcard suffix (e.g. `x-bar-*`)                          | `""`    | `--exclude-headers "x-forwarded-*,cf-*,server"`           |
+| `-h, --help`                   | Print help information                                                                                             |         | `--help`                                                  |
+| `-V, --version`                | Print version                                                                                                      |         | `--version`                                               |
+
+Notes:
+- Built‑in filtering includes reverse proxy/CDN providers (Nginx, Cloudflare, AWS, GCP, Azure).
+- When using Docker, ensure `-p host:container` mapping matches your `--port` if you override it.
+
+## Usage Examples
+
 ```bash
-# Basic GET request
+# Basic GET
 curl http://localhost:8080/get
 
-# POST with JSON data
+# POST with JSON
 curl -X POST http://localhost:8080/post \
   -H "Content-Type: application/json" \
-  -d '{"key": "value"}'
+  -d '{"key":"value"}'
+```
 
-# Multiple HTTP methods on same endpoint  
-curl -X PUT http://localhost:8080/anything
-curl -X DELETE http://localhost:8080/anything
+### Auth
 
-# Generate UUID
-curl http://localhost:8080/uuid
-
-# Basic authentication
+```bash
+# Basic auth
 curl -u username:password http://localhost:8080/basic-auth/username/password
 
-# Basic authentication with username only (empty password)
+# Username only (empty password) — enhanced
 curl -u username: http://localhost:8080/basic-auth/username
+```
 
-# Get compressed response
-curl -H "Accept-Encoding: gzip" http://localhost:8080/gzip
+### Status & Redirects
 
-# Status codes
+```bash
+# Specific status
 curl http://localhost:8080/status/418
-curl http://localhost:8080/status/200,404,500  # Random selection
 
-# Server-Sent Events
+# Random from list
+curl http://localhost:8080/status/200,404,500
+
+# Redirect to a URL (supports form/json)
+curl -X POST http://localhost:8080/redirect-to -d "url=https://example.com"
+```
+
+### Compression & Formats
+
+```bash
+curl -H "Accept-Encoding: gzip" http://localhost:8080/gzip
+curl http://localhost:8080/json
+curl http://localhost:8080/xml
+```
+
+### Streaming (SSE/NDJSON)
+
+```bash
+# SSE
 curl http://localhost:8080/sse?count=3&format=simple
 curl http://localhost:8080/sse/5?format=openai&delay=2000
-curl http://localhost:8080/sse?format=custom&message="Hello%20World"
 
-# NDJSON streaming
+# NDJSON
 curl http://localhost:8080/ndjson?count=3&format=simple
 curl http://localhost:8080/ndjson/5?format=ollama&model=llama3&delay=1500
-curl http://localhost:8080/ndjson?format=openai&count=2
 ```
+
+### Cookies & Inspection
+
+```bash
+curl http://localhost:8080/cookies
+curl http://localhost:8080/headers
+curl http://localhost:8080/ip
+```
+
+## OpenAPI & Web UI
+
+- OpenAPI spec: `GET /openapi.json`
+- Web UI / API info: visit `/` in a browser; renders HTML or JSON based on `Accept` header
+
+## API Reference
+
+### HTTPBin Compatibility (Overview)
+
+- Methods: `GET /get`, `POST /post`, `PUT /put`, `PATCH /patch`, `DELETE /delete`
+- Anything: `/anything`, `/anything/{anything}` (supports multiple methods)
+- Auth: Basic, Hidden Basic, Digest
+- Formats: JSON, XML, HTML, `robots.txt`, `encoding/utf8`, gzip/deflate/brotli
+- Dynamic: `uuid`, `bytes`, `stream`, `range`, `links`, `delay`, `drip`
+- Redirects: `redirect`, `relative-redirect`, `absolute-redirect`, `redirect-to`
+- Inspection: `headers`, `ip`, `user-agent`
+- Response: `cache`, `etag`, `response-headers`
+- Cookies: `cookies` CRUD
+- Images: `image`, `image/png`, `image/jpeg`, `image/webp`, `image/svg`
+- Status: `/status/{codes}` (single or comma‑separated)
+
+For the full, up‑to‑date list and schemas, consult the [OpenAPI spec](/openapi.json).
+
+### HTTPCan Enhancements
+
+- Echo endpoint: `/echo` reflects request body and headers (multi‑method)
+- Auth+: Basic auth with username only; JWT Bearer decode/inspect at `/jwt-bearer`
+- Status+: Content‑type priority: `Accept` > request `Content-Type` > default; supports custom bodies via query/body
+- Redirects+: `POST /redirect-to` supports `application/x-www-form-urlencoded`, `multipart/form-data`, `application/json`
+- Streaming+: SSE/NDJSON endpoints with `count`, `delay`, and AI formats (OpenAI/Ollama)
+- File uploads+: Multiple files with the same field return as array across multipart endpoints
+
+## 🦀 Library Usage
+
+Add dependency:
+
+```toml
+[dependencies]
+httpcan = "0.5"
+```
+
+Embed server:
+
+```rust
+use httpcan::HttpCanServer;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    HttpCanServer::new()
+        .port(3000)
+        .host("127.0.0.1")
+        .exclude_header("foo, x-bar-*")
+        .run()
+        .await?;
+    Ok(())
+}
+```
+
+More examples and advanced config: see [LIBRARY_USAGE.md](LIBRARY_USAGE.md).
+
+## Development
+
+```bash
+# Run checks
+cargo fmt --all
+cargo clippy --all -- -D warnings
+cargo test
+
+# Run locally
+cargo run -- --port 8080
+```
+
+Contributions are welcome! Please open issues/PRs for discussion.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT — see [LICENSE](LICENSE).
