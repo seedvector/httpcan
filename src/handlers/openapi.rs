@@ -12,8 +12,15 @@ pub async fn openapi_handler(req: HttpRequest, config: web::Data<AppConfig>) -> 
     let base_openapi = match std::fs::read_to_string(&openapi_path) {
         Ok(content) => content,
         Err(_) => {
+            // Return helpful information when openapi.json is not found
             return Ok(HttpResponse::NotFound().json(json!({
-                "error": "OpenAPI specification not found"
+                "info": {
+                    "title": "HTTPCan",
+                    "version": option_env!("CARGO_PKG_VERSION").unwrap_or("unknown"),
+                    "description": "A simple HTTP request & response service built with Rust and Actix Web, with httpbin compatibility."
+                },
+                "error": "OpenAPI specification not found",
+                "message": "Please download openapi.json from https://httpcan.org. Then create a static directory in the directory where the httpcan binary file is located, and place the downloaded openapi.json into that directory."
             })));
         }
     };

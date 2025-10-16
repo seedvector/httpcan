@@ -328,12 +328,10 @@ fn create_app(server_config: ServerConfig) -> App<impl actix_web::dev::ServiceFa
         // NDJSON streaming endpoints
         .route("/ndjson", web::get().to(ndjson_handler))
         .route("/ndjson/{count}", web::get().to(ndjson_path_handler))
-        .route("/ndjson/{count}/{delay}", web::get().to(ndjson_path_with_delay_handler));
-    
-    // Only add root static file service if the static directory exists
-    if static_path.exists() {
-        app = app.service(fs::Files::new("/", &static_path).index_file("index.html"));
-    }
+        .route("/ndjson/{count}/{delay}", web::get().to(ndjson_path_with_delay_handler))
+        
+        // Root endpoint - returns HTML or API info based on Accept header
+        .route("/", web::get().to(root_handler));
     
     app
 }
