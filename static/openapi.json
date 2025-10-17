@@ -3,7 +3,7 @@
   "info": {
     "title": "httpcan.org",
     "description": "A simple, high‑performance HTTP request & response service built with Rust and Actix Web. Fully compatible with [httpbin.org](https://httpbin.org), with modern streaming and AI‑friendly enhancements. <br/> <br/> <b>Run locally:</b> <code>$ docker run -p 8080:8080 ghcr.io/seedvector/httpcan:latest</code> <br/> <br/> <b>✨ Features</b> <ul> <li><b>HTTPBin compatible</b>: Use as a drop‑in replacement for testing/migration</li> <li><b>Modern streaming</b>: Native SSE and NDJSON, AI‑compatible formats (OpenAI/Ollama)</li> <li><b>Tiny Docker image</b>: <10MB, fast to pull and start</li> <li><b>Minimal memory footprint</b>: Efficient async Rust I/O</li> <li><b>High throughput</b>: Actix Web + Tokio</li> </ul>",
-    "version": "0.5.1"
+    "version": "0.5.2"
   },
   "externalDocs": {
     "description": "GitHub",
