@@ -333,6 +333,12 @@ fn create_app(server_config: ServerConfig) -> App<impl actix_web::dev::ServiceFa
         // Root endpoint - returns HTML or API info based on Accept header
         .route("/", web::get().to(root_handler));
     
+    // Only add root static file service if the static directory exists
+    // This is added after all routes to serve as fallback for static resources
+    if static_path.exists() {
+        app = app.service(fs::Files::new("/", &static_path).index_file("index.html"));
+    }
+    
     app
 }
 
