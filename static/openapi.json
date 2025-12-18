@@ -3,7 +3,7 @@
   "info": {
     "title": "httpcan.org",
     "description": "A simple, high‑performance HTTP request & response service built with Rust and Actix Web. Fully compatible with [httpbin.org](https://httpbin.org), with modern streaming and AI‑friendly enhancements. <br/> <br/> <b>Run locally:</b> <code>$ docker run -p 8080:8080 ghcr.io/seedvector/httpcan:latest</code> <br/> <br/> <b>✨ Features</b> <ul> <li><b>HTTPBin compatible</b>: Use as a drop‑in replacement for testing/migration</li> <li><b>Modern streaming</b>: Native SSE and NDJSON, AI‑compatible formats (OpenAI/Ollama)</li> <li><b>Tiny Docker image</b>: <10MB, fast to pull and start</li> <li><b>Minimal memory footprint</b>: Efficient async Rust I/O</li> <li><b>High throughput</b>: Actix Web + Tokio</li> </ul>",
-    "version": "0.5.2"
+    "version": "0.5.3"
   },
   "externalDocs": {
     "description": "GitHub",
@@ -1100,6 +1100,7 @@
           "Auth"
         ],
         "summary": "Prompts the user for authorization using Digest Auth.",
+        "description": "Supports both 'auth' and 'auth-int' QoP (Quality of Protection). For 'auth-int', the HA2 hash includes the request body per RFC-7616: HA2 = H(method:uri:H(entity-body)).",
         "security": [
           {
             "digestAuth": []
@@ -1109,10 +1110,11 @@
           {
             "name": "qop",
             "in": "path",
-            "description": "auth or auth-int",
+            "description": "auth or auth-int. Use 'auth-int' for integrity protection that includes request body in hash calculation.",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "enum": ["auth", "auth-int"]
             }
           },
           {
@@ -1132,6 +1134,71 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Sucessful authentication.",
+            "content": {}
+          },
+          "401": {
+            "description": "Unsuccessful authentication.",
+            "content": {}
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Prompts the user for authorization using Digest Auth with request body support.",
+        "description": "POST method for testing 'auth-int' QoP with request bodies. For 'auth-int', the HA2 hash includes the request body per RFC-7616: HA2 = H(method:uri:H(entity-body)). This is essential for proper auth-int testing.",
+        "security": [
+          {
+            "digestAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "qop",
+            "in": "path",
+            "description": "auth or auth-int. Use 'auth-int' for integrity protection that includes request body in hash calculation.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["auth", "auth-int"]
+            }
+          },
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "passwd",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Request body for auth-int QoP testing. The body hash is included in HA2 calculation.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Sucessful authentication.",
@@ -1150,6 +1217,7 @@
           "Auth"
         ],
         "summary": "Prompts the user for authorization using Digest Auth + Algorithm.",
+        "description": "Supports both 'auth' and 'auth-int' QoP with configurable hash algorithm. For 'auth-int', the HA2 hash includes the request body per RFC-7616.",
         "security": [
           {
             "digestAuth": []
@@ -1159,10 +1227,11 @@
           {
             "name": "qop",
             "in": "path",
-            "description": "auth or auth-int",
+            "description": "auth or auth-int. Use 'auth-int' for integrity protection that includes request body in hash calculation.",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "enum": ["auth", "auth-int"]
             }
           },
           {
@@ -1184,14 +1253,91 @@
           {
             "name": "algorithm",
             "in": "path",
-            "description": "MD5, SHA-256, SHA-512",
+            "description": "Hash algorithm for digest calculation",
             "required": true,
             "schema": {
               "type": "string",
+              "enum": ["MD5", "SHA-256", "SHA-512"],
               "default": "MD5"
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Sucessful authentication.",
+            "content": {}
+          },
+          "401": {
+            "description": "Unsuccessful authentication.",
+            "content": {}
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Prompts the user for authorization using Digest Auth + Algorithm with request body support.",
+        "description": "POST method for testing 'auth-int' QoP with request bodies and configurable hash algorithm. For 'auth-int', the HA2 hash includes the request body per RFC-7616.",
+        "security": [
+          {
+            "digestAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "qop",
+            "in": "path",
+            "description": "auth or auth-int. Use 'auth-int' for integrity protection that includes request body in hash calculation.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["auth", "auth-int"]
+            }
+          },
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "passwd",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "algorithm",
+            "in": "path",
+            "description": "Hash algorithm for digest calculation",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["MD5", "SHA-256", "SHA-512"],
+              "default": "MD5"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Request body for auth-int QoP testing. The body hash is included in HA2 calculation.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Sucessful authentication.",
@@ -1209,8 +1355,8 @@
         "tags": [
           "Auth"
         ],
-        "summary": "Prompts the user for authorization using Digest Auth + Algorithm.",
-        "description": "allow settings the stale_after argument.\n",
+        "summary": "Prompts the user for authorization using Digest Auth + Algorithm with stale nonce control.",
+        "description": "Full Digest Auth endpoint with stale_after control. Supports both 'auth' and 'auth-int' QoP. For 'auth-int', the HA2 hash includes the request body per RFC-7616.",
         "security": [
           {
             "digestAuth": []
@@ -1220,10 +1366,11 @@
           {
             "name": "qop",
             "in": "path",
-            "description": "auth or auth-int",
+            "description": "auth or auth-int. Use 'auth-int' for integrity protection that includes request body in hash calculation.",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "enum": ["auth", "auth-int"]
             }
           },
           {
@@ -1245,16 +1392,18 @@
           {
             "name": "algorithm",
             "in": "path",
-            "description": "MD5, SHA-256, SHA-512",
+            "description": "Hash algorithm for digest calculation",
             "required": true,
             "schema": {
               "type": "string",
+              "enum": ["MD5", "SHA-256", "SHA-512"],
               "default": "MD5"
             }
           },
           {
             "name": "stale_after",
             "in": "path",
+            "description": "Number of requests before nonce becomes stale, or 'never'",
             "required": true,
             "schema": {
               "type": "string",
@@ -1262,6 +1411,92 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Sucessful authentication.",
+            "content": {}
+          },
+          "401": {
+            "description": "Unsuccessful authentication.",
+            "content": {}
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Prompts the user for authorization using Digest Auth + Algorithm with stale nonce control and request body support.",
+        "description": "Full Digest Auth endpoint with stale_after control. POST method for testing 'auth-int' QoP with request bodies. For 'auth-int', the HA2 hash includes the request body per RFC-7616.",
+        "security": [
+          {
+            "digestAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "qop",
+            "in": "path",
+            "description": "auth or auth-int. Use 'auth-int' for integrity protection that includes request body in hash calculation.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["auth", "auth-int"]
+            }
+          },
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "passwd",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "algorithm",
+            "in": "path",
+            "description": "Hash algorithm for digest calculation",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["MD5", "SHA-256", "SHA-512"],
+              "default": "MD5"
+            }
+          },
+          {
+            "name": "stale_after",
+            "in": "path",
+            "description": "Number of requests before nonce becomes stale, or 'never'",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "default": "never"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Request body for auth-int QoP testing. The body hash is included in HA2 calculation.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Sucessful authentication.",

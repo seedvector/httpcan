@@ -241,9 +241,13 @@ fn create_app(server_config: ServerConfig) -> App<impl actix_web::dev::ServiceFa
         .route("/hidden-basic-auth/{user}", web::get().to(hidden_basic_auth_user_only_handler))
         .route("/bearer", web::get().to(bearer_auth_handler))
         .route("/jwt-bearer", web::get().to(jwt_bearer_handler))
+        // Digest auth endpoints - support both GET and POST for auth-int with body
         .route("/digest-auth/{qop}/{user}/{passwd}", web::get().to(digest_auth_handler))
+        .route("/digest-auth/{qop}/{user}/{passwd}", web::post().to(digest_auth_handler))
         .route("/digest-auth/{qop}/{user}/{passwd}/{algorithm}", web::get().to(digest_auth_with_algorithm_handler))
+        .route("/digest-auth/{qop}/{user}/{passwd}/{algorithm}", web::post().to(digest_auth_with_algorithm_handler))
         .route("/digest-auth/{qop}/{user}/{passwd}/{algorithm}/{stale_after}", web::get().to(digest_auth_full_handler))
+        .route("/digest-auth/{qop}/{user}/{passwd}/{algorithm}/{stale_after}", web::post().to(digest_auth_full_handler))
         
         // Response formats
         .route("/json", web::get().to(json_handler))

@@ -47,11 +47,12 @@ struct DigestParams<'a> {
     qop: Option<&'a str>,
     nc: Option<&'a str>,
     cnonce: Option<&'a str>,
+    body: Option<&'a [u8]>,
 }
 
 // Function to calculate digest hash with QOP support
 fn calculate_digest_response(params: DigestParams) -> String {
-    let DigestParams { username, password, realm, method, uri, nonce, algorithm, qop, nc, cnonce } = params;
+    let DigestParams { username, password, realm, method, uri, nonce, algorithm, qop, nc, cnonce, body } = params;
     let ha1 = match algorithm {
         "MD5" => {
             let hash = md5::compute(format!("{}:{}:{}", username, realm, password));
@@ -70,22 +71,69 @@ fn calculate_digest_response(params: DigestParams) -> String {
         _ => return String::new(), // Invalid algorithm
     };
 
-    let ha2 = match algorithm {
-        "MD5" => {
-            let hash = md5::compute(format!("{}:{}", method, uri));
-            format!("{:x}", hash)
+    // Calculate HA2 based on QOP
+    // For auth-int, HA2 = H(method:uri:H(entity-body))
+    // For auth or no QOP, HA2 = H(method:uri)
+    let ha2 = match qop {
+        Some("auth-int") => {
+            // Calculate hash of request body
+            let body_hash = match algorithm {
+                "MD5" => {
+                    let hash = md5::compute(body.unwrap_or(&[]));
+                    format!("{:x}", hash)
+                }
+                "SHA-256" => {
+                    let mut hasher = Sha256::new();
+                    hasher.update(body.unwrap_or(&[]));
+                    format!("{:x}", hasher.finalize())
+                }
+                "SHA-512" => {
+                    let mut hasher = Sha512::new();
+                    hasher.update(body.unwrap_or(&[]));
+                    format!("{:x}", hasher.finalize())
+                }
+                _ => return String::new(),
+            };
+            
+            // HA2 = H(method:uri:H(entity-body))
+            match algorithm {
+                "MD5" => {
+                    let hash = md5::compute(format!("{}:{}:{}", method, uri, body_hash));
+                    format!("{:x}", hash)
+                }
+                "SHA-256" => {
+                    let mut hasher = Sha256::new();
+                    hasher.update(format!("{}:{}:{}", method, uri, body_hash));
+                    format!("{:x}", hasher.finalize())
+                }
+                "SHA-512" => {
+                    let mut hasher = Sha512::new();
+                    hasher.update(format!("{}:{}:{}", method, uri, body_hash));
+                    format!("{:x}", hasher.finalize())
+                }
+                _ => return String::new(),
+            }
         }
-        "SHA-256" => {
-            let mut hasher = Sha256::new();
-            hasher.update(format!("{}:{}", method, uri));
-            format!("{:x}", hasher.finalize())
+        _ => {
+            // For auth or no QOP: HA2 = H(method:uri)
+            match algorithm {
+                "MD5" => {
+                    let hash = md5::compute(format!("{}:{}", method, uri));
+                    format!("{:x}", hash)
+                }
+                "SHA-256" => {
+                    let mut hasher = Sha256::new();
+                    hasher.update(format!("{}:{}", method, uri));
+                    format!("{:x}", hasher.finalize())
+                }
+                "SHA-512" => {
+                    let mut hasher = Sha512::new();
+                    hasher.update(format!("{}:{}", method, uri));
+                    format!("{:x}", hasher.finalize())
+                }
+                _ => return String::new(),
+            }
         }
-        "SHA-512" => {
-            let mut hasher = Sha512::new();
-            hasher.update(format!("{}:{}", method, uri));
-            format!("{:x}", hasher.finalize())
-        }
-        _ => return String::new(),
     };
 
     // Calculate response based on QOP
@@ -331,6 +379,7 @@ pub async fn bearer_auth_handler(
 pub async fn digest_auth_handler(
     req: HttpRequest,
     path: web::Path<(String, String, String)>,
+    body: web::Bytes,
 ) -> Result<HttpResponse> {
     let (qop_param, expected_user, expected_passwd) = path.into_inner();
     
@@ -471,6 +520,7 @@ pub async fn digest_auth_handler(
                 qop: effective_qop,
                 nc: nc.as_deref(),
                 cnonce: cnonce.as_deref(),
+                body: Some(&body),
             });
             
             // Verify the response hash
@@ -522,6 +572,7 @@ pub async fn digest_auth_handler(
 pub async fn digest_auth_with_algorithm_handler(
     req: HttpRequest,
     path: web::Path<(String, String, String, String)>,
+    body: web::Bytes,
 ) -> Result<HttpResponse> {
     let (qop_param, expected_user, expected_passwd, algorithm) = path.into_inner();
     
@@ -686,6 +737,7 @@ pub async fn digest_auth_with_algorithm_handler(
                 qop: effective_qop,
                 nc: nc.as_deref(),
                 cnonce: cnonce.as_deref(),
+                body: Some(&body),
             });
             
             // Verify the response hash
@@ -738,6 +790,7 @@ pub async fn digest_auth_with_algorithm_handler(
 pub async fn digest_auth_full_handler(
     req: HttpRequest,
     path: web::Path<(String, String, String, String, String)>,
+    body: web::Bytes,
 ) -> Result<HttpResponse> {
     let (qop_param, expected_user, expected_passwd, algorithm, stale_after) = path.into_inner();
     
@@ -960,6 +1013,7 @@ pub async fn digest_auth_full_handler(
                 qop: effective_qop,
                 nc: nc.as_deref(),
                 cnonce: cnonce.as_deref(),
+                body: Some(&body),
             });
             
             // Verify the response hash
