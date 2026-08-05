@@ -4,16 +4,16 @@ use httpcan::{HttpCanServer, ServerConfig};
 mod config;
 use config::Args;
 
-
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();
 
     // Parse command line arguments
     let args = Args::parse();
-    
+
     // Parse exclude headers
-    let exclude_headers: Vec<String> = args.exclude_headers
+    let exclude_headers: Vec<String> = args
+        .exclude_headers
         .map(|headers_str| {
             headers_str
                 .split(',')
@@ -30,7 +30,5 @@ async fn main() -> std::io::Result<()> {
         .exclude_headers(exclude_headers);
 
     // Create and run the server
-    HttpCanServer::with_config(config)
-        .run()
-        .await
+    HttpCanServer::with_config(config).run().await
 }

@@ -1,49 +1,44 @@
-use actix_web::{
-    web, HttpRequest, HttpResponse, Result,
-    http::StatusCode,
-    cookie::Cookie,
-};
-use actix_web_httpauth::extractors::{basic::BasicAuth, bearer::BearerAuth};
+use crate::AppConfig;
 use actix_multipart::Multipart;
+use actix_web::{cookie::Cookie, http::StatusCode, web, HttpRequest, HttpResponse, Result};
+use actix_web_httpauth::extractors::{basic::BasicAuth, bearer::BearerAuth};
+use base64::{engine::general_purpose, Engine as _};
+use rand::Rng;
 use serde::Deserialize;
 use serde_json::json;
 use std::collections::HashMap;
-use rand::Rng;
-use base64::{Engine as _, engine::general_purpose};
 use uuid::Uuid;
-use crate::AppConfig;
 
-pub mod utils;
-pub mod http_methods;
 pub mod anything;
 pub mod auth;
-pub mod response_formats;
+pub mod cookies;
 pub mod dynamic_data;
+pub mod echo;
+pub mod http_methods;
+pub mod images;
+pub mod openapi;
 pub mod redirects;
 pub mod request_inspection;
+pub mod response_formats;
 pub mod response_inspection;
-pub mod cookies;
-pub mod images;
-pub mod status;
-pub mod openapi;
-pub mod sse;
-pub mod echo;
 pub mod root;
+pub mod sse;
+pub mod status;
+pub mod utils;
 
-pub use utils::*;
-pub use http_methods::*;
 pub use anything::*;
 pub use auth::*;
-pub use response_formats::*;
+pub use cookies::*;
 pub use dynamic_data::*;
+pub use echo::*;
+pub use http_methods::*;
+pub use images::*;
+pub use openapi::*;
 pub use redirects::*;
 pub use request_inspection::*;
+pub use response_formats::*;
 pub use response_inspection::*;
-pub use cookies::*;
-pub use images::*;
-pub use status::*;
-pub use openapi::*;
-pub use sse::*;
-pub use echo::*;
 pub use root::*;
-
+pub use sse::*;
+pub use status::*;
+pub use utils::*;

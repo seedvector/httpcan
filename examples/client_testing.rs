@@ -17,31 +17,38 @@ impl HttpClient {
     async fn get(&self, path: &str) -> Result<String, Box<dyn std::error::Error>> {
         let url = format!("{}{}", self.base_url, path);
         let client = reqwest::Client::new();
-        
+
         let response = timeout(self.timeout, client.get(&url).send()).await??;
         let text = response.text().await?;
         Ok(text)
     }
 
-    async fn get_with_status(&self, path: &str) -> Result<(u16, String), Box<dyn std::error::Error>> {
+    async fn get_with_status(
+        &self,
+        path: &str,
+    ) -> Result<(u16, String), Box<dyn std::error::Error>> {
         let url = format!("{}{}", self.base_url, path);
         let client = reqwest::Client::new();
-        
+
         let response = timeout(self.timeout, client.get(&url).send()).await??;
         let status = response.status().as_u16();
         let text = response.text().await?;
         Ok((status, text))
     }
 
-    async fn get_with_headers(&self, path: &str, headers: &[(&str, &str)]) -> Result<String, Box<dyn std::error::Error>> {
+    async fn get_with_headers(
+        &self,
+        path: &str,
+        headers: &[(&str, &str)],
+    ) -> Result<String, Box<dyn std::error::Error>> {
         let url = format!("{}{}", self.base_url, path);
         let client = reqwest::Client::new();
-        
+
         let mut request = client.get(&url);
         for (key, value) in headers {
             request = request.header(*key, *value);
         }
-        
+
         let response = timeout(self.timeout, request.send()).await??;
         let text = response.text().await?;
         Ok(text)
@@ -54,7 +61,7 @@ async fn run_integration_tests() -> Result<(), Box<dyn std::error::Error>> {
     // Test 1: Test slow response timeout
     println!("Test 1: Testing slow response timeout...");
     let client = HttpClient::new("http://127.0.0.1:8080".to_string(), Duration::from_secs(1));
-    
+
     match client.get("/delay/10").await {
         Err(e) => {
             if e.to_string().contains("timeout") || e.to_string().contains("elapsed") {
@@ -71,7 +78,7 @@ async fn run_integration_tests() -> Result<(), Box<dyn std::error::Error>> {
     // Test 2: Test successful request with reasonable timeout
     println!("\nTest 2: Testing successful request...");
     let client = HttpClient::new("http://127.0.0.1:8080".to_string(), Duration::from_secs(5));
-    
+
     match client.get("/delay/1").await {
         Ok(response) => {
             println!("✅ Test passed: Got successful response");
@@ -114,8 +121,11 @@ async fn run_integration_tests() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test 5: Test headers echoing
     println!("\nTest 5: Testing headers endpoint...");
-    let headers = &[("X-Test-Header", "test-value"), ("X-Custom", "custom-value")];
-    
+    let headers = &[
+        ("X-Test-Header", "test-value"),
+        ("X-Custom", "custom-value"),
+    ];
+
     match client.get_with_headers("/headers", headers).await {
         Ok(response) => {
             if response.contains("X-Test-Header") && response.contains("test-value") {
@@ -145,8 +155,10 @@ async fn run_integration_tests() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!("\n🎉 All integration tests completed!");
-    println!("💡 This demonstrates how HTTPCan can be used as a test server for HTTP client testing");
-    
+    println!(
+        "💡 This demonstrates how HTTPCan can be used as a test server for HTTP client testing"
+    );
+
     Ok(())
 }
 
@@ -160,7 +172,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Start the server in the background using a different approach
     // In a real application, you'd typically start the server in a separate process or thread
     // For this demo, we'll show how the tests would work assuming the server is running
-    
+
     // Uncomment the following lines to actually start the server:
     // let server = HttpCanServer::new()
     //     .port(8080)
@@ -173,10 +185,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   # Then in another terminal:");
     println!("   cargo run --example client_testing --features examples");
     println!();
-    
+
     // Check if server is running and run tests
     let client = HttpClient::new("http://127.0.0.1:8080".to_string(), Duration::from_secs(2));
-    
+
     match client.get("/get").await {
         Ok(_) => {
             println!("🚀 HTTPCan server detected! Running integration tests...\n");

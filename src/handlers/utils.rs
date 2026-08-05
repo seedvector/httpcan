@@ -1,15 +1,15 @@
-use actix_web::{HttpRequest, Result, web};
 use actix_multipart::Multipart;
-use std::collections::{HashMap, BTreeMap};
+use actix_web::web::BytesMut;
+use actix_web::{web, HttpRequest, Result};
+use base64::{engine::general_purpose, Engine as _};
+use futures_util::{StreamExt, TryStreamExt};
 use indexmap::IndexMap;
-use futures_util::{TryStreamExt, StreamExt};
-use url::form_urlencoded;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::{BTreeMap, HashMap};
 use std::env;
 use std::path::PathBuf;
-use base64::{Engine as _, engine::general_purpose};
-use actix_web::web::BytesMut;
+use url::form_urlencoded;
 use urlencoding;
 
 #[derive(Serialize, Deserialize)]
@@ -53,7 +53,7 @@ fn is_text_content(data: &[u8]) -> bool {
     if data.contains(&0) {
         return false;
     }
-    
+
     // Check if content is valid UTF-8
     std::str::from_utf8(data).is_ok()
 }
@@ -64,7 +64,7 @@ fn format_file_content(_filename: &str, data: &[u8]) -> String {
         // For text files, return the content directly
         match std::str::from_utf8(data) {
             Ok(text) => text.to_string(),
-            Err(_) => "[Invalid UTF-8]".to_string()
+            Err(_) => "[Invalid UTF-8]".to_string(),
         }
     } else {
         // For binary files, return base64 encoding directly
@@ -77,7 +77,7 @@ pub fn get_static_path() -> PathBuf {
     let exe_path = env::current_exe().unwrap();
     let exe_dir = exe_path.parent().unwrap();
     let static_path = exe_dir.join("static");
-    
+
     // Fallback to current directory if static directory doesn't exist next to executable
     if !static_path.exists() {
         let current_dir_static = PathBuf::from("./static");
@@ -85,7 +85,7 @@ pub fn get_static_path() -> PathBuf {
             return current_dir_static;
         }
     }
-    
+
     static_path
 }
 
@@ -119,7 +119,7 @@ pub fn sort_hashmap_value(map: HashMap<String, Value>) -> IndexMap<String, Value
 fn header_matches_pattern(header_name: &str, pattern: &str) -> bool {
     let header_lower = header_name.to_lowercase();
     let pattern_lower = pattern.to_lowercase();
-    
+
     if pattern_lower.ends_with('*') {
         // Wildcard suffix matching
         let prefix = &pattern_lower[..pattern_lower.len() - 1];
@@ -131,15 +131,20 @@ fn header_matches_pattern(header_name: &str, pattern: &str) -> bool {
 }
 
 // Enhanced header filtering function that supports both proxy filtering and custom exclusions
-pub fn filter_headers(headers: HashMap<String, String>, exclude_patterns: &[String]) -> HashMap<String, String> {
+pub fn filter_headers(
+    headers: HashMap<String, String>,
+    exclude_patterns: &[String],
+) -> HashMap<String, String> {
     // First apply proxy header filtering
     let proxy_filtered = filter_proxy_headers(headers);
-    
+
     // Then apply custom exclusions
     proxy_filtered
         .into_iter()
         .filter(|(name, _)| {
-            !exclude_patterns.iter().any(|pattern| header_matches_pattern(name, pattern))
+            !exclude_patterns
+                .iter()
+                .any(|pattern| header_matches_pattern(name, pattern))
         })
         .collect()
 }
@@ -161,10 +166,9 @@ pub fn filter_proxy_headers(headers: HashMap<String, String>) -> HashMap<String,
         "x-forwarded-ssl",
         "x-forwarded-scheme",
         "x-nginx-proxy",
-        
         // Cloudflare headers
         "cf-ray",
-        "cf-cache-status", 
+        "cf-cache-status",
         "cf-connecting-ip",
         "cf-ipcountry",
         "cf-visitor",
@@ -175,7 +179,6 @@ pub fn filter_proxy_headers(headers: HashMap<String, String>) -> HashMap<String,
         "cf-cache-tag",
         "cf-railgun",
         "cdn-loop",
-        
         // AWS CloudFront headers
         "cloudfront-viewer-address",
         "cloudfront-viewer-asn",
@@ -201,7 +204,6 @@ pub fn filter_proxy_headers(headers: HashMap<String, String>) -> HashMap<String,
         "x-amz-cf-id",
         "x-amz-cf-pop",
         "x-amz-cloudfront-id",
-        
         // AWS Load Balancer headers (ALB/ELB)
         "x-amzn-trace-id",
         "x-amzn-requestid",
@@ -209,7 +211,6 @@ pub fn filter_proxy_headers(headers: HashMap<String, String>) -> HashMap<String,
         "x-amz-request-id",
         "x-amzn-elb-id",
         "x-amzn-lb-id",
-        
         // Google Cloud Platform (GCP) headers
         "x-cloud-trace-context",
         "x-goog-trace",
@@ -240,7 +241,6 @@ pub fn filter_proxy_headers(headers: HashMap<String, String>) -> HashMap<String,
         "x-appengine-taskretrycount",
         "x-appengine-taskexecutioncount",
         "x-appengine-tasketa",
-        
         // Microsoft Azure headers
         "x-azure-ref",
         "x-azure-requestid",
@@ -262,12 +262,14 @@ pub fn filter_proxy_headers(headers: HashMap<String, String>) -> HashMap<String,
         "x-azure-appliedaccesspolicy",
         "x-azure-appliedpolicy",
     ];
-    
+
     headers
         .into_iter()
         .filter(|(name, _)| {
             let lowercase_name = name.to_lowercase();
-            !proxy_headers.iter().any(|&proxy_header| lowercase_name == proxy_header)
+            !proxy_headers
+                .iter()
+                .any(|&proxy_header| lowercase_name == proxy_header)
         })
         .collect()
 }
@@ -302,20 +304,23 @@ pub fn extract_get_request_info(req: &HttpRequest, exclude_patterns: &[String]) 
         .iter()
         .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_string()))
         .collect();
-    
+
     // Filter out reverse proxy and CDN headers, plus custom exclusions
     let filtered_headers = filter_headers(headers, exclude_patterns);
 
     let args = parse_multi_value_query_string(req.query_string());
 
     let connection_info = req.connection_info();
-    let origin = connection_info.realip_remote_addr().unwrap_or("127.0.0.1").to_string();
-    
+    let origin = connection_info
+        .realip_remote_addr()
+        .unwrap_or("127.0.0.1")
+        .to_string();
+
     // Construct full URL including scheme and host
     let scheme = connection_info.scheme();
     let host = connection_info.host();
     let full_url = format!("{}://{}{}", scheme, host, req.uri());
-    
+
     GetRequestInfo {
         args,
         headers: sort_hashmap(filtered_headers),
@@ -327,21 +332,25 @@ pub fn extract_get_request_info(req: &HttpRequest, exclude_patterns: &[String]) 
 /// Parse query string to support multi-value parameters with robust UTF-8 handling
 fn parse_multi_value_query_string(query_string: &str) -> BTreeMap<String, Value> {
     let mut params: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    
+
     if query_string.is_empty() {
         return BTreeMap::new();
     }
-    
+
     for pair in query_string.split('&') {
         if let Some((key, value)) = pair.split_once('=') {
             // Handle both encoded and raw UTF-8 characters
             let decoded_key = if key.contains('%') {
-                urlencoding::decode(key).unwrap_or_else(|_| key.into()).to_string()
+                urlencoding::decode(key)
+                    .unwrap_or_else(|_| key.into())
+                    .to_string()
             } else {
                 key.to_string()
             };
             let decoded_value = if value.contains('%') {
-                urlencoding::decode(value).unwrap_or_else(|_| value.into()).to_string()
+                urlencoding::decode(value)
+                    .unwrap_or_else(|_| value.into())
+                    .to_string()
             } else {
                 value.to_string()
             };
@@ -349,75 +358,100 @@ fn parse_multi_value_query_string(query_string: &str) -> BTreeMap<String, Value>
         } else if !pair.is_empty() {
             // Handle keys without values
             let decoded_key = if pair.contains('%') {
-                urlencoding::decode(pair).unwrap_or_else(|_| pair.into()).to_string()
+                urlencoding::decode(pair)
+                    .unwrap_or_else(|_| pair.into())
+                    .to_string()
             } else {
                 pair.to_string()
             };
             params.entry(decoded_key).or_default().push(String::new());
         }
     }
-    
+
     // Convert to BTreeMap<String, Value> - single values as strings, multiple as arrays
-    params.into_iter().map(|(key, values)| {
-        let value = if values.len() == 1 {
-            Value::String(values.into_iter().next().unwrap())
-        } else {
-            Value::Array(values.into_iter().map(Value::String).collect())
-        };
-        (key, value)
-    }).collect()
+    params
+        .into_iter()
+        .map(|(key, values)| {
+            let value = if values.len() == 1 {
+                Value::String(values.into_iter().next().unwrap())
+            } else {
+                Value::Array(values.into_iter().map(Value::String).collect())
+            };
+            (key, value)
+        })
+        .collect()
 }
 
 /// Parse form data to support multi-value parameters (similar to query string parsing)
 fn parse_multi_value_form_data(form_data: &str) -> BTreeMap<String, Value> {
     let mut params: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    
+
     // Use form_urlencoded to properly decode the form data
     for (key, value) in form_urlencoded::parse(form_data.as_bytes()) {
-        params.entry(key.to_string()).or_default().push(value.to_string());
+        params
+            .entry(key.to_string())
+            .or_default()
+            .push(value.to_string());
     }
-    
+
     // Convert to BTreeMap<String, Value> - single values as strings, multiple as arrays
-    params.into_iter().map(|(key, values)| {
-        let value = if values.len() == 1 {
-            Value::String(values.into_iter().next().unwrap())
-        } else {
-            Value::Array(values.into_iter().map(Value::String).collect())
-        };
-        (key, value)
-    }).collect()
+    params
+        .into_iter()
+        .map(|(key, values)| {
+            let value = if values.len() == 1 {
+                Value::String(values.into_iter().next().unwrap())
+            } else {
+                Value::Array(values.into_iter().map(Value::String).collect())
+            };
+            (key, value)
+        })
+        .collect()
 }
 
 // Helper function to extract request information
-pub fn extract_request_info(req: &HttpRequest, body: Option<&str>, exclude_patterns: &[String]) -> RequestInfo {
+pub fn extract_request_info(
+    req: &HttpRequest,
+    body: Option<&str>,
+    exclude_patterns: &[String],
+) -> RequestInfo {
     let headers: HashMap<String, String> = req
         .headers()
         .iter()
         .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_string()))
         .collect();
-    
+
     // Filter out reverse proxy and CDN headers, plus custom exclusions
     let filtered_headers = filter_headers(headers, exclude_patterns);
 
     let args = parse_multi_value_query_string(req.query_string());
 
     let connection_info = req.connection_info();
-    let origin = connection_info.realip_remote_addr().unwrap_or("127.0.0.1").to_string();
-    
+    let origin = connection_info
+        .realip_remote_addr()
+        .unwrap_or("127.0.0.1")
+        .to_string();
+
     // Parse form data based on content type
     let mut form_data_values: BTreeMap<String, Value> = BTreeMap::new();
     let mut data_string = String::new();
-    
+
     if let Some(body_str) = body {
-        let content_type = req.headers()
+        let content_type = req
+            .headers()
             .get("content-type")
             .and_then(|v| v.to_str().ok())
             .unwrap_or("");
-            
-        if content_type.to_lowercase().starts_with("application/x-www-form-urlencoded") {
+
+        if content_type
+            .to_lowercase()
+            .starts_with("application/x-www-form-urlencoded")
+        {
             // Parse URL-encoded form data with support for duplicate keys
             form_data_values = parse_multi_value_form_data(body_str);
-        } else if content_type.to_lowercase().starts_with("multipart/form-data") {
+        } else if content_type
+            .to_lowercase()
+            .starts_with("multipart/form-data")
+        {
             // For multipart data, put raw data in data field as fallback
             // The proper multipart parsing should be done via extract_request_info_multipart
             data_string = body_str.to_string();
@@ -426,7 +460,7 @@ pub fn extract_request_info(req: &HttpRequest, body: Option<&str>, exclude_patte
             data_string = body_str.to_string();
         }
     }
-    
+
     RequestInfo {
         args,
         data: data_string,
@@ -434,8 +468,11 @@ pub fn extract_request_info(req: &HttpRequest, body: Option<&str>, exclude_patte
         form: sort_hashmap_value(form_data_values.into_iter().collect()),
         headers: sort_hashmap(filtered_headers),
         json: body.and_then(|b| {
-            if let Some(content_type) = req.headers().get("content-type")
-                .and_then(|v| v.to_str().ok()) {
+            if let Some(content_type) = req
+                .headers()
+                .get("content-type")
+                .and_then(|v| v.to_str().ok())
+            {
                 if content_type.starts_with("application/json") {
                     serde_json::from_str(b).ok()
                 } else {
@@ -452,37 +489,45 @@ pub fn extract_request_info(req: &HttpRequest, body: Option<&str>, exclude_patte
 }
 
 // Helper function to extract request information from multipart data
-pub async fn extract_request_info_multipart(req: &HttpRequest, mut payload: Multipart, exclude_patterns: &[String]) -> Result<RequestInfo> {
+pub async fn extract_request_info_multipart(
+    req: &HttpRequest,
+    mut payload: Multipart,
+    exclude_patterns: &[String],
+) -> Result<RequestInfo> {
     let headers: HashMap<String, String> = req
         .headers()
         .iter()
         .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_string()))
         .collect();
-    
+
     // Filter out reverse proxy and CDN headers, plus custom exclusions
     let filtered_headers = filter_headers(headers, exclude_patterns);
 
     let args = parse_multi_value_query_string(req.query_string());
 
-    let origin = req.connection_info().realip_remote_addr().unwrap_or("127.0.0.1").to_string();
-    
+    let origin = req
+        .connection_info()
+        .realip_remote_addr()
+        .unwrap_or("127.0.0.1")
+        .to_string();
+
     let mut form_data: HashMap<String, Vec<String>> = HashMap::new();
     let mut files: HashMap<String, Vec<String>> = HashMap::new();
-    
+
     // Parse multipart data
     while let Some(mut field) = payload.try_next().await? {
         let content_disposition = field.content_disposition();
         let field_name = content_disposition.get_name().map(|s| s.to_string());
         let filename = content_disposition.get_filename().map(|s| s.to_string());
-        
+
         if let Some(name) = field_name {
             let mut data = Vec::new();
-            
+
             // Read field data
             while let Some(chunk) = field.try_next().await? {
                 data.extend_from_slice(&chunk);
             }
-            
+
             if let Some(filename) = filename {
                 // This is a file upload - format the content based on file type
                 let file_content = format_file_content(&filename, &data);
@@ -495,30 +540,36 @@ pub async fn extract_request_info_multipart(req: &HttpRequest, mut payload: Mult
             }
         }
     }
-    
+
     // Convert files Vec to appropriate Value (single string or array)
-    let files_map: HashMap<String, Value> = files.into_iter().map(|(key, values)| {
-        let value = if values.len() == 1 {
-            // Single file - return as string for backward compatibility
-            Value::String(values.into_iter().next().unwrap())
-        } else {
-            // Multiple files - return as array
-            Value::Array(values.into_iter().map(Value::String).collect())
-        };
-        (key, value)
-    }).collect();
-    
+    let files_map: HashMap<String, Value> = files
+        .into_iter()
+        .map(|(key, values)| {
+            let value = if values.len() == 1 {
+                // Single file - return as string for backward compatibility
+                Value::String(values.into_iter().next().unwrap())
+            } else {
+                // Multiple files - return as array
+                Value::Array(values.into_iter().map(Value::String).collect())
+            };
+            (key, value)
+        })
+        .collect();
+
     // Convert form_data Vec to Value (similar to URL-encoded form handling)
-    let form_map: HashMap<String, Value> = form_data.into_iter().map(|(key, values)| {
-        let value = if values.len() == 1 {
-            Value::String(values.into_iter().next().unwrap())
-        } else {
-            // For multiple values, return as array
-            Value::Array(values.into_iter().map(Value::String).collect())
-        };
-        (key, value)
-    }).collect();
-    
+    let form_map: HashMap<String, Value> = form_data
+        .into_iter()
+        .map(|(key, values)| {
+            let value = if values.len() == 1 {
+                Value::String(values.into_iter().next().unwrap())
+            } else {
+                // For multiple values, return as array
+                Value::Array(values.into_iter().map(Value::String).collect())
+            };
+            (key, value)
+        })
+        .collect();
+
     Ok(RequestInfo {
         args,
         data: String::new(),
@@ -534,14 +585,16 @@ pub async fn extract_request_info_multipart(req: &HttpRequest, mut payload: Mult
 
 /// Parse multi-value header (like If-None-Match) into a vector of values
 /// Handles comma-separated values and quoted strings properly
-pub fn parse_multi_value_header(header_value: Option<&actix_web::http::header::HeaderValue>) -> Vec<String> {
+pub fn parse_multi_value_header(
+    header_value: Option<&actix_web::http::header::HeaderValue>,
+) -> Vec<String> {
     if let Some(value) = header_value {
         if let Ok(value_str) = value.to_str() {
             let mut values = Vec::new();
             let mut current = String::new();
             let mut in_quotes = false;
             let chars = value_str.chars();
-            
+
             for ch in chars {
                 match ch {
                     '"' => {
@@ -560,13 +613,13 @@ pub fn parse_multi_value_header(header_value: Option<&actix_web::http::header::H
                     }
                 }
             }
-            
+
             // Add the last value
             let trimmed = current.trim().to_string();
             if !trimmed.is_empty() {
                 values.push(trimmed);
             }
-            
+
             values
         } else {
             Vec::new()
@@ -598,12 +651,16 @@ pub async fn process_request_payload(
     exclude_headers: &[String],
     path_param: Option<String>,
 ) -> Result<RequestInfo> {
-    let content_type = req.headers()
+    let content_type = req
+        .headers()
         .get("content-type")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
 
-    let mut request_info = if content_type.to_lowercase().starts_with("multipart/form-data") {
+    let mut request_info = if content_type
+        .to_lowercase()
+        .starts_with("multipart/form-data")
+    {
         let multipart = Multipart::new(req.headers(), payload);
         match extract_request_info_multipart(req, multipart, exclude_headers).await {
             Ok(info) => info,
@@ -616,17 +673,19 @@ pub async fn process_request_payload(
             let chunk = chunk?;
             body.extend_from_slice(&chunk);
         }
-        
+
         let body_string = String::from_utf8_lossy(&body);
         extract_request_info(req, Some(&body_string), exclude_headers)
     };
 
     fix_request_info_url(req, &mut request_info);
-    
+
     // Add path parameter if provided
     if let Some(path) = path_param {
-        request_info.args.insert("anything".to_string(), serde_json::Value::String(path));
+        request_info
+            .args
+            .insert("anything".to_string(), serde_json::Value::String(path));
     }
-    
+
     Ok(request_info)
 }

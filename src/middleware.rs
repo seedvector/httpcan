@@ -57,7 +57,7 @@ where
             .and_then(|h| h.to_str().ok())
             .unwrap_or("-")
             .to_string();
-        
+
         // Get client IP from connection info or X-Forwarded-For header
         let client_ip = req
             .connection_info()
@@ -69,11 +69,11 @@ where
 
         Box::pin(async move {
             let res = service.call(req).await?;
-            
+
             let duration = start_time.elapsed();
             let duration_ms = duration.as_secs_f64() * 1000.0;
             let status = res.status().as_u16();
-            
+
             // Get response size from Content-Length header if available
             let size_bytes = res
                 .headers()
@@ -98,10 +98,10 @@ where
                 client_ip,
                 user_agent
             );
-            
+
             // Log in the specified format
             log::info!("{}", log_message);
-            
+
             // Also print to stdout for immediate visibility
             println!("{}", log_message);
 

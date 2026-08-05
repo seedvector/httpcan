@@ -8,23 +8,22 @@ pub async fn root_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Res
         .get("accept")
         .and_then(|h| h.to_str().ok())
         .unwrap_or("");
-    
+
     // If Accept header contains "html", serve the HTML page
     if accept_header.to_lowercase().contains("html") {
         // Try to serve the static index.html file
         let static_path = get_static_path();
         let index_path = static_path.join("index.html");
-        
+
         match std::fs::read_to_string(&index_path) {
-            Ok(html_content) => {
-                Ok(HttpResponse::Ok()
-                    .content_type("text/html; charset=utf-8")
-                    .body(html_content))
-            }
+            Ok(html_content) => Ok(HttpResponse::Ok()
+                .content_type("text/html; charset=utf-8")
+                .body(html_content)),
             Err(_) => {
                 // Fallback to a helpful HTML response if index.html is not found
                 let version = option_env!("CARGO_PKG_VERSION").unwrap_or("unknown");
-                let fallback_html = format!(r#"<!DOCTYPE html>
+                let fallback_html = format!(
+                    r#"<!DOCTYPE html>
 <html>
 <head>
     <title>HTTPCan v{}</title>
@@ -70,7 +69,9 @@ pub async fn root_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Res
         </ul>
     </div>
 </body>
-</html>"#, version, version);
+</html>"#,
+                    version, version
+                );
                 Ok(HttpResponse::Ok()
                     .content_type("text/html; charset=utf-8")
                     .body(fallback_html))
@@ -81,7 +82,7 @@ pub async fn root_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Res
         // Use the same logic as /openapi.json endpoint
         let static_path = get_static_path();
         let openapi_path = static_path.join("openapi.json");
-        
+
         // Read the base OpenAPI specification
         let base_openapi = match std::fs::read_to_string(&openapi_path) {
             Ok(content) => content,
@@ -98,7 +99,7 @@ pub async fn root_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Res
                 })));
             }
         };
-        
+
         // Parse the base OpenAPI JSON
         let mut openapi: serde_json::Value = match serde_json::from_str(&base_openapi) {
             Ok(spec) => spec,
@@ -108,7 +109,7 @@ pub async fn root_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Res
                 })));
             }
         };
-        
+
         // Handle servers array based on configuration
         if config.add_current_server {
             // Get current server information from request
@@ -116,16 +117,16 @@ pub async fn root_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Res
             let scheme = connection_info.scheme();
             let host = connection_info.host();
             let current_server_url = format!("{}://{}", scheme, host);
-            
+
             // Get existing servers array from the OpenAPI spec
             let mut servers_array = Vec::new();
-            
+
             // Add current server as the first element
             servers_array.push(json!({
                 "url": current_server_url,
                 "description": "Current server"
             }));
-            
+
             // Add existing servers from the original OpenAPI spec
             if let Some(existing_servers) = openapi.get("servers").and_then(|s| s.as_array()) {
                 for server in existing_servers {
@@ -137,17 +138,16 @@ pub async fn root_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Res
                     }
                 }
             }
-            
+
             // Update the servers field
             if let Some(obj) = openapi.as_object_mut() {
                 obj.insert("servers".to_string(), json!(servers_array));
             }
         }
         // If add_current_server is false, keep the original servers array unchanged
-        
+
         Ok(HttpResponse::Ok()
             .content_type("application/json")
             .json(openapi))
     }
 }
-

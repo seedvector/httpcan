@@ -1,9 +1,9 @@
 use actix_web::{web, HttpRequest, HttpResponse, Result};
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::time::sleep;
 use uuid::Uuid;
-use chrono::Utc;
 
 #[derive(Deserialize)]
 pub struct SseParams {
@@ -71,7 +71,7 @@ pub struct NdjsonParams {
 }
 
 /// SSE endpoint that streams events with configurable count and format
-/// 
+///
 /// Query parameters:
 /// - count: number of events to send (default: 5, max: 100)
 /// - delay: delay between events in milliseconds (default: 1000, max: 10000)
@@ -83,7 +83,11 @@ pub async fn sse_handler(_req: HttpRequest, query: web::Query<SseParams>) -> Res
     let delay = query.delay.unwrap_or(1000).min(10000); // Max 10 seconds delay
     let format = query.format.as_deref().unwrap_or("simple").to_string();
     let event_type = query.event_type.as_deref().unwrap_or("message").to_string();
-    let custom_message = query.message.as_deref().unwrap_or("Hello from HTTPCan SSE!").to_string();
+    let custom_message = query
+        .message
+        .as_deref()
+        .unwrap_or("Hello from HTTPCan SSE!")
+        .to_string();
 
     let stream = async_stream::stream! {
         for i in 0..count {
@@ -156,10 +160,24 @@ pub async fn sse_handler(_req: HttpRequest, query: web::Query<SseParams>) -> Res
 fn generate_openai_event(index: u32, total: u32) -> String {
     let content = if index < 16 {
         let messages = [
-            "Hello", " from", " HTTPCan", " SSE", " endpoint!", " This", " is", " streaming",
-            " like", " OpenAI", " ChatGPT", " API.", " Event", "", " of", ""
+            "Hello",
+            " from",
+            " HTTPCan",
+            " SSE",
+            " endpoint!",
+            " This",
+            " is",
+            " streaming",
+            " like",
+            " OpenAI",
+            " ChatGPT",
+            " API.",
+            " Event",
+            "",
+            " of",
+            "",
         ];
-        
+
         if index == 13 {
             Some(format!(" {}", index + 1))
         } else if index == 15 {
@@ -181,7 +199,11 @@ fn generate_openai_event(index: u32, total: u32) -> String {
         choices: vec![OpenAIChoice {
             delta: OpenAIDelta {
                 content,
-                role: if index == 0 { Some("assistant".to_string()) } else { None },
+                role: if index == 0 {
+                    Some("assistant".to_string())
+                } else {
+                    None
+                },
             },
             index: 0,
             finish_reason: None,
@@ -193,10 +215,23 @@ fn generate_openai_event(index: u32, total: u32) -> String {
 
 fn generate_ollama_event(index: u32, total: u32, model: &str) -> String {
     let responses = [
-        "Hello", " from", " HTTPCan", " NDJSON", " endpoint!", " This", " is", " streaming",
-        " like", " Ollama", " API.", " Response", "", " of", ""
+        "Hello",
+        " from",
+        " HTTPCan",
+        " NDJSON",
+        " endpoint!",
+        " This",
+        " is",
+        " streaming",
+        " like",
+        " Ollama",
+        " API.",
+        " Response",
+        "",
+        " of",
+        "",
     ];
-    
+
     let response_text = if index < responses.len() as u32 {
         if index == 12 {
             format!(" {}", index + 1)
@@ -210,13 +245,17 @@ fn generate_ollama_event(index: u32, total: u32, model: &str) -> String {
     };
 
     let is_done = index >= total - 1;
-    
+
     let ollama_response = OllamaResponse {
         model: model.to_string(),
         created_at: Utc::now().to_rfc3339(),
         response: response_text,
         done: is_done,
-        context: if is_done { Some(vec![1, 2, 3, 4, 5]) } else { None },
+        context: if is_done {
+            Some(vec![1, 2, 3, 4, 5])
+        } else {
+            None
+        },
         total_duration: if is_done { Some(1234567890) } else { None },
         load_duration: if is_done { Some(123456) } else { None },
         prompt_eval_count: if is_done { Some(10) } else { None },
@@ -229,18 +268,25 @@ fn generate_ollama_event(index: u32, total: u32, model: &str) -> String {
 }
 
 /// NDJSON endpoint that streams JSON objects separated by newlines
-/// 
+///
 /// Query parameters:
 /// - count: number of events to send (default: 5, max: 100)
 /// - delay: delay between events in milliseconds (default: 1000, max: 10000)
 /// - format: message format - "simple", "openai", "ollama", "custom" (default: "simple")
 /// - message: custom message content (used with format=custom)
 /// - model: model name for ollama format (default: "llama2")
-pub async fn ndjson_handler(_req: HttpRequest, query: web::Query<NdjsonParams>) -> Result<HttpResponse> {
+pub async fn ndjson_handler(
+    _req: HttpRequest,
+    query: web::Query<NdjsonParams>,
+) -> Result<HttpResponse> {
     let count = query.count.unwrap_or(5).min(100); // Max 100 events
     let delay = query.delay.unwrap_or(1000).min(10000); // Max 10 seconds delay
     let format = query.format.as_deref().unwrap_or("simple").to_string();
-    let custom_message = query.message.as_deref().unwrap_or("Hello from HTTPCan NDJSON!").to_string();
+    let custom_message = query
+        .message
+        .as_deref()
+        .unwrap_or("Hello from HTTPCan NDJSON!")
+        .to_string();
     let model = query.model.as_deref().unwrap_or("llama2").to_string();
 
     let stream = async_stream::stream! {
@@ -292,12 +338,12 @@ pub async fn ndjson_handler(_req: HttpRequest, query: web::Query<NdjsonParams>) 
 /// GET /ndjson/{count} - sends {count} events with default settings
 /// GET /ndjson/{count}/{delay} - sends {count} events with {delay}ms between events
 pub async fn ndjson_path_handler(
-    req: HttpRequest, 
+    req: HttpRequest,
     path: web::Path<(u32,)>,
-    query: web::Query<NdjsonParams>
+    query: web::Query<NdjsonParams>,
 ) -> Result<HttpResponse> {
     let (count,) = path.into_inner();
-    
+
     let params = NdjsonParams {
         count: Some(count.min(100)),
         delay: query.delay,
@@ -311,12 +357,12 @@ pub async fn ndjson_path_handler(
 
 /// NDJSON endpoint with both count and delay as path parameters
 pub async fn ndjson_path_with_delay_handler(
-    req: HttpRequest, 
+    req: HttpRequest,
     path: web::Path<(u32, u64)>,
-    query: web::Query<NdjsonParams>
+    query: web::Query<NdjsonParams>,
 ) -> Result<HttpResponse> {
     let (count, delay) = path.into_inner();
-    
+
     let params = NdjsonParams {
         count: Some(count.min(100)),
         delay: Some(delay.min(10000)),
@@ -332,12 +378,12 @@ pub async fn ndjson_path_with_delay_handler(
 /// GET /sse/{count} - sends {count} events with default settings
 /// GET /sse/{count}/{delay} - sends {count} events with {delay}ms between events
 pub async fn sse_path_handler(
-    req: HttpRequest, 
+    req: HttpRequest,
     path: web::Path<(u32,)>,
-    query: web::Query<SseParams>
+    query: web::Query<SseParams>,
 ) -> Result<HttpResponse> {
     let (count,) = path.into_inner();
-    
+
     let params = SseParams {
         count: Some(count.min(100)),
         delay: query.delay,
@@ -351,12 +397,12 @@ pub async fn sse_path_handler(
 
 /// SSE endpoint with both count and delay as path parameters
 pub async fn sse_path_with_delay_handler(
-    req: HttpRequest, 
+    req: HttpRequest,
     path: web::Path<(u32, u64)>,
-    query: web::Query<SseParams>
+    query: web::Query<SseParams>,
 ) -> Result<HttpResponse> {
     let (count, delay) = path.into_inner();
-    
+
     let params = SseParams {
         count: Some(count.min(100)),
         delay: Some(delay.min(10000)),
