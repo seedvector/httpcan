@@ -181,6 +181,7 @@ For the full, up‑to‑date list and schemas, consult the [OpenAPI spec](/opena
 ### HTTPCan Enhancements
 
 - Echo endpoint: `/echo` reflects request body and headers (multi‑method)
+- Methods+: `QUERY` HTTP method (RFC 9430 — a safe, idempotent GET with a body) accepted on `/anything`, `/anything/{anything}`, and `/echo`
 - Auth+: Basic auth with username only; JWT Bearer decode/inspect at `/jwt-bearer`
 - Status+: Content‑type priority: `Accept` > request `Content-Type` > default; supports custom bodies via query/body
 - Redirects+: `POST /redirect-to` supports `application/x-www-form-urlencoded`, `multipart/form-data`, `application/json`

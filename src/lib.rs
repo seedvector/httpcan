@@ -5,7 +5,7 @@
 
 use actix_cors::Cors;
 use actix_files as fs;
-use actix_web::{web, App, HttpServer};
+use actix_web::{http::Method, web, App, HttpServer};
 use std::path::PathBuf;
 
 pub mod config;
@@ -15,6 +15,12 @@ pub mod middleware;
 pub use config::AppConfig;
 use handlers::*;
 use middleware::RequestLogger;
+
+/// The HTTP QUERY method (RFC 9430): a safe, idempotent, cacheable method that
+/// carries a request body — semantically a GET with a body.
+fn query_method() -> Method {
+    Method::from_bytes(b"QUERY").expect("\"QUERY\" is a valid HTTP method token")
+}
 
 /// Configuration for the HTTPCan server
 #[derive(Debug, Clone)]
@@ -204,7 +210,9 @@ fn create_app(
                     // httpbin: response.headers["Access-Control-Allow-Origin"] = request.headers.get("Origin", "*")
                     true // Allow all origins, actix-cors will automatically echo Origin header or set to "*"
                 })
-                .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
+                .allowed_methods(vec![
+                    "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "QUERY",
+                ])
                 .allow_any_header()
                 .supports_credentials() // Equivalent to Access-Control-Allow-Credentials: true
                 .max_age(3600), // Equivalent to Access-Control-Max-Age: 3600
@@ -225,6 +233,7 @@ fn create_app(
         .route("/echo", web::put().to(echo_handler))
         .route("/echo", web::patch().to(echo_handler))
         .route("/echo", web::delete().to(echo_handler))
+        .route("/echo", web::method(query_method()).to(echo_handler))
         // HTTP Methods
         .route("/get", web::get().to(get_handler))
         .route("/post", web::post().to(post_handler))
@@ -238,6 +247,10 @@ fn create_app(
         .route("/anything", web::patch().to(anything_handler))
         .route("/anything", web::delete().to(anything_handler))
         .route("/anything", web::trace().to(anything_handler_get))
+        .route(
+            "/anything",
+            web::method(query_method()).to(anything_handler),
+        )
         // Support for any path after /anything (single or multi-segment)
         .route(
             "/anything/{path:.*}",
@@ -262,6 +275,10 @@ fn create_app(
         .route(
             "/anything/{path:.*}",
             web::trace().to(anything_with_param_handler_get),
+        )
+        .route(
+            "/anything/{path:.*}",
+            web::method(query_method()).to(anything_with_param_handler),
         )
         // Auth endpoints
         .route(
@@ -463,5 +480,54 @@ mod tests {
         assert_eq!(v.get("zstd").and_then(|x| x.as_bool()), Some(true));
         assert_eq!(v.get("method").and_then(|x| x.as_str()), Some("GET"));
         assert!(v.get("url").is_some());
+    }
+
+    #[actix_web::test]
+    async fn query_method_anything_echoes_method_and_body() {
+        let app = test::init_service(create_app(cfg())).await;
+        let req = test::TestRequest::default()
+            .method(query_method())
+            .uri("/anything")
+            .insert_header(("content-type", "application/json"))
+            .set_payload(r#"{"hello":"world"}"#)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let v: serde_json::Value =
+            serde_json::from_slice(&test::read_body(resp).await).expect("JSON body");
+        assert_eq!(v.get("method").and_then(|x| x.as_str()), Some("QUERY"));
+        assert_eq!(v["json"]["hello"].as_str(), Some("world"));
+        assert!(v.get("url").is_some());
+    }
+
+    #[actix_web::test]
+    async fn query_method_anything_with_param_records_path() {
+        let app = test::init_service(create_app(cfg())).await;
+        let req = test::TestRequest::default()
+            .method(query_method())
+            .uri("/anything/foo/bar")
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let v: serde_json::Value =
+            serde_json::from_slice(&test::read_body(resp).await).expect("JSON body");
+        assert_eq!(v.get("method").and_then(|x| x.as_str()), Some("QUERY"));
+        assert_eq!(v["args"]["anything"].as_str(), Some("foo/bar"));
+    }
+
+    #[actix_web::test]
+    async fn query_method_echo_mirrors_body() {
+        let app = test::init_service(create_app(cfg())).await;
+        let req = test::TestRequest::default()
+            .method(query_method())
+            .uri("/echo")
+            .set_payload("ping")
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(test::read_body(resp).await, "ping");
     }
 }
