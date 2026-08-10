@@ -167,7 +167,7 @@ curl http://localhost:8080/ip
 - Methods: `GET /get`, `POST /post`, `PUT /put`, `PATCH /patch`, `DELETE /delete`
 - Anything: `/anything`, `/anything/{anything}` (supports multiple methods)
 - Auth: Basic, Hidden Basic, Digest
-- Formats: JSON, XML, HTML, `robots.txt`, `encoding/utf8`, gzip/deflate/brotli
+- Formats: JSON, XML, HTML, `robots.txt`, `encoding/utf8`, gzip/deflate/brotli/zstd
 - Dynamic: `uuid`, `bytes`, `stream`, `range`, `links`, `delay`, `drip`
 - Redirects: `redirect`, `relative-redirect`, `absolute-redirect`, `redirect-to`
 - Inspection: `headers`, `ip`, `user-agent`

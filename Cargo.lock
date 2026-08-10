@@ -1044,6 +1044,7 @@ dependencies = [
  "url",
  "urlencoding",
  "uuid",
+ "zstd",
 ]
 
 [[package]]

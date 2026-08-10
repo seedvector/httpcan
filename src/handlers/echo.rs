@@ -55,7 +55,7 @@ fn should_skip_header(header_name: &str) -> bool {
         "upgrade" |
         "server" |
         "date" |
-        
+
         // Headers that don't make sense to mirror in a response
         "host" |
         "user-agent" |
@@ -75,7 +75,7 @@ fn should_skip_header(header_name: &str) -> bool {
         "origin" |
         "dnt" |
         "upgrade-insecure-requests" => true,
-        
+
         _ => false,
     }
 }

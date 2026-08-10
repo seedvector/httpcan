@@ -317,6 +317,7 @@ fn create_app(
         .route("/gzip", web::get().to(gzip_handler))
         .route("/deflate", web::get().to(deflate_handler))
         .route("/brotli", web::get().to(brotli_handler))
+        .route("/zstd", web::get().to(zstd_handler))
         // Dynamic data
         .route("/uuid", web::get().to(uuid_handler))
         .route("/base64/{value}", web::get().to(base64_handler))
@@ -427,4 +428,40 @@ fn create_app(
 /// Get the default static files path
 fn get_static_path() -> PathBuf {
     handlers::utils::get_static_path()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::{http::StatusCode, test};
+
+    fn cfg() -> ServerConfig {
+        ServerConfig::default()
+    }
+
+    #[actix_web::test]
+    async fn zstd_endpoint_returns_zstd_encoded_json() {
+        let app = test::init_service(create_app(cfg())).await;
+        let req = test::TestRequest::get().uri("/zstd").to_request();
+        let resp = test::call_service(&app, req).await;
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers()
+                .get("content-encoding")
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "zstd"
+        );
+
+        let body = test::read_body(resp).await;
+        let decoded = zstd::decode_all(&body[..]).expect("body should be valid zstd");
+        let v: serde_json::Value =
+            serde_json::from_slice(&decoded).expect("decoded body should be JSON");
+
+        assert_eq!(v.get("zstd").and_then(|x| x.as_bool()), Some(true));
+        assert_eq!(v.get("method").and_then(|x| x.as_str()), Some("GET"));
+        assert!(v.get("url").is_some());
+    }
 }

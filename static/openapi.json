@@ -498,6 +498,20 @@
         }
       }
     },
+    "/zstd": {
+      "get": {
+        "tags": [
+          "Response formats"
+        ],
+        "summary": "Returns Zstandard-encoded data.",
+        "responses": {
+          "200": {
+            "description": "Zstandard-encoded data.",
+            "content": {}
+          }
+        }
+      }
+    },
     "/bytes/{n}": {
       "get": {
         "tags": [

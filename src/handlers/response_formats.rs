@@ -1,6 +1,7 @@
 use super::*;
 use flate2::{write::DeflateEncoder, write::GzEncoder, Compression};
 use std::io::Write;
+use zstd::stream::write::Encoder as ZstdEncoder;
 
 pub async fn json_handler(_req: HttpRequest) -> Result<HttpResponse> {
     let sample_data = json!({
@@ -407,5 +408,30 @@ pub async fn brotli_handler(
     Ok(HttpResponse::Ok()
         .content_type("application/json")
         .append_header(("Content-Encoding", "br"))
+        .body(compressed_data))
+}
+
+pub async fn zstd_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Result<HttpResponse> {
+    let mut request_info = extract_request_info(&req, None, &config.exclude_headers);
+    fix_request_info_url(&req, &mut request_info);
+
+    // Add zstd flag for httpbin compatibility
+    let mut response_data = serde_json::to_value(&request_info).unwrap();
+    if let Some(obj) = response_data.as_object_mut() {
+        obj.insert("zstd".to_string(), serde_json::Value::Bool(true));
+    }
+
+    let json_data = serde_json::to_vec(&response_data).unwrap();
+
+    let mut compressed_data = Vec::new();
+    {
+        let mut writer = ZstdEncoder::new(&mut compressed_data, 3).unwrap();
+        writer.write_all(&json_data).unwrap();
+        writer.finish().unwrap();
+    }
+
+    Ok(HttpResponse::Ok()
+        .content_type("application/json")
+        .append_header(("Content-Encoding", "zstd"))
         .body(compressed_data))
 }
