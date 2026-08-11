@@ -27,7 +27,8 @@ async fn main() -> std::io::Result<()> {
     let config = ServerConfig::new()
         .port(args.port)
         .add_current_server(!args.no_current_server)
-        .exclude_headers(exclude_headers);
+        .exclude_headers(exclude_headers)
+        .max_bytes(args.max_bytes);
 
     // Create and run the server
     HttpCanServer::with_config(config).run().await

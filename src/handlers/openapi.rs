@@ -1,5 +1,5 @@
-use crate::config::AppConfig;
 use crate::handlers::utils::get_static_path;
+use crate::AppConfig;
 use actix_web::{web, HttpRequest, HttpResponse, Result};
 use serde_json::{json, Value};
 

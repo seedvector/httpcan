@@ -142,9 +142,17 @@ pub async fn bytes_handler(
     _req: HttpRequest,
     path: web::Path<usize>,
     query: web::Query<BytesQuery>,
+    config: web::Data<AppConfig>,
 ) -> Result<HttpResponse> {
     let n = path.into_inner();
-    let n = n.min(100 * 1024); // Limit to 100KB
+    // httpbin #594: reject over-limit requests with a clear error instead of
+    // silently truncating, consistent with /range/{numbytes}.
+    if n > config.max_bytes {
+        return Ok(HttpResponse::NotFound().body(format!(
+            "number of bytes must be in the range (0, {}]",
+            config.max_bytes
+        )));
+    }
 
     // Generate random bytes using the same method as httpbin
     let random_bytes: Vec<u8> = if let Some(seed) = query.seed {
@@ -164,9 +172,17 @@ pub async fn stream_bytes_handler(
     _req: HttpRequest,
     path: web::Path<usize>,
     query: web::Query<StreamBytesQuery>,
+    config: web::Data<AppConfig>,
 ) -> Result<HttpResponse> {
     let n = path.into_inner();
-    let n = n.min(100 * 1024); // Limit to 100KB
+    // httpbin #594: reject over-limit requests with a clear error instead of
+    // silently truncating, consistent with /range/{numbytes}.
+    if n > config.max_bytes {
+        return Ok(HttpResponse::NotFound().body(format!(
+            "number of bytes must be in the range (0, {}]",
+            config.max_bytes
+        )));
+    }
 
     // Parse chunk_size parameter
     let chunk_size = query.chunk_size.unwrap_or(10 * 1024).max(1);

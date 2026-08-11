@@ -69,6 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - **add_current_server**: Include current server in OpenAPI spec (default: true)
 - **exclude_headers**: List of headers to exclude from responses
 - **static_dir**: Custom static files directory
+- **max_bytes**: Maximum bytes for `/bytes` and `/stream-bytes`; over-limit requests return 404 instead of silently truncating (default: 102400, httpbin #594)
 
 ## Examples
 

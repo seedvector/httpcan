@@ -12,7 +12,16 @@ pub mod config;
 pub mod handlers;
 pub mod middleware;
 
-pub use config::AppConfig;
+/// Runtime application configuration shared with request handlers via
+/// `web::Data`. Constructed from [`ServerConfig`] in `create_app`.
+#[derive(Clone)]
+pub struct AppConfig {
+    pub add_current_server: bool,
+    pub exclude_headers: Vec<String>,
+    /// Maximum bytes served by `/bytes/{n}` and `/stream-bytes/{n}`. Requests
+    /// exceeding this return a 404 instead of silently truncating (httpbin #594).
+    pub max_bytes: usize,
+}
 use handlers::*;
 use middleware::RequestLogger;
 
@@ -35,6 +44,8 @@ pub struct ServerConfig {
     pub exclude_headers: Vec<String>,
     /// Custom static files directory
     pub static_dir: Option<PathBuf>,
+    /// Maximum bytes for `/bytes` and `/stream-bytes` (httpbin #594)
+    pub max_bytes: usize,
 }
 
 impl Default for ServerConfig {
@@ -45,6 +56,7 @@ impl Default for ServerConfig {
             add_current_server: true,
             exclude_headers: Vec::new(),
             static_dir: None,
+            max_bytes: config::DEFAULT_MAX_BYTES,
         }
     }
 }
@@ -88,6 +100,12 @@ impl ServerConfig {
     /// Set custom static files directory
     pub fn static_dir<P: Into<PathBuf>>(mut self, dir: P) -> Self {
         self.static_dir = Some(dir.into());
+        self
+    }
+
+    /// Set the maximum bytes for `/bytes` and `/stream-bytes` (httpbin #594)
+    pub fn max_bytes(mut self, max_bytes: usize) -> Self {
+        self.max_bytes = max_bytes;
         self
     }
 }
@@ -146,6 +164,12 @@ impl HttpCanServer {
         self
     }
 
+    /// Set the maximum bytes for `/bytes` and `/stream-bytes` (httpbin #594)
+    pub fn max_bytes(mut self, max_bytes: usize) -> Self {
+        self.config.max_bytes = max_bytes;
+        self
+    }
+
     /// Start the HTTPCan server
     pub async fn run(self) -> std::io::Result<()> {
         let bind_address = format!("{}:{}", self.config.host, self.config.port);
@@ -197,6 +221,7 @@ fn create_app(
     let app_config = AppConfig {
         add_current_server: server_config.add_current_server,
         exclude_headers: server_config.exclude_headers,
+        max_bytes: server_config.max_bytes,
     };
 
     let mut app = App::new()
@@ -974,8 +999,7 @@ mod tests {
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
-        let v: serde_json::Value =
-            serde_json::from_slice(&test::read_body(resp).await).unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&test::read_body(resp).await).unwrap();
         assert_eq!(v.get("authenticated").and_then(|x| x.as_bool()), Some(true));
         assert_eq!(
             v.get("algorithm").and_then(|x| x.as_str()),
@@ -1031,8 +1055,7 @@ mod tests {
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
-        let v: serde_json::Value =
-            serde_json::from_slice(&test::read_body(resp).await).unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&test::read_body(resp).await).unwrap();
         assert_eq!(v.get("authenticated").and_then(|x| x.as_bool()), Some(true));
     }
 
@@ -1058,5 +1081,71 @@ mod tests {
             expose.to_lowercase().contains("www-authenticate"),
             "WWW-Authenticate must be listed as exposed: {expose}"
         );
+    }
+    #[actix_web::test]
+    async fn bytes_returns_requested_bytes_under_limit() {
+        // httpbin #594: under-limit requests serve exactly n bytes.
+        let app = test::init_service(create_app(cfg())).await;
+        let req = test::TestRequest::get()
+            .uri("/bytes/16?seed=1")
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers()
+                .get("content-type")
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "application/octet-stream"
+        );
+        assert_eq!(test::read_body(resp).await.len(), 16);
+    }
+
+    #[actix_web::test]
+    async fn bytes_rejects_over_limit_with_404() {
+        // httpbin #594: over-limit requests must NOT be silently truncated;
+        // return 404 like /range/{numbytes}.
+        let limit = crate::config::DEFAULT_MAX_BYTES;
+        let app = test::init_service(create_app(cfg())).await;
+        let req = test::TestRequest::get()
+            .uri(&format!("/bytes/{}", limit + 1))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        let body_bytes = test::read_body(resp).await;
+        let body = std::str::from_utf8(&body_bytes).unwrap();
+        assert!(
+            body.contains(&format!("(0, {}]", limit)),
+            "error must state the range, got: {body}"
+        );
+    }
+
+    #[actix_web::test]
+    async fn stream_bytes_rejects_over_limit_with_404() {
+        // httpbin #594: /stream-bytes must behave consistently with /bytes.
+        let limit = crate::config::DEFAULT_MAX_BYTES;
+        let app = test::init_service(create_app(cfg())).await;
+        let req = test::TestRequest::get()
+            .uri(&format!("/stream-bytes/{}", limit + 1))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_web::test]
+    async fn bytes_honors_custom_max_bytes() {
+        // The limit is configurable via ServerConfig::max_bytes (httpbin #594).
+        let custom = ServerConfig::default().max_bytes(10);
+        let app = test::init_service(create_app(custom)).await;
+        // Over the custom limit -> 404.
+        let req = test::TestRequest::get().uri("/bytes/20").to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        // Within the custom limit -> exactly n bytes.
+        let req = test::TestRequest::get().uri("/bytes/5?seed=2").to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(test::read_body(resp).await.len(), 5);
     }
 }
