@@ -15,6 +15,7 @@ Quick Links: [Quick Start](#quick-start) · [Installation](#installation) · [Co
 - **Tiny Docker image**: <10MB, fast to pull and start
 - **Minimal memory footprint**: Efficient async Rust I/O
 - **High throughput**: Actix Web + Tokio
+- **Observability built‑in**: Every response carries `Server-Timing` and `X-Httpcan-Version` headers; `/healthz` liveness probe and `/tags` instance identification
 
 ## Quick Start
 
@@ -124,6 +125,9 @@ curl http://localhost:8080/status/418
 # Random from list
 curl http://localhost:8080/status/200,404,500
 
+# Inject response headers (rate-limit / Retry-After testing)
+curl -H "Accept: application/json" "http://localhost:8080/status/429?header=Retry-After:120&header=X-RateLimit-Remaining:0"
+
 # Redirect to a URL (supports form/json)
 curl -X POST http://localhost:8080/redirect-to -d "url=https://example.com"
 ```
@@ -188,6 +192,10 @@ For the full, up‑to‑date list and schemas, consult the [OpenAPI spec](/opena
 - Redirects+: `POST /redirect-to` supports `application/x-www-form-urlencoded`, `multipart/form-data`, `application/json`
 - Streaming+: SSE/NDJSON endpoints with `count`, `delay`, and AI formats (OpenAI/Ollama)
 - File uploads+: Multiple files with the same field return as array across multipart endpoints
+- **Observability+:** `/healthz` liveness probe; `/tags` exposes `HTTPCAN_*` env vars; every response carries `Server-Timing` and `X-Httpcan-Version` headers
+- **Method echo+:** `/method` echoes any HTTP method name; `/head` (HEAD‑only) mirrors request headers as `X-Echo-*`
+- **Status headers+:** `?header=Name:Value` injects response headers on `/status/{codes}` (repeatable; e.g. `Retry-After` for rate‑limit testing)
+- **Body encoding+:** POST to `/gzip`, `/deflate`, `/brotli`, `/zstd`, or `/base64` returns the request body in the matching encoding
 
 ## 🦀 Library Usage
 
@@ -195,7 +203,7 @@ Add dependency:
 
 ```toml
 [dependencies]
-httpcan = "0.5"
+httpcan = "0.6"
 ```
 
 Embed server:
