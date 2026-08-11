@@ -240,6 +240,10 @@ fn create_app(
         .route("/put", web::put().to(put_handler))
         .route("/patch", web::patch().to(patch_handler))
         .route("/delete", web::delete().to(delete_handler))
+        // Method echo - accepts ANY HTTP method name (httpbin #522)
+        .route("/method", web::to(method_handler))
+        // HEAD-only endpoint echoing headers as X-Echo-* (httpbin #630)
+        .route("/head", web::head().to(head_handler))
         // Anything endpoints - supporting multiple methods
         .route("/anything", web::get().to(anything_handler_get))
         .route("/anything", web::post().to(anything_handler))
@@ -663,6 +667,48 @@ mod tests {
                 .unwrap()
                 .starts_with("app;dur="),
             "Server-Timing must start with app;dur="
+        );
+    }
+    #[actix_web::test]
+    async fn method_endpoint_echoes_arbitrary_method() {
+        // httpbin #522: /method accepts ANY method name and echoes it.
+        let app = test::init_service(create_app(cfg())).await;
+
+        // Standard method
+        let req = test::TestRequest::get().uri("/method").to_request();
+        let resp = test::call_service(&app, req).await;
+        let v: serde_json::Value =
+            serde_json::from_slice(&test::read_body(resp).await).expect("JSON body");
+        assert_eq!(v["method"].as_str(), Some("GET"));
+
+        // Arbitrary method name
+        let custom = actix_web::http::Method::from_bytes(b"BREW").unwrap();
+        let req = test::TestRequest::default()
+            .method(custom)
+            .uri("/method")
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let v: serde_json::Value =
+            serde_json::from_slice(&test::read_body(resp).await).expect("JSON body");
+        assert_eq!(v["method"].as_str(), Some("BREW"));
+    }
+
+    #[actix_web::test]
+    async fn head_endpoint_echoes_request_headers() {
+        // httpbin #630: HEAD /head echoes request headers as X-Echo-*, empty body.
+        let app = test::init_service(create_app(cfg())).await;
+        let req = test::TestRequest::default()
+            .method(actix_web::http::Method::HEAD)
+            .uri("/head")
+            .insert_header(("X-Test", "hello"))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert!(
+            test::read_body(resp).await.is_empty(),
+            "HEAD response must have an empty body"
         );
     }
 }

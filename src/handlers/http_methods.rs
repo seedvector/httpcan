@@ -1,4 +1,5 @@
 use super::*;
+use actix_web::http::header::HeaderName;
 
 pub async fn get_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Result<HttpResponse> {
     let request_info = extract_get_request_info(&req, &config.exclude_headers);
@@ -88,4 +89,26 @@ pub async fn delete_handler(
     config: web::Data<AppConfig>,
 ) -> Result<HttpResponse> {
     universal_body_handler_httpbin(req, payload, config).await
+}
+
+/// Echo the request's HTTP method name, accepting ANY HTTP method (httpbin #522).
+pub async fn method_handler(req: HttpRequest) -> Result<HttpResponse> {
+    Ok(HttpResponse::Ok().json(json!({ "method": req.method().as_str() })))
+}
+
+/// HEAD-only endpoint echoing request headers as `X-Echo-<name>` response
+/// headers, with an empty body (httpbin #630).
+pub async fn head_handler(req: HttpRequest) -> Result<HttpResponse> {
+    let mut builder = HttpResponse::Ok();
+    for (name, value) in req.headers().iter() {
+        let Ok(value_str) = value.to_str() else {
+            continue;
+        };
+        if let Ok(echo_name) =
+            HeaderName::from_bytes(format!("x-echo-{}", name.as_str()).as_bytes())
+        {
+            builder.append_header((echo_name, value_str));
+        }
+    }
+    Ok(builder.finish())
 }
