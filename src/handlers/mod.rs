@@ -16,6 +16,7 @@ pub mod dynamic_data;
 pub mod echo;
 pub mod http_methods;
 pub mod images;
+pub mod observability;
 pub mod openapi;
 pub mod redirects;
 pub mod request_inspection;
@@ -42,3 +43,5 @@ pub use root::*;
 pub use sse::*;
 pub use status::*;
 pub use utils::*;
+
+pub use observability::*;

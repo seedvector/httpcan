@@ -1,5 +1,6 @@
 use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
+    http::header::{HeaderName, HeaderValue},
     Error,
 };
 use chrono::{DateTime, Utc};
@@ -7,9 +8,34 @@ use futures_util::future::LocalBoxFuture;
 use std::{
     future::{ready, Ready},
     rc::Rc,
+    sync::LazyLock,
     time::Instant,
 };
 
+/// Static response headers applied to every response: the httpcan version
+/// (httpbin #431) and any `XHTTPCAN_*` env vars mapped to response headers
+/// (httpbin #565). Computed once and cached.
+fn static_response_headers() -> &'static [(HeaderName, HeaderValue)] {
+    static HEADERS: LazyLock<Vec<(HeaderName, HeaderValue)>> = LazyLock::new(|| {
+        let mut headers = Vec::new();
+        if let Ok(v) = HeaderValue::from_str(env!("CARGO_PKG_VERSION")) {
+            headers.push((HeaderName::from_static("x-httpcan-version"), v));
+        }
+        for (key, value) in std::env::vars() {
+            if let Some(rest) = key.strip_prefix("XHTTPCAN_") {
+                let name = rest.replace('_', "-");
+                if let (Ok(n), Ok(v)) = (
+                    HeaderName::from_bytes(name.as_bytes()),
+                    HeaderValue::from_str(&value),
+                ) {
+                    headers.push((n, v));
+                }
+            }
+        }
+        headers
+    });
+    &HEADERS
+}
 pub struct RequestLogger;
 
 impl<S, B> Transform<S, ServiceRequest> for RequestLogger
@@ -68,7 +94,7 @@ where
         let service = self.service.clone();
 
         Box::pin(async move {
-            let res = service.call(req).await?;
+            let mut res = service.call(req).await?;
 
             let duration = start_time.elapsed();
             let duration_ms = duration.as_secs_f64() * 1000.0;
@@ -104,6 +130,15 @@ where
 
             // Also print to stdout for immediate visibility
             println!("{}", log_message);
+
+            // Observability response headers (httpbin #431/#560/#565).
+            let headers = res.headers_mut();
+            for (name, value) in static_response_headers() {
+                headers.insert(name.clone(), value.clone());
+            }
+            if let Ok(dur) = HeaderValue::from_str(&format!("app;dur={duration_ms:.2}")) {
+                headers.insert(HeaderName::from_static("server-timing"), dur);
+            }
 
             Ok(res)
         })

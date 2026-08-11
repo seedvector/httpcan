@@ -403,6 +403,10 @@ fn create_app(
             web::get().to(cookies_set_named_handler),
         )
         .route("/cookies/delete", web::get().to(cookies_delete_handler))
+        // Observability & instance identification (httpbin #544/#565)
+        .route("/healthz", web::get().to(healthz_handler))
+        .route("/tags", web::get().to(tags_handler))
+        .route("/tags/{name}", web::get().to(tag_value_handler))
         // Images
         .route("/image", web::get().to(image_handler))
         .route("/image/png", web::get().to(image_png_handler))
@@ -614,5 +618,51 @@ mod tests {
         assert_eq!(v["files"]["f"]["content_type"].as_str(), Some("text/plain"));
         assert_eq!(v["files"]["f"]["filename"].as_str(), Some("a.txt"));
         assert_eq!(v["files"]["f"]["content"].as_str(), Some("hello"));
+    }
+    #[actix_web::test]
+    async fn healthz_returns_ok() {
+        let app = test::init_service(create_app(cfg())).await;
+        let req = test::TestRequest::get().uri("/healthz").to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let v: serde_json::Value =
+            serde_json::from_slice(&test::read_body(resp).await).expect("JSON body");
+        assert_eq!(v["status"].as_str(), Some("ok"));
+    }
+
+    #[actix_web::test]
+    async fn tags_endpoint_returns_object_and_404_for_missing() {
+        let app = test::init_service(create_app(cfg())).await;
+        // /tags always returns a JSON object (possibly empty).
+        let req = test::TestRequest::get().uri("/tags").to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let v: serde_json::Value =
+            serde_json::from_slice(&test::read_body(resp).await).expect("JSON object");
+        assert!(v.is_object());
+        // Unknown tag → 404 {}.
+        let req = test::TestRequest::get()
+            .uri("/tags/__definitely_not_set__")
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_web::test]
+    async fn response_carries_version_and_server_timing_headers() {
+        // httpbin #431/#560: every response carries version + Server-Timing.
+        let app = test::init_service(create_app(cfg())).await;
+        let req = test::TestRequest::get().uri("/get").to_request();
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.headers().contains_key("x-httpcan-version"));
+        assert!(
+            resp.headers()
+                .get("server-timing")
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .starts_with("app;dur="),
+            "Server-Timing must start with app;dur="
+        );
     }
 }
