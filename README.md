@@ -6,7 +6,7 @@ A simple, high‑performance HTTP request & response service built with Rust and
 [![ghcr.io](https://img.shields.io/badge/ghcr.io-seedvector%2Fhttpcan-1f6feb?logo=github)](https://github.com/orgs/seedvector/packages/container/package/httpcan)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Quick Links: [Quick Start](#quick-start) · [Installation](#installation) · [Configuration](#-configuration) · [Examples](#usage-examples) · [OpenAPI & Web UI](#openapi--web-ui) · [API Reference](#api-reference) · [Library](#-library-usage) · [Development](#development) · [License](#license)
+Quick Links: [Quick Start](#quick-start) · [Installation](#installation) · [Configuration](#-configuration) · [Examples](#usage-examples) · [OpenAPI & Web UI](#openapi--web-ui) · [API Reference](#api-reference) · [Production](#-production-considerations) · [Library](#-library-usage) · [Development](#development) · [License](#license)
 
 ## ✨ Features
 
@@ -132,6 +132,16 @@ curl -H "Accept: application/json" "http://localhost:8080/status/429?header=Retr
 curl -X POST http://localhost:8080/redirect-to -d "url=https://example.com"
 ```
 
+> **🔒 Open‑redirect protection on `/redirect‑to`**
+>
+> Unlike a naive 302, `/redirect-to` detects **browser clients** (via `Accept: text/html`) and returns an **interstitial warning page** instead of silently redirecting. This prevents phishing abuse where attackers exploit your trusted domain (e.g. `…/redirect-to?url=https://evil.com`).
+>
+> - Programmatic clients (curl, httpx, …) still receive the standard `302` — no API breakage.
+> - Browser clients get a `200` HTML page showing the destination URL and requiring an explicit click.
+> - Non‑`http(s)` URL schemes (`javascript:`, `data:`, …) render as a **disabled link**.
+> - Destination URLs are HTML‑escaped in the interstitial to prevent XSS.
+> - The page carries `X-Robots-Tag: noindex` to avoid search‑engine indexing.
+
 ### Compression & Formats
 
 ```bash
@@ -189,13 +199,25 @@ For the full, up‑to‑date list and schemas, consult the [OpenAPI spec](/opena
 - Methods+: `QUERY` HTTP method (RFC 9430 — a safe, idempotent GET with a body) accepted on `/anything`, `/anything/{anything}`, and `/echo`
 - Auth+: Basic auth with username only; JWT Bearer decode/inspect at `/jwt-bearer`
 - Status+: Content‑type priority: `Accept` > request `Content-Type` > default; supports custom bodies via query/body
-- Redirects+: `POST /redirect-to` supports `application/x-www-form-urlencoded`, `multipart/form-data`, `application/json`
+- Redirects+: `POST /redirect-to` supports `application/x-www-form-urlencoded`, `multipart/form-data`, `application/json`; browser clients get an open-redirect interstitial (see [above](#status--redirects))
 - Streaming+: SSE/NDJSON endpoints with `count`, `delay`, and AI formats (OpenAI/Ollama)
 - File uploads+: Multiple files with the same field return as array across multipart endpoints
-- **Observability+:** `/healthz` liveness probe; `/tags` exposes `HTTPCAN_*` env vars; every response carries `Server-Timing` and `X-Httpcan-Version` headers
-- **Method echo+:** `/method` echoes any HTTP method name; `/head` (HEAD‑only) mirrors request headers as `X-Echo-*`
-- **Status headers+:** `?header=Name:Value` injects response headers on `/status/{codes}` (repeatable; e.g. `Retry-After` for rate‑limit testing)
-- **Body encoding+:** POST to `/gzip`, `/deflate`, `/brotli`, `/zstd`, or `/base64` returns the request body in the matching encoding
+- Observability+: `/healthz` liveness probe; `/tags` exposes `HTTPCAN_*` env vars; every response carries `Server-Timing` and `X-Httpcan-Version` headers
+- Method echo+: `/method` echoes any HTTP method name; `/head` (HEAD‑only) mirrors request headers as `X-Echo-*`
+- Status headers+: `?header=Name:Value` injects response headers on `/status/{codes}` (repeatable; e.g. `Retry-After` for rate‑limit testing)
+- Body encoding+: POST to `/gzip`, `/deflate`, `/brotli`, `/zstd`, or `/base64` returns the request body in the matching encoding
+
+## 🚀 Production Considerations
+
+Before deploying HTTPCan on the public internet, review these hardening options:
+
+- **Open‑redirect protection on `/redirect‑to`**: Browser clients (detected via `Accept: text/html`) receive an interstitial warning page showing the destination URL instead of a silent `302`. This blocks phishing abuse via `…/redirect-to?url=https://evil.com` on your trusted domain. Programmatic clients (curl, httpx, …) still get the standard `302` for API compatibility. Non‑`http(s)` URL schemes render as a disabled link.
+- **No reflected XSS on `/base64`**: Decoded content is always returned as `text/plain; charset=utf-8`, never `text/html`. Browsers display the raw text without rendering embedded `<script>` tags.
+- **Response header filtering**:
+  - **Built‑in (always on)**: ~100 reverse‑proxy/CDN headers are stripped from all echoed responses by default — Nginx (`x-real-ip`, `x-forwarded-*`), Cloudflare (`cf-*`), AWS CloudFront/ALB (`cloudfront-*`, `x-amzn-*`), GCP (`x-appengine-*`, `x-cloud-trace-context`), Azure (`x-azure-*`, `x-ms-*`). Prevents infrastructure information leakage without any configuration.
+  - **Custom (`--exclude-headers`)**: Add your own patterns to strip additional sensitive headers, with wildcard suffix support: `--exclude-headers "x-internal-*,server,x-secret-token"`.
+- **Resource limits**: `--max-bytes` caps `/bytes` and `/stream-bytes` responses (default 100KB); over‑limit requests return `404` instead of silently truncating (httpbin #594).
+- **Non‑root Docker**: The official image runs as a dedicated unprivileged user (`uid 10001`).
 
 ## 🦀 Library Usage
 
@@ -216,7 +238,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     HttpCanServer::new()
         .port(3000)
         .host("127.0.0.1")
-        .exclude_header("foo, x-bar-*")
+        .exclude_headers(vec!["foo".into(), "x-bar-*".into()])
         .run()
         .await?;
     Ok(())
