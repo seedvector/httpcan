@@ -214,36 +214,27 @@ pub async fn status_handler_get(
     let status = StatusCode::from_u16(chosen_code).unwrap_or(StatusCode::OK);
 
     // HTTP status codes that should not have a response body
-    let should_be_empty = match chosen_code {
-        // 1xx Informational responses
-        100..=199 => true,
-        // 204 No Content
-        204 => true,
-        // 304 Not Modified
-        304 => true,
-        _ => false,
+    let should_be_empty = matches!(chosen_code, 100..=199 | 204 | 304);
+
+    let mut response = if should_be_empty {
+        HttpResponse::build(status).finish()
+    } else if let Some(custom_body) = &query.body {
+        // Determine Content-Type with proper priority: Accept > Content-Type > default
+        let content_type = determine_response_content_type(&req, false);
+        let (formatted_body, final_content_type) = format_response_body(custom_body, &content_type);
+        HttpResponse::build(status)
+            .content_type(final_content_type)
+            .body(formatted_body)
+    } else {
+        // Default behavior - return JSON with status
+        HttpResponse::build(status).json(json!({
+            "status": chosen_code
+        }))
     };
 
-    if should_be_empty {
-        Ok(HttpResponse::build(status).finish())
-    } else {
-        // Check if custom body is provided via query parameter
-        if let Some(custom_body) = &query.body {
-            // Determine Content-Type with proper priority: Accept > Content-Type > default
-            let content_type = determine_response_content_type(&req, false);
-            let (formatted_body, final_content_type) =
-                format_response_body(custom_body, &content_type);
-
-            Ok(HttpResponse::build(status)
-                .content_type(final_content_type)
-                .body(formatted_body))
-        } else {
-            // Default behavior - return JSON with status
-            Ok(HttpResponse::build(status).json(json!({
-                "status": chosen_code
-            })))
-        }
-    }
+    // Apply repeatable ?header=Name:Value overrides (httpbin #413/#579).
+    apply_header_overrides(&req, &mut response);
+    Ok(response)
 }
 
 pub async fn status_handler(
@@ -277,18 +268,10 @@ pub async fn status_handler(
     let status = StatusCode::from_u16(chosen_code).unwrap_or(StatusCode::OK);
 
     // HTTP status codes that should not have a response body
-    let should_be_empty = match chosen_code {
-        // 1xx Informational responses
-        100..=199 => true,
-        // 204 No Content
-        204 => true,
-        // 304 Not Modified
-        304 => true,
-        _ => false,
-    };
+    let should_be_empty = matches!(chosen_code, 100..=199 | 204 | 304);
 
-    if should_be_empty {
-        Ok(HttpResponse::build(status).finish())
+    let mut response = if should_be_empty {
+        HttpResponse::build(status).finish()
     } else {
         // Priority: 1. Request body, 2. Query parameter, 3. Default
         let has_request_body = !body.trim().is_empty();
@@ -303,25 +286,28 @@ pub async fn status_handler(
             let content_type = determine_response_content_type(&req, has_request_body);
             let (formatted_body, final_content_type) =
                 format_response_body(&custom_body, &content_type);
-
-            Ok(HttpResponse::build(status)
+            HttpResponse::build(status)
                 .content_type(final_content_type)
-                .body(formatted_body))
+                .body(formatted_body)
         } else {
             // Default behavior - return JSON with status
-            Ok(HttpResponse::build(status).json(json!({
+            HttpResponse::build(status).json(json!({
                 "status": chosen_code
-            })))
+            }))
         }
-    }
+    };
+
+    // Apply repeatable ?header=Name:Value overrides (httpbin #413/#579).
+    apply_header_overrides(&req, &mut response);
+    Ok(response)
 }
 
 pub async fn status_options_handler(
-    _req: HttpRequest,
+    req: HttpRequest,
     _path: web::Path<String>,
 ) -> Result<HttpResponse> {
     // Return appropriate CORS headers for OPTIONS preflight requests
-    Ok(HttpResponse::Ok()
+    let mut response = HttpResponse::Ok()
         .append_header((
             "Access-Control-Allow-Methods",
             "GET, POST, PUT, PATCH, DELETE, TRACE, OPTIONS",
@@ -331,5 +317,40 @@ pub async fn status_options_handler(
             "Content-Type, Authorization, Accept, X-Requested-With",
         ))
         .append_header(("Access-Control-Max-Age", "3600"))
-        .finish())
+        .finish();
+    apply_header_overrides(&req, &mut response);
+    Ok(response)
+}
+
+/// Parse repeatable `?header=Name:Value` query params into header overrides for
+/// the /status endpoint (httpbin #413/#579). The value is passed through verbatim,
+/// so both Retry-After formats (relative seconds or absolute HTTP-date) work.
+fn parse_status_header_overrides(req: &HttpRequest) -> Vec<(String, String)> {
+    url::form_urlencoded::parse(req.query_string().as_bytes())
+        .filter(|(k, _)| k.as_ref() == "header")
+        .filter_map(|(_, v)| {
+            let v = v.as_ref();
+            let idx = v.find(':')?;
+            let name = v[..idx].trim().to_string();
+            let value = v[idx + 1..].trim().to_string();
+            if name.is_empty() {
+                None
+            } else {
+                Some((name, value))
+            }
+        })
+        .collect()
+}
+
+/// Append `?header=Name:Value` overrides onto an already-built response. Repeated
+/// names are appended (not deduplicated) so multi-value headers work.
+fn apply_header_overrides(req: &HttpRequest, response: &mut HttpResponse) {
+    for (name, value) in parse_status_header_overrides(req) {
+        if let (Ok(name), Ok(value)) = (
+            actix_web::http::header::HeaderName::from_bytes(name.as_bytes()),
+            actix_web::http::header::HeaderValue::from_str(&value),
+        ) {
+            response.headers_mut().append(name, value);
+        }
+    }
 }

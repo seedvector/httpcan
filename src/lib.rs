@@ -551,4 +551,28 @@ mod tests {
             "duplicate header values must be joined per RFC 7230"
         );
     }
+    #[actix_web::test]
+    async fn status_injects_repeatable_response_headers() {
+        // httpbin #413/#579: /status must support repeatable ?header=Name:Value
+        // injection (e.g. 429 + Retry-After and X-RateLimit-* headers).
+        let app = test::init_service(create_app(cfg())).await;
+        let req = test::TestRequest::get()
+            .uri("/status/429?header=Retry-After:60&header=X-RateLimit-Remaining:0")
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+
+        assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            resp.headers().get("retry-after").unwrap().to_str().unwrap(),
+            "60"
+        );
+        assert_eq!(
+            resp.headers()
+                .get("x-ratelimit-remaining")
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "0"
+        );
+    }
 }
