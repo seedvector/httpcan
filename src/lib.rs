@@ -889,4 +889,121 @@ mod tests {
         );
         assert_eq!(test::read_body(resp).await, vec![0xf0]);
     }
+
+    #[actix_web::test]
+    async fn drip_chunked_streams_unknown_length_body() {
+        // httpbin #479: ?chunked=true streams with chunked transfer-encoding
+        // (unknown-length body -> codec emits no Content-Length); the default
+        // SizedStream path reports a known length (-> Content-Length).
+        use actix_web::body::{BodySize, MessageBody};
+        let app = test::init_service(create_app(cfg())).await;
+
+        // Chunked: body size is unknown, content still arrives intact.
+        let req = test::TestRequest::get()
+            .uri("/drip?numbytes=5&duration=0&delay=0&chunked=true")
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert!(
+            matches!(resp.response().body().size(), BodySize::Stream),
+            "chunked response must be an unknown-length stream body"
+        );
+        assert_eq!(test::read_body(resp).await, "*****");
+
+        // Default (non-chunked): SizedStream reports the exact byte count.
+        let req = test::TestRequest::get()
+            .uri("/drip?numbytes=5&duration=0&delay=0")
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert!(
+            matches!(resp.response().body().size(), BodySize::Sized(5)),
+            "non-chunked response must be a sized body of numbytes"
+        );
+        assert_eq!(test::read_body(resp).await, "*****");
+    }
+
+    #[actix_web::test]
+    async fn digest_auth_sha_512_256_succeeds() {
+        // httpbin #697: SHA-512-256 (RFC 7616) digest auth end-to-end. curl has
+        // no SHA-512-256 client, so the digest response is computed here.
+        use sha2::{Digest, Sha512_256};
+        let app = test::init_service(create_app(cfg())).await;
+        let uri = "/digest-auth/auth/user/passwd/SHA-512-256";
+
+        // 1) Challenge: pull nonce/realm/opaque from the 401 WWW-Authenticate.
+        let req = test::TestRequest::get().uri(uri).to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+        let challenge = resp
+            .headers()
+            .get("www-authenticate")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
+        let field = |k: &str| -> String {
+            let pat = format!("{k}=\"");
+            let start = challenge.find(&pat).unwrap() + pat.len();
+            let end = challenge[start..].find('"').unwrap();
+            challenge[start..start + end].to_string()
+        };
+        let realm = field("realm");
+        let nonce = field("nonce");
+        let opaque = field("opaque");
+
+        // 2) Compute the digest response (qop=auth).
+        let hex = |data: &[u8]| -> String {
+            let mut h = Sha512_256::new();
+            h.update(data);
+            format!("{:x}", h.finalize())
+        };
+        let ha1 = hex(format!("user:{realm}:passwd").as_bytes());
+        let ha2 = hex(format!("GET:{uri}").as_bytes());
+        let nc = "00000001";
+        let cnonce = "0a4f113b";
+        let response = hex(format!("{ha1}:{nonce}:{nc}:{cnonce}:auth:{ha2}").as_bytes());
+        let auth = format!(
+            r#"Digest username="user", realm="{realm}", nonce="{nonce}", uri="{uri}", qop=auth, nc={nc}, cnonce="{cnonce}", response="{response}", opaque="{opaque}", algorithm=SHA-512-256"#
+        );
+
+        // 3) Replay with credentials -> 200, authenticated.
+        let req = test::TestRequest::get()
+            .uri(uri)
+            .insert_header(("Authorization", auth))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let v: serde_json::Value =
+            serde_json::from_slice(&test::read_body(resp).await).unwrap();
+        assert_eq!(v.get("authenticated").and_then(|x| x.as_bool()), Some(true));
+        assert_eq!(
+            v.get("algorithm").and_then(|x| x.as_str()),
+            Some("SHA-512-256")
+        );
+    }
+
+    #[actix_web::test]
+    async fn cors_exposes_www_authenticate() {
+        // httpbin #641: cross-origin clients must be able to read the 401
+        // challenge, so CORS exposes WWW-Authenticate.
+        let app = test::init_service(create_app(cfg())).await;
+        let req = test::TestRequest::get()
+            .uri("/bearer")
+            .insert_header(("Origin", "https://example.com"))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+        assert!(resp.headers().get("www-authenticate").is_some());
+        let expose = resp
+            .headers()
+            .get("access-control-expose-headers")
+            .expect("expose-headers present on cross-origin response")
+            .to_str()
+            .unwrap();
+        assert!(
+            expose.to_lowercase().contains("www-authenticate"),
+            "WWW-Authenticate must be listed as exposed: {expose}"
+        );
+    }
 }
