@@ -41,45 +41,58 @@ pub async fn cache_control_handler(
         .json(request_info))
 }
 
+/// Compare a candidate ETag against a canonical (unquoted, no `W/`) value using
+/// RFC 7232 weak comparison (for If-None-Match). `*` always matches.
+fn etag_matches(candidate: &str, canonical: &str) -> bool {
+    if candidate == "*" {
+        return true;
+    }
+    candidate
+        .strip_prefix("W/")
+        .unwrap_or(candidate)
+        .trim_matches('"')
+        == canonical
+}
+
 pub async fn etag_handler(
     req: HttpRequest,
     path: web::Path<String>,
     config: web::Data<AppConfig>,
 ) -> Result<HttpResponse> {
-    let etag = path.into_inner();
+    let raw_etag = path.into_inner();
+    let is_weak = raw_etag.starts_with("W/");
+    let canonical = raw_etag.strip_prefix("W/").unwrap_or(&raw_etag);
+    let canonical = canonical.trim_matches('"');
+    let etag_header = if is_weak {
+        format!("W/\"{}\"", canonical)
+    } else {
+        format!("\"{}\"", canonical)
+    };
 
     let if_none_match_values = parse_multi_value_header(req.headers().get("If-None-Match"));
     let if_match_values = parse_multi_value_header(req.headers().get("If-Match"));
 
-    // Check If-None-Match first (httpbin logic)
+    // Check If-None-Match first (httpbin logic), using weak comparison (#400).
     if !if_none_match_values.is_empty() {
-        // Check for exact match or wildcard
-        let etag_quoted = format!("\"{}\"", etag);
-        if if_none_match_values.contains(&etag)
-            || if_none_match_values.contains(&etag_quoted)
-            || if_none_match_values.contains(&"*".to_string())
+        if if_none_match_values
+            .iter()
+            .any(|v| etag_matches(v, canonical))
         {
             return Ok(HttpResponse::NotModified()
-                .append_header(("ETag", format!("\"{}\"", etag)))
+                .append_header(("ETag", etag_header.clone()))
                 .finish());
         }
-    }
-    // Only check If-Match if If-None-Match was not present (httpbin uses elif)
-    else if !if_match_values.is_empty() {
-        let etag_quoted = format!("\"{}\"", etag);
-        if !if_match_values.contains(&etag)
-            && !if_match_values.contains(&etag_quoted)
-            && !if_match_values.contains(&"*".to_string())
-        {
-            return Ok(HttpResponse::PreconditionFailed().finish());
-        }
+    } else if !if_match_values.is_empty()
+        && !if_match_values.iter().any(|v| etag_matches(v, canonical))
+    {
+        return Ok(HttpResponse::PreconditionFailed().finish());
     }
 
     // Normal response with ETag
     let mut request_info = extract_request_info(&req, None, &config.exclude_headers);
     fix_request_info_url(&req, &mut request_info);
     Ok(HttpResponse::Ok()
-        .append_header(("ETag", format!("\"{}\"", etag)))
+        .append_header(("ETag", etag_header))
         .json(request_info))
 }
 

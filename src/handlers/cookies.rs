@@ -48,19 +48,59 @@ pub async fn cookies_handler(req: HttpRequest) -> Result<HttpResponse> {
     })))
 }
 
+/// Reserved query keys that configure cookie attributes instead of naming a cookie.
+const COOKIE_ATTR_KEYS: &[&str] = &[
+    "httponly", "secure", "samesite", "domain", "max_age", "path",
+];
+
 pub async fn cookies_set_handler(
     req: HttpRequest,
     query: web::Query<HashMap<String, String>>,
 ) -> Result<HttpResponse> {
     let mut response = HttpResponse::Found();
-    let is_secure = secure_cookie(&req);
+    let default_secure = secure_cookie(&req);
+
+    let httponly = matches!(
+        query.get("httponly").map(|s| s.to_lowercase()).as_deref(),
+        Some("true") | Some("1")
+    );
+    let secure = query
+        .get("secure")
+        .map(|s| s.eq_ignore_ascii_case("true"))
+        .unwrap_or(default_secure);
+    let samesite = query.get("samesite").map(|s| s.to_lowercase());
+    let domain = query.get("domain").cloned();
+    let path = query
+        .get("path")
+        .cloned()
+        .unwrap_or_else(|| "/".to_string());
+    let max_age = query.get("max_age").and_then(|s| s.parse::<i64>().ok());
 
     for (name, value) in query.iter() {
-        let cookie = Cookie::build(name, value)
-            .path("/")
-            .secure(is_secure)
-            .finish();
-        response.cookie(cookie);
+        if COOKIE_ATTR_KEYS.contains(&name.as_str()) {
+            continue;
+        }
+        let mut cookie = Cookie::build(name, value).path(path.clone()).secure(secure);
+        if httponly {
+            cookie = cookie.http_only(true);
+        }
+        if let Some(ss) = &samesite {
+            if let Some(parsed) = match ss.as_str() {
+                "strict" => Some(actix_web::cookie::SameSite::Strict),
+                "lax" => Some(actix_web::cookie::SameSite::Lax),
+                "none" => Some(actix_web::cookie::SameSite::None),
+                _ => None,
+            } {
+                cookie = cookie.same_site(parsed);
+            }
+        }
+        if let Some(d) = &domain {
+            cookie = cookie.domain(d.clone());
+        }
+        if let Some(ma) = max_age {
+            cookie = cookie.max_age(actix_web::cookie::time::Duration::seconds(ma));
+        }
+        response.cookie(cookie.finish());
     }
 
     Ok(response

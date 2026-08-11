@@ -413,7 +413,7 @@ fn create_app(
         // Response inspection
         .route("/cache", web::get().to(cache_handler))
         .route("/cache/{value}", web::get().to(cache_control_handler))
-        .route("/etag/{etag}", web::get().to(etag_handler))
+        .route("/etag/{etag:.*}", web::get().to(etag_handler))
         .route(
             "/response-headers",
             web::get().to(response_headers_get_handler),
@@ -803,5 +803,43 @@ mod tests {
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
+    }
+    #[actix_web::test]
+    async fn etag_weak_match_and_multisegment_route() {
+        // httpbin #400: weak ETag in If-None-Match matches (RFC 7232), and a
+        // weak ETag value (with '/') routes instead of 404.
+        let app = test::init_service(create_app(cfg())).await;
+        let req = test::TestRequest::get()
+            .uri("/etag/abc")
+            .insert_header(("If-None-Match", "W/\"abc\""))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::NOT_MODIFIED);
+        // Multi-segment etag value routes (no 404) — supports weak ETags like W/"abc".
+        let req = test::TestRequest::get()
+            .uri("/etag/W/%22abc%22")
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[actix_web::test]
+    async fn cookies_set_supports_attributes() {
+        // httpbin #508: /cookies/set honors httponly/samesite/domain/etc.
+        let app = test::init_service(create_app(cfg())).await;
+        let req = test::TestRequest::get()
+            .uri("/cookies/set?token=secret&httponly=true&samesite=Lax")
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        let set_cookie = resp
+            .headers()
+            .get("set-cookie")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_lowercase();
+        assert!(set_cookie.contains("token=secret"));
+        assert!(set_cookie.contains("httponly"));
+        assert!(set_cookie.contains("samesite=lax"));
     }
 }

@@ -11,6 +11,7 @@ pub struct DripQuery {
     numbytes: Option<usize>,
     code: Option<u16>,
     delay: Option<f64>,
+    chunked: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -380,7 +381,7 @@ pub async fn drip_handler(_req: HttpRequest, query: web::Query<DripQuery>) -> Re
         Duration::from_secs_f64(duration / (numbytes as f64 - 1.0))
     };
 
-    // Create streaming response using SizedStream
+    // Create streaming response
     let stream = async_stream::stream! {
         for i in 0..numbytes {
             // Yield a single '*' byte
@@ -393,10 +394,16 @@ pub async fn drip_handler(_req: HttpRequest, query: web::Query<DripQuery>) -> Re
         }
     };
 
-    // Use SizedStream to set both content length and streaming
-    Ok(HttpResponseBuilder::new(status)
-        .content_type("application/octet-stream")
-        .body(SizedStream::new(numbytes as u64, Box::pin(stream))))
+    let mut builder = HttpResponseBuilder::new(status);
+    builder.content_type("application/octet-stream");
+    // Chunked transfer-encoding (no Content-Length) when requested (httpbin #479);
+    // otherwise SizedStream sets Content-Length.
+    let response = if query.chunked.unwrap_or(false) {
+        builder.streaming(stream)
+    } else {
+        builder.body(SizedStream::new(numbytes as u64, Box::pin(stream)))
+    };
+    Ok(response)
 }
 
 pub async fn delay_handler_get(
