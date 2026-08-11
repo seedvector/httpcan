@@ -12,6 +12,23 @@ use std::path::PathBuf;
 use url::form_urlencoded;
 use urlencoding;
 
+/// Collect request headers into a map, joining multiple values that share the
+/// same header name with `", "` per RFC 7230 §3.2.2. This preserves duplicate
+/// header values instead of collapsing them to the last value (httpbin #355).
+pub fn collect_request_headers(req: &HttpRequest) -> HashMap<String, String> {
+    let mut headers: HashMap<String, String> = HashMap::new();
+    for (name, value) in req.headers().iter() {
+        let value_str = value.to_str().unwrap_or("");
+        headers
+            .entry(name.to_string())
+            .and_modify(|existing| {
+                existing.push_str(", ");
+                existing.push_str(value_str);
+            })
+            .or_insert_with(|| value_str.to_string());
+    }
+    headers
+}
 #[derive(Serialize, Deserialize)]
 pub struct RequestInfo {
     pub args: BTreeMap<String, Value>,
@@ -299,11 +316,7 @@ pub fn to_http_methods_format(request_info: RequestInfo) -> HttpMethodsRequestIn
 
 // Helper function to extract GET request information (httpbin.org compatible)
 pub fn extract_get_request_info(req: &HttpRequest, exclude_patterns: &[String]) -> GetRequestInfo {
-    let headers: HashMap<String, String> = req
-        .headers()
-        .iter()
-        .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_string()))
-        .collect();
+    let headers = collect_request_headers(req);
 
     // Filter out reverse proxy and CDN headers, plus custom exclusions
     let filtered_headers = filter_headers(headers, exclude_patterns);
@@ -414,11 +427,7 @@ pub fn extract_request_info(
     body: Option<&str>,
     exclude_patterns: &[String],
 ) -> RequestInfo {
-    let headers: HashMap<String, String> = req
-        .headers()
-        .iter()
-        .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_string()))
-        .collect();
+    let headers = collect_request_headers(req);
 
     // Filter out reverse proxy and CDN headers, plus custom exclusions
     let filtered_headers = filter_headers(headers, exclude_patterns);
@@ -494,11 +503,7 @@ pub async fn extract_request_info_multipart(
     mut payload: Multipart,
     exclude_patterns: &[String],
 ) -> Result<RequestInfo> {
-    let headers: HashMap<String, String> = req
-        .headers()
-        .iter()
-        .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_string()))
-        .collect();
+    let headers = collect_request_headers(req);
 
     // Filter out reverse proxy and CDN headers, plus custom exclusions
     let filtered_headers = filter_headers(headers, exclude_patterns);

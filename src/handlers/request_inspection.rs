@@ -4,11 +4,7 @@ pub async fn headers_handler(
     req: HttpRequest,
     config: web::Data<AppConfig>,
 ) -> Result<HttpResponse> {
-    let headers: HashMap<String, String> = req
-        .headers()
-        .iter()
-        .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_string()))
-        .collect();
+    let headers = collect_request_headers(&req);
 
     // Filter out reverse proxy and CDN headers, plus custom exclusions
     let filtered_headers = filter_headers(headers, &config.exclude_headers);

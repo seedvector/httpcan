@@ -530,4 +530,25 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(test::read_body(resp).await, "ping");
     }
+    #[actix_web::test]
+    async fn duplicate_request_headers_are_joined() {
+        // Regression for httpbin #355: multiple headers with the same name
+        // must be joined with ", " instead of collapsing to the last value.
+        let app = test::init_service(create_app(cfg())).await;
+        let req = test::TestRequest::get()
+            .uri("/headers")
+            .append_header(("x-multi", "Foo"))
+            .append_header(("x-multi", "Bar"))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let v: serde_json::Value =
+            serde_json::from_slice(&test::read_body(resp).await).expect("JSON body");
+        assert_eq!(
+            v["headers"]["x-multi"].as_str(),
+            Some("Foo, Bar"),
+            "duplicate header values must be joined per RFC 7230"
+        );
+    }
 }
