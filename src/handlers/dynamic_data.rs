@@ -120,6 +120,23 @@ pub async fn base64_handler(_req: HttpRequest, path: web::Path<String>) -> Resul
     }
 }
 
+/// POST /base64 - decode the base64 request body and return it as text/plain (httpbin #616).
+pub async fn base64_post_handler(body: web::Bytes) -> Result<HttpResponse> {
+    match general_purpose::STANDARD.decode(&body) {
+        Ok(decoded_bytes) => match String::from_utf8(decoded_bytes) {
+            Ok(decoded_string) => Ok(HttpResponse::Ok()
+                .content_type("text/plain; charset=utf-8")
+                .body(decoded_string)),
+            Err(_) => Ok(HttpResponse::BadRequest().json(json!({
+                "error": "Invalid UTF-8 in decoded data"
+            }))),
+        },
+        Err(_) => Ok(HttpResponse::BadRequest().json(json!({
+            "error": "Invalid base64 data"
+        }))),
+    }
+}
+
 pub async fn bytes_handler(
     _req: HttpRequest,
     path: web::Path<usize>,

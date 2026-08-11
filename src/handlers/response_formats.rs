@@ -435,3 +435,71 @@ pub async fn zstd_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Res
         .append_header(("Content-Encoding", "zstd"))
         .body(compressed_data))
 }
+
+/// Compress bytes with the given content-encoding: gzip, deflate, br, or zstd.
+fn compress_bytes(data: &[u8], encoding: &str) -> Vec<u8> {
+    match encoding {
+        "gzip" => {
+            let mut e = GzEncoder::new(Vec::new(), Compression::default());
+            let _ = e.write_all(data);
+            e.finish().unwrap_or_default()
+        }
+        "deflate" => {
+            let mut e = DeflateEncoder::new(Vec::new(), Compression::default());
+            let _ = e.write_all(data);
+            e.finish().unwrap_or_default()
+        }
+        "br" => {
+            let mut out = Vec::new();
+            {
+                let mut w = brotli::CompressorWriter::new(&mut out, 4096, 6, 22);
+                let _ = w.write_all(data);
+            }
+            out
+        }
+        "zstd" => {
+            let mut out = Vec::new();
+            if let Ok(mut w) = ZstdEncoder::new(&mut out, 3) {
+                let _ = w.write_all(data);
+                let _ = w.finish();
+            }
+            out
+        }
+        _ => data.to_vec(),
+    }
+}
+
+/// POST /gzip|/deflate|/brotli|/zstd -> echo the request body compressed with
+/// the matching Content-Encoding (httpbin #618).
+pub async fn compress_post_handler(req: HttpRequest, body: web::Bytes) -> Result<HttpResponse> {
+    let encoding = match req.uri().path() {
+        "/gzip" => "gzip",
+        "/deflate" => "deflate",
+        "/brotli" => "br",
+        "/zstd" => "zstd",
+        _ => "gzip",
+    };
+    let content_type = req
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("text/plain")
+        .to_string();
+    let compressed = compress_bytes(&body, encoding);
+    Ok(HttpResponse::Ok()
+        .content_type(content_type)
+        .append_header(("Content-Encoding", encoding))
+        .body(compressed))
+}
+
+/// GET /encoding/iso-8859-1 - Latin-1 sample, companion to /encoding/utf8 (httpbin #427).
+pub async fn iso_8859_1_handler(_req: HttpRequest) -> Result<HttpResponse> {
+    let content = "\
+<!DOCTYPE html>\n\
+<html>\n  <head>\n    <meta charset=\"ISO-8859-1\">\n    <title>ISO-8859-1 Test</title>\n  </head>\n  <body>\n    <h1>Latin-1 Demo</h1>\n    <p>caf\u{e9} r\u{e9}sum\u{e9} na\u{ef}ve \u{fc}ber a\u{f1}o fa\u{e7}ade</p>\n    <p>\u{a3}100 \u{a5}1000 50\u{a2}</p>\n  </body>\n</html>";
+    // Encode as ISO-8859-1 (Latin-1): each char in U+0000..U+00FF maps to its low byte.
+    let bytes: Vec<u8> = content.chars().map(|c| c as u8).collect();
+    Ok(HttpResponse::Ok()
+        .content_type("text/html; charset=iso-8859-1")
+        .body(bytes))
+}

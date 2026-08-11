@@ -335,13 +335,19 @@ fn create_app(
         .route("/robots.txt", web::get().to(robots_txt_handler))
         .route("/deny", web::get().to(deny_handler))
         .route("/encoding/utf8", web::get().to(utf8_handler))
+        .route("/encoding/iso-8859-1", web::get().to(iso_8859_1_handler))
         .route("/gzip", web::get().to(gzip_handler))
         .route("/deflate", web::get().to(deflate_handler))
         .route("/brotli", web::get().to(brotli_handler))
         .route("/zstd", web::get().to(zstd_handler))
+        .route("/gzip", web::post().to(compress_post_handler))
+        .route("/deflate", web::post().to(compress_post_handler))
+        .route("/brotli", web::post().to(compress_post_handler))
+        .route("/zstd", web::post().to(compress_post_handler))
         // Dynamic data
         .route("/uuid", web::get().to(uuid_handler))
         .route("/base64/{value}", web::get().to(base64_handler))
+        .route("/base64", web::post().to(base64_post_handler))
         .route("/bytes/{n}", web::get().to(bytes_handler))
         .route("/stream-bytes/{n}", web::get().to(stream_bytes_handler))
         .route("/stream/{n}", web::get().to(stream_handler))
@@ -709,6 +715,65 @@ mod tests {
         assert!(
             test::read_body(resp).await.is_empty(),
             "HEAD response must have an empty body"
+        );
+    }
+    #[actix_web::test]
+    async fn base64_post_decodes_body() {
+        // httpbin #616: POST /base64 decodes the request body.
+        let app = test::init_service(create_app(cfg())).await;
+        let req = test::TestRequest::post()
+            .uri("/base64")
+            .set_payload("aGVsbG8=") // "hello"
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(test::read_body(resp).await, "hello");
+    }
+
+    #[actix_web::test]
+    async fn compression_post_returns_encoded_body() {
+        // httpbin #618: POST /zstd returns the body compressed with Content-Encoding.
+        let app = test::init_service(create_app(cfg())).await;
+        let payload = "the quick brown fox";
+        let req = test::TestRequest::post()
+            .uri("/zstd")
+            .set_payload(payload)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers()
+                .get("content-encoding")
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "zstd"
+        );
+        let decoded = zstd::decode_all(&test::read_body(resp).await[..]).expect("valid zstd");
+        assert_eq!(decoded, payload.as_bytes());
+    }
+
+    #[actix_web::test]
+    async fn iso_8859_1_endpoint_returns_latin1() {
+        // httpbin #427: /encoding/iso-8859-1 serves Latin-1 bytes.
+        let app = test::init_service(create_app(cfg())).await;
+        let req = test::TestRequest::get()
+            .uri("/encoding/iso-8859-1")
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers()
+                .get("content-type")
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "text/html; charset=iso-8859-1"
+        );
+        // Latin-1 'é' is the single byte 0xE9 (vs UTF-8's 0xC3 0xA9).
+        assert!(
+            test::read_body(resp).await.contains(&0xe9),
+            "body must contain a Latin-1 byte"
         );
     }
 }
