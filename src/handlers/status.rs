@@ -189,7 +189,12 @@ pub async fn status_handler_get(
     path: web::Path<String>,
     query: web::Query<StatusQuery>,
 ) -> Result<HttpResponse> {
-    let codes_str = path.into_inner();
+    let codes_str = path
+        .into_inner()
+        .split('/')
+        .next()
+        .unwrap_or("")
+        .to_string();
 
     // Parse the status codes (supports both simple and weighted formats)
     let choices = match parse_weighted_codes(&codes_str) {
@@ -243,7 +248,12 @@ pub async fn status_handler(
     body: String,
     query: web::Query<StatusQuery>,
 ) -> Result<HttpResponse> {
-    let codes_str = path.into_inner();
+    let codes_str = path
+        .into_inner()
+        .split('/')
+        .next()
+        .unwrap_or("")
+        .to_string();
 
     // Parse the status codes (supports both simple and weighted formats)
     let choices = match parse_weighted_codes(&codes_str) {

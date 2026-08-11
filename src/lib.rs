@@ -380,14 +380,14 @@ fn create_app(
         .route("/delay/{delay}", web::delete().to(delay_handler))
         .route("/delay/{delay}", web::trace().to(delay_handler_get))
         // Status codes - supporting multiple methods
-        .route("/status/{codes}", web::get().to(status_handler_get))
-        .route("/status/{codes}", web::post().to(status_handler))
-        .route("/status/{codes}", web::put().to(status_handler))
-        .route("/status/{codes}", web::patch().to(status_handler))
-        .route("/status/{codes}", web::delete().to(status_handler))
-        .route("/status/{codes}", web::trace().to(status_handler_get))
+        .route("/status/{codes:.*}", web::get().to(status_handler_get))
+        .route("/status/{codes:.*}", web::post().to(status_handler))
+        .route("/status/{codes:.*}", web::put().to(status_handler))
+        .route("/status/{codes:.*}", web::patch().to(status_handler))
+        .route("/status/{codes:.*}", web::delete().to(status_handler))
+        .route("/status/{codes:.*}", web::trace().to(status_handler_get))
         .route(
-            "/status/{codes}",
+            "/status/{codes:.*}",
             web::method(actix_web::http::Method::OPTIONS).to(status_options_handler),
         )
         // Redirects
@@ -841,5 +841,52 @@ mod tests {
         assert!(set_cookie.contains("token=secret"));
         assert!(set_cookie.contains("httponly"));
         assert!(set_cookie.contains("samesite=lax"));
+    }
+    #[actix_web::test]
+    async fn status_ignores_trailing_path() {
+        // httpbin #714: /status/{codes}/extra must not 404.
+        let app = test::init_service(create_app(cfg())).await;
+        let req = test::TestRequest::get()
+            .uri("/status/200/extra/path")
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[actix_web::test]
+    async fn response_headers_custom_body() {
+        // httpbin #655: ?body=<text> returns a custom body; other params are headers.
+        let app = test::init_service(create_app(cfg())).await;
+        let req = test::TestRequest::get()
+            .uri("/response-headers?body=hello&X-Test=bar")
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get("x-test").unwrap().to_str().unwrap(),
+            "bar"
+        );
+        assert_eq!(test::read_body(resp).await, "hello");
+    }
+
+    #[actix_web::test]
+    async fn base64_returns_binary_as_octet_stream() {
+        // httpbin #599: non-UTF-8 decoded bytes returned raw, not 400.
+        // "8A==" decodes to the single byte 0xf0 (invalid UTF-8).
+        let app = test::init_service(create_app(cfg())).await;
+        let req = test::TestRequest::get()
+            .uri("/base64/8A%3D%3D")
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers()
+                .get("content-type")
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "application/octet-stream"
+        );
+        assert_eq!(test::read_body(resp).await, vec![0xf0]);
     }
 }

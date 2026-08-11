@@ -131,6 +131,26 @@ pub async fn response_headers_get_handler(
 ) -> Result<HttpResponse> {
     // Parse query string manually to support multi-value parameters
     let multi_value_params = parse_multi_value_query_string(req.query_string());
+    // #655: ?body=<text> (and optional ?status=<code>) return a custom body
+    // instead of the JSON header dump. Other query params still become headers.
+    if let Some(body) = multi_value_params.get("body").and_then(|v| v.last()) {
+        let status = multi_value_params
+            .get("status")
+            .and_then(|v| v.last())
+            .and_then(|s| s.parse::<u16>().ok())
+            .and_then(|c| StatusCode::from_u16(c).ok())
+            .unwrap_or(StatusCode::OK);
+        let mut builder = HttpResponse::build(status);
+        for (key, values) in &multi_value_params {
+            if matches!(key.as_str(), "body" | "status") {
+                continue;
+            }
+            for value in values {
+                builder.append_header((key.as_str(), value.as_str()));
+            }
+        }
+        return Ok(builder.body(body.clone()));
+    }
 
     // Build response with iterative header reflection like httpbin
     let mut iteration_count = 0;

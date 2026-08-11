@@ -111,9 +111,9 @@ pub async fn base64_handler(_req: HttpRequest, path: web::Path<String>) -> Resul
             Ok(decoded_string) => Ok(HttpResponse::Ok()
                 .content_type("text/plain; charset=utf-8")
                 .body(decoded_string)),
-            Err(_) => Ok(HttpResponse::BadRequest().json(json!({
-                "error": "Invalid UTF-8 in decoded data"
-            }))),
+            Err(e) => Ok(HttpResponse::Ok()
+                .content_type("application/octet-stream")
+                .body(e.into_bytes())),
         },
         Err(_) => Ok(HttpResponse::BadRequest().json(json!({
             "error": "Invalid base64 data"
@@ -128,9 +128,9 @@ pub async fn base64_post_handler(body: web::Bytes) -> Result<HttpResponse> {
             Ok(decoded_string) => Ok(HttpResponse::Ok()
                 .content_type("text/plain; charset=utf-8")
                 .body(decoded_string)),
-            Err(_) => Ok(HttpResponse::BadRequest().json(json!({
-                "error": "Invalid UTF-8 in decoded data"
-            }))),
+            Err(e) => Ok(HttpResponse::Ok()
+                .content_type("application/octet-stream")
+                .body(e.into_bytes())),
         },
         Err(_) => Ok(HttpResponse::BadRequest().json(json!({
             "error": "Invalid base64 data"
