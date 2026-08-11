@@ -214,6 +214,7 @@ fn create_app(
                     "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "QUERY",
                 ])
                 .allow_any_header()
+                .expose_headers(["WWW-Authenticate"])
                 .supports_credentials() // Equivalent to Access-Control-Allow-Credentials: true
                 .max_age(3600), // Equivalent to Access-Control-Max-Age: 3600
         )
@@ -300,6 +301,22 @@ fn create_app(
         .route(
             "/hidden-basic-auth/{user}",
             web::get().to(hidden_basic_auth_user_only_handler),
+        )
+        .route(
+            "/basic-auth/{user}/{passwd}",
+            web::post().to(basic_auth_handler),
+        )
+        .route(
+            "/basic-auth/{user}",
+            web::post().to(basic_auth_user_only_handler),
+        )
+        .route(
+            "/hidden-basic-auth/{user}/{passwd}",
+            web::post().to(hidden_basic_auth_handler),
+        )
+        .route(
+            "/hidden-basic-auth/{user}",
+            web::post().to(hidden_basic_auth_user_only_handler),
         )
         .route("/bearer", web::get().to(bearer_auth_handler))
         .route("/jwt-bearer", web::get().to(jwt_bearer_handler))
@@ -775,5 +792,16 @@ mod tests {
             test::read_body(resp).await.contains(&0xe9),
             "body must contain a Latin-1 byte"
         );
+    }
+    #[actix_web::test]
+    async fn basic_auth_accepts_post() {
+        // httpbin #365/#607: basic-auth must accept POST credentials.
+        let app = test::init_service(create_app(cfg())).await;
+        let req = test::TestRequest::post()
+            .uri("/basic-auth/user/passwd")
+            .insert_header(("Authorization", "Basic dXNlcjpwYXNzd2Q=")) // user:passwd
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 }

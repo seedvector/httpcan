@@ -3,7 +3,7 @@ use chrono::DateTime;
 use jsonwebtoken::{decode, decode_header, DecodingKey, Validation};
 use md5;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256, Sha512};
+use sha2::{Digest, Sha256, Sha512, Sha512_256};
 use std::collections::HashMap;
 
 // Function to parse digest authentication header
@@ -51,6 +51,30 @@ struct DigestParams<'a> {
 }
 
 // Function to calculate digest hash with QOP support
+/// Hex digest for the given algorithm (MD5/SHA-256/SHA-512/SHA-512-256), or None.
+fn digest_hash_hex(algorithm: &str, data: &[u8]) -> Option<String> {
+    Some(match algorithm {
+        "MD5" => format!("{:x}", md5::compute(data)),
+        "SHA-256" => {
+            let mut h = Sha256::new();
+            h.update(data);
+            format!("{:x}", h.finalize())
+        }
+        "SHA-512" => {
+            let mut h = Sha512::new();
+            h.update(data);
+            format!("{:x}", h.finalize())
+        }
+        "SHA-512-256" => {
+            let mut h = Sha512_256::new();
+            h.update(data);
+            format!("{:x}", h.finalize())
+        }
+        _ => return None,
+    })
+}
+
+// Function to calculate digest hash with QOP support
 fn calculate_digest_response(params: DigestParams) -> String {
     let DigestParams {
         username,
@@ -65,131 +89,47 @@ fn calculate_digest_response(params: DigestParams) -> String {
         cnonce,
         body,
     } = params;
-    let ha1 = match algorithm {
-        "MD5" => {
-            let hash = md5::compute(format!("{}:{}:{}", username, realm, password));
-            format!("{:x}", hash)
-        }
-        "SHA-256" => {
-            let mut hasher = Sha256::new();
-            hasher.update(format!("{}:{}:{}", username, realm, password));
-            format!("{:x}", hasher.finalize())
-        }
-        "SHA-512" => {
-            let mut hasher = Sha512::new();
-            hasher.update(format!("{}:{}:{}", username, realm, password));
-            format!("{:x}", hasher.finalize())
-        }
-        _ => return String::new(), // Invalid algorithm
+
+    // HA1 = H(username:realm:password)
+    let ha1 = match digest_hash_hex(
+        algorithm,
+        format!("{username}:{realm}:{password}").as_bytes(),
+    ) {
+        Some(v) => v,
+        None => return String::new(),
     };
 
-    // Calculate HA2 based on QOP
-    // For auth-int, HA2 = H(method:uri:H(entity-body))
-    // For auth or no QOP, HA2 = H(method:uri)
+    // HA2: auth-int = H(method:uri:H(body)), otherwise H(method:uri)
     let ha2 = match qop {
         Some("auth-int") => {
-            // Calculate hash of request body
-            let body_hash = match algorithm {
-                "MD5" => {
-                    let hash = md5::compute(body.unwrap_or(&[]));
-                    format!("{:x}", hash)
-                }
-                "SHA-256" => {
-                    let mut hasher = Sha256::new();
-                    hasher.update(body.unwrap_or(&[]));
-                    format!("{:x}", hasher.finalize())
-                }
-                "SHA-512" => {
-                    let mut hasher = Sha512::new();
-                    hasher.update(body.unwrap_or(&[]));
-                    format!("{:x}", hasher.finalize())
-                }
-                _ => return String::new(),
+            let body_hash = match digest_hash_hex(algorithm, body.unwrap_or(&[])) {
+                Some(v) => v,
+                None => return String::new(),
             };
-
-            // HA2 = H(method:uri:H(entity-body))
-            match algorithm {
-                "MD5" => {
-                    let hash = md5::compute(format!("{}:{}:{}", method, uri, body_hash));
-                    format!("{:x}", hash)
-                }
-                "SHA-256" => {
-                    let mut hasher = Sha256::new();
-                    hasher.update(format!("{}:{}:{}", method, uri, body_hash));
-                    format!("{:x}", hasher.finalize())
-                }
-                "SHA-512" => {
-                    let mut hasher = Sha512::new();
-                    hasher.update(format!("{}:{}:{}", method, uri, body_hash));
-                    format!("{:x}", hasher.finalize())
-                }
-                _ => return String::new(),
+            match digest_hash_hex(algorithm, format!("{method}:{uri}:{body_hash}").as_bytes()) {
+                Some(v) => v,
+                None => return String::new(),
             }
         }
-        _ => {
-            // For auth or no QOP: HA2 = H(method:uri)
-            match algorithm {
-                "MD5" => {
-                    let hash = md5::compute(format!("{}:{}", method, uri));
-                    format!("{:x}", hash)
-                }
-                "SHA-256" => {
-                    let mut hasher = Sha256::new();
-                    hasher.update(format!("{}:{}", method, uri));
-                    format!("{:x}", hasher.finalize())
-                }
-                "SHA-512" => {
-                    let mut hasher = Sha512::new();
-                    hasher.update(format!("{}:{}", method, uri));
-                    format!("{:x}", hasher.finalize())
-                }
-                _ => return String::new(),
-            }
-        }
+        _ => match digest_hash_hex(algorithm, format!("{method}:{uri}").as_bytes()) {
+            Some(v) => v,
+            None => return String::new(),
+        },
     };
 
-    // Calculate response based on QOP
+    // Response: with qop = H(HA1:nonce:nc:cnonce:qop:HA2), else H(HA1:nonce:HA2)
     let response_input = match qop {
         Some("auth") | Some("auth-int") => {
-            // With QOP: response = H(HA1:nonce:nc:cnonce:qop:HA2)
             if let (Some(nc), Some(cnonce)) = (nc, cnonce) {
-                format!(
-                    "{}:{}:{}:{}:{}:{}",
-                    ha1,
-                    nonce,
-                    nc,
-                    cnonce,
-                    qop.unwrap(),
-                    ha2
-                )
+                format!("{ha1}:{nonce}:{nc}:{cnonce}:{}:{ha2}", qop.unwrap())
             } else {
-                // Missing required parameters for QOP
                 return String::new();
             }
         }
-        _ => {
-            // Without QOP: response = H(HA1:nonce:HA2)
-            format!("{}:{}:{}", ha1, nonce, ha2)
-        }
+        _ => format!("{ha1}:{nonce}:{ha2}"),
     };
 
-    match algorithm {
-        "MD5" => {
-            let hash = md5::compute(response_input);
-            format!("{:x}", hash)
-        }
-        "SHA-256" => {
-            let mut hasher = Sha256::new();
-            hasher.update(response_input);
-            format!("{:x}", hasher.finalize())
-        }
-        "SHA-512" => {
-            let mut hasher = Sha512::new();
-            hasher.update(response_input);
-            format!("{:x}", hasher.finalize())
-        }
-        _ => String::new(),
-    }
+    digest_hash_hex(algorithm, response_input.as_bytes()).unwrap_or_default()
 }
 
 // Function to calculate next stale_after value
@@ -612,9 +552,12 @@ pub async fn digest_auth_with_algorithm_handler(
     let (qop_param, expected_user, expected_passwd, algorithm) = path.into_inner();
 
     // Validate algorithm parameter - only accept MD5, SHA-256, SHA-512
-    if !matches!(algorithm.as_str(), "MD5" | "SHA-256" | "SHA-512") {
+    if !matches!(
+        algorithm.as_str(),
+        "MD5" | "SHA-256" | "SHA-512" | "SHA-512-256"
+    ) {
         return Ok(HttpResponse::BadRequest().json(json!({
-            "error": "Invalid algorithm. Supported algorithms: MD5, SHA-256, SHA-512"
+            "error": "Invalid algorithm. Supported algorithms: MD5, SHA-256, SHA-512, SHA-512-256"
         })));
     }
 
@@ -861,9 +804,12 @@ pub async fn digest_auth_full_handler(
     let (qop_param, expected_user, expected_passwd, algorithm, stale_after) = path.into_inner();
 
     // Validate algorithm parameter - only accept MD5, SHA-256, SHA-512
-    if !matches!(algorithm.as_str(), "MD5" | "SHA-256" | "SHA-512") {
+    if !matches!(
+        algorithm.as_str(),
+        "MD5" | "SHA-256" | "SHA-512" | "SHA-512-256"
+    ) {
         return Ok(HttpResponse::BadRequest().json(json!({
-            "error": "Invalid algorithm. Supported algorithms: MD5, SHA-256, SHA-512"
+            "error": "Invalid algorithm. Supported algorithms: MD5, SHA-256, SHA-512, SHA-512-256"
         })));
     }
 
