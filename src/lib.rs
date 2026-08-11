@@ -575,4 +575,44 @@ mod tests {
             "0"
         );
     }
+    #[actix_web::test]
+    async fn multipart_parses_json_fields_and_captures_file_content_type() {
+        // httpbin #693/#722: JSON form parts must be parsed into objects, and
+        // file parts must capture their per-part Content-Type.
+        let boundary = "----httpcan-test";
+        let body = format!(
+            "--{b}\r\n\
+             Content-Disposition: form-data; name=\"obj\"\r\n\
+             Content-Type: application/json\r\n\r\n\
+             {{\"k\":\"v\"}}\r\n\
+             --{b}\r\n\
+             Content-Disposition: form-data; name=\"f\"; filename=\"a.txt\"\r\n\
+             Content-Type: text/plain\r\n\r\n\
+             hello\r\n\
+             --{b}--\r\n",
+            b = boundary
+        );
+        let app = test::init_service(create_app(cfg())).await;
+        let req = test::TestRequest::post()
+            .uri("/post")
+            .insert_header((
+                "content-type",
+                format!("multipart/form-data; boundary={boundary}"),
+            ))
+            .set_payload(body)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let v: serde_json::Value =
+            serde_json::from_slice(&test::read_body(resp).await).expect("JSON body");
+
+        // #693: JSON part parsed into an object, not an escaped string.
+        assert_eq!(v["form"]["obj"]["k"].as_str(), Some("v"));
+
+        // #722: file part is an object carrying content_type + filename + content.
+        assert_eq!(v["files"]["f"]["content_type"].as_str(), Some("text/plain"));
+        assert_eq!(v["files"]["f"]["filename"].as_str(), Some("a.txt"));
+        assert_eq!(v["files"]["f"]["content"].as_str(), Some("hello"));
+    }
 }

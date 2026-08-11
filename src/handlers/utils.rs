@@ -516,14 +516,16 @@ pub async fn extract_request_info_multipart(
         .unwrap_or("127.0.0.1")
         .to_string();
 
-    let mut form_data: HashMap<String, Vec<String>> = HashMap::new();
-    let mut files: HashMap<String, Vec<String>> = HashMap::new();
+    let mut form_data: HashMap<String, Vec<Value>> = HashMap::new();
+    let mut files: HashMap<String, Vec<Value>> = HashMap::new();
 
     // Parse multipart data
     while let Some(mut field) = payload.try_next().await? {
         let content_disposition = field.content_disposition();
         let field_name = content_disposition.get_name().map(|s| s.to_string());
         let filename = content_disposition.get_filename().map(|s| s.to_string());
+        // Capture the per-part Content-Type (httpbin #722).
+        let part_content_type = field.content_type().map(|m| m.to_string());
 
         if let Some(name) = field_name {
             let mut data = Vec::new();
@@ -534,42 +536,52 @@ pub async fn extract_request_info_multipart(
             }
 
             if let Some(filename) = filename {
-                // This is a file upload - format the content based on file type
-                let file_content = format_file_content(&filename, &data);
-                files.entry(name).or_default().push(file_content);
+                // File upload - include filename, content_type, and content (httpbin #722).
+                let file_value = serde_json::json!({
+                    "filename": filename,
+                    "content_type": part_content_type,
+                    "content": format_file_content(&filename, &data),
+                });
+                files.entry(name).or_default().push(file_value);
             } else {
-                // This is a regular form field - support multiple values for same field name
-                if let Ok(value) = String::from_utf8(data) {
+                // Regular form field - parse JSON parts into objects (httpbin #693),
+                // otherwise keep the raw string value.
+                if let Ok(text) = String::from_utf8(data) {
+                    let is_json = part_content_type
+                        .as_deref()
+                        .map(|c| c.to_lowercase().starts_with("application/json"))
+                        .unwrap_or(false);
+                    let value = if is_json {
+                        serde_json::from_str(&text).unwrap_or(Value::String(text))
+                    } else {
+                        Value::String(text)
+                    };
                     form_data.entry(name).or_default().push(value);
                 }
             }
         }
     }
 
-    // Convert files Vec to appropriate Value (single string or array)
+    // Convert each Vec<Value> to a single Value or array.
     let files_map: HashMap<String, Value> = files
         .into_iter()
         .map(|(key, values)| {
             let value = if values.len() == 1 {
-                // Single file - return as string for backward compatibility
-                Value::String(values.into_iter().next().unwrap())
+                values.into_iter().next().unwrap()
             } else {
-                // Multiple files - return as array
-                Value::Array(values.into_iter().map(Value::String).collect())
+                Value::Array(values)
             };
             (key, value)
         })
         .collect();
 
-    // Convert form_data Vec to Value (similar to URL-encoded form handling)
     let form_map: HashMap<String, Value> = form_data
         .into_iter()
         .map(|(key, values)| {
             let value = if values.len() == 1 {
-                Value::String(values.into_iter().next().unwrap())
+                values.into_iter().next().unwrap()
             } else {
-                // For multiple values, return as array
-                Value::Array(values.into_iter().map(Value::String).collect())
+                Value::Array(values)
             };
             (key, value)
         })
