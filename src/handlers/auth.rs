@@ -167,15 +167,21 @@ fn is_require_cookie_enabled(req: &HttpRequest) -> bool {
     }
 }
 
-// Function to generate digest challenge response
-fn generate_digest_challenge(host: &str, qop: &str, algorithm: &str, stale: bool) -> String {
+// Function to generate digest challenge response.
+// `qop = None` omits the qop directive entirely (RFC 2069 legacy mode,
+// httpbin #592); `Some(q)` advertises that qop value.
+fn generate_digest_challenge(host: &str, qop: Option<&str>, algorithm: &str, stale: bool) -> String {
     let nonce = format!("{:x}", rand::random::<u64>());
     let opaque = format!("{:x}", rand::random::<u64>());
 
     let mut challenge = format!(
-        "Digest realm=\"httpcan@{}\", nonce=\"{}\", opaque=\"{}\", qop=\"{}\"",
-        host, nonce, opaque, qop
+        "Digest realm=\"httpcan@{}\", nonce=\"{}\", opaque=\"{}\"",
+        host, nonce, opaque
     );
+
+    if let Some(q) = qop {
+        challenge.push_str(&format!(", qop=\"{}\"", q));
+    }
 
     // Always include algorithm for clarity, even for MD5
     challenge.push_str(&format!(", algorithm=\"{}\"", algorithm));
@@ -185,6 +191,20 @@ fn generate_digest_challenge(host: &str, qop: &str, algorithm: &str, stale: bool
     }
 
     challenge
+}
+
+// Resolve the URL qop path segment to the effective qop used for both the
+// challenge and response validation:
+// - "none"            => omit qop (RFC 2069 legacy mode, httpbin #592)
+// - "auth"/"auth-int" => that value
+// - anything else     => default to "auth"
+fn resolve_qop(qop_param: &str) -> Option<&'static str> {
+    match qop_param {
+        "none" => None,
+        "auth" => Some("auth"),
+        "auth-int" => Some("auth-int"),
+        _ => Some("auth"),
+    }
 }
 
 pub async fn basic_auth_handler(
@@ -349,11 +369,7 @@ pub async fn digest_auth_handler(
             if require_cookie && req.headers().get("Cookie").is_none() {
                 let challenge = generate_digest_challenge(
                     req.connection_info().host(),
-                    if qop_param == "auth" || qop_param == "auth-int" {
-                        &qop_param
-                    } else {
-                        "auth"
-                    },
+                    resolve_qop(&qop_param),
                     "MD5",
                     false,
                 );
@@ -379,11 +395,7 @@ pub async fn digest_auth_handler(
                 } else {
                     let challenge = generate_digest_challenge(
                         req.connection_info().host(),
-                        if qop_param == "auth" || qop_param == "auth-int" {
-                            &qop_param
-                        } else {
-                            "auth"
-                        },
+                        resolve_qop(&qop_param),
                         "MD5",
                         false,
                     );
@@ -415,11 +427,7 @@ pub async fn digest_auth_handler(
             if username != expected_user {
                 let challenge = generate_digest_challenge(
                     req.connection_info().host(),
-                    if qop_param == "auth" || qop_param == "auth-int" {
-                        &qop_param
-                    } else {
-                        "auth"
-                    },
+                    resolve_qop(&qop_param),
                     "MD5",
                     false,
                 );
@@ -433,11 +441,7 @@ pub async fn digest_auth_handler(
             }
 
             // Validate QOP parameter
-            let effective_qop = if qop_param == "auth" || qop_param == "auth-int" {
-                Some(qop_param.as_str())
-            } else {
-                None
-            };
+            let effective_qop = resolve_qop(&qop_param);
 
             // Verify QOP consistency
             if let Some(expected_qop) = effective_qop {
@@ -445,11 +449,7 @@ pub async fn digest_auth_handler(
                     if provided_qop != expected_qop {
                         let challenge = generate_digest_challenge(
                             req.connection_info().host(),
-                            if qop_param == "auth" || qop_param == "auth-int" {
-                                &qop_param
-                            } else {
-                                "auth"
-                            },
+                            resolve_qop(&qop_param),
                             &algorithm,
                             false,
                         );
@@ -464,11 +464,7 @@ pub async fn digest_auth_handler(
                 } else if expected_qop != "auth" && expected_qop != "auth-int" {
                     let challenge = generate_digest_challenge(
                         req.connection_info().host(),
-                        if qop_param == "auth" || qop_param == "auth-int" {
-                            &qop_param
-                        } else {
-                            "auth"
-                        },
+                        resolve_qop(&qop_param),
                         &algorithm,
                         false,
                     );
@@ -507,11 +503,7 @@ pub async fn digest_auth_handler(
             } else {
                 let challenge = generate_digest_challenge(
                     req.connection_info().host(),
-                    if qop_param == "auth" || qop_param == "auth-int" {
-                        &qop_param
-                    } else {
-                        "auth"
-                    },
+                    resolve_qop(&qop_param),
                     "MD5",
                     false,
                 );
@@ -526,11 +518,7 @@ pub async fn digest_auth_handler(
         }
         None => {
             // Generate challenge response
-            let qop_value = if qop_param == "auth" || qop_param == "auth-int" {
-                &qop_param
-            } else {
-                "auth"
-            };
+            let qop_value = resolve_qop(&qop_param);
 
             let challenge =
                 generate_digest_challenge(req.connection_info().host(), qop_value, "MD5", false);
@@ -575,11 +563,7 @@ pub async fn digest_auth_with_algorithm_handler(
             if require_cookie && req.headers().get("Cookie").is_none() {
                 let challenge = generate_digest_challenge(
                     req.connection_info().host(),
-                    if qop_param == "auth" || qop_param == "auth-int" {
-                        &qop_param
-                    } else {
-                        "auth"
-                    },
+                    resolve_qop(&qop_param),
                     &algorithm,
                     false,
                 );
@@ -605,11 +589,7 @@ pub async fn digest_auth_with_algorithm_handler(
                 } else {
                     let challenge = generate_digest_challenge(
                         req.connection_info().host(),
-                        if qop_param == "auth" || qop_param == "auth-int" {
-                            &qop_param
-                        } else {
-                            "auth"
-                        },
+                        resolve_qop(&qop_param),
                         &algorithm,
                         false,
                     );
@@ -641,11 +621,7 @@ pub async fn digest_auth_with_algorithm_handler(
             if auth_algorithm != algorithm {
                 let challenge = generate_digest_challenge(
                     req.connection_info().host(),
-                    if qop_param == "auth" || qop_param == "auth-int" {
-                        &qop_param
-                    } else {
-                        "auth"
-                    },
+                    resolve_qop(&qop_param),
                     &algorithm,
                     false,
                 );
@@ -662,11 +638,7 @@ pub async fn digest_auth_with_algorithm_handler(
             if username != expected_user {
                 let challenge = generate_digest_challenge(
                     req.connection_info().host(),
-                    if qop_param == "auth" || qop_param == "auth-int" {
-                        &qop_param
-                    } else {
-                        "auth"
-                    },
+                    resolve_qop(&qop_param),
                     &algorithm,
                     false,
                 );
@@ -680,11 +652,7 @@ pub async fn digest_auth_with_algorithm_handler(
             }
 
             // Validate QOP parameter
-            let effective_qop = if qop_param == "auth" || qop_param == "auth-int" {
-                Some(qop_param.as_str())
-            } else {
-                None
-            };
+            let effective_qop = resolve_qop(&qop_param);
 
             // Verify QOP consistency
             if let Some(expected_qop) = effective_qop {
@@ -692,11 +660,7 @@ pub async fn digest_auth_with_algorithm_handler(
                     if provided_qop != expected_qop {
                         let challenge = generate_digest_challenge(
                             req.connection_info().host(),
-                            if qop_param == "auth" || qop_param == "auth-int" {
-                                &qop_param
-                            } else {
-                                "auth"
-                            },
+                            resolve_qop(&qop_param),
                             &algorithm,
                             false,
                         );
@@ -711,11 +675,7 @@ pub async fn digest_auth_with_algorithm_handler(
                 } else if expected_qop != "auth" && expected_qop != "auth-int" {
                     let challenge = generate_digest_challenge(
                         req.connection_info().host(),
-                        if qop_param == "auth" || qop_param == "auth-int" {
-                            &qop_param
-                        } else {
-                            "auth"
-                        },
+                        resolve_qop(&qop_param),
                         &algorithm,
                         false,
                     );
@@ -755,11 +715,7 @@ pub async fn digest_auth_with_algorithm_handler(
             } else {
                 let challenge = generate_digest_challenge(
                     req.connection_info().host(),
-                    if qop_param == "auth" || qop_param == "auth-int" {
-                        &qop_param
-                    } else {
-                        "auth"
-                    },
+                    resolve_qop(&qop_param),
                     &algorithm,
                     false,
                 );
@@ -774,11 +730,7 @@ pub async fn digest_auth_with_algorithm_handler(
         }
         None => {
             // Generate challenge response
-            let qop_value = if qop_param == "auth" || qop_param == "auth-int" {
-                &qop_param
-            } else {
-                "auth"
-            };
+            let qop_value = resolve_qop(&qop_param);
 
             let challenge = generate_digest_challenge(
                 req.connection_info().host(),
@@ -827,11 +779,7 @@ pub async fn digest_auth_full_handler(
             if require_cookie && req.headers().get("Cookie").is_none() {
                 let challenge = generate_digest_challenge(
                     req.connection_info().host(),
-                    if qop_param == "auth" || qop_param == "auth-int" {
-                        &qop_param
-                    } else {
-                        "auth"
-                    },
+                    resolve_qop(&qop_param),
                     &algorithm,
                     false,
                 );
@@ -861,11 +809,7 @@ pub async fn digest_auth_full_handler(
                 } else {
                     let challenge = generate_digest_challenge(
                         req.connection_info().host(),
-                        if qop_param == "auth" || qop_param == "auth-int" {
-                            &qop_param
-                        } else {
-                            "auth"
-                        },
+                        resolve_qop(&qop_param),
                         &algorithm,
                         false,
                     );
@@ -899,11 +843,7 @@ pub async fn digest_auth_full_handler(
             if auth_algorithm != algorithm {
                 let challenge = generate_digest_challenge(
                     req.connection_info().host(),
-                    if qop_param == "auth" || qop_param == "auth-int" {
-                        &qop_param
-                    } else {
-                        "auth"
-                    },
+                    resolve_qop(&qop_param),
                     &algorithm,
                     false,
                 );
@@ -920,11 +860,7 @@ pub async fn digest_auth_full_handler(
             if username != expected_user {
                 let challenge = generate_digest_challenge(
                     req.connection_info().host(),
-                    if qop_param == "auth" || qop_param == "auth-int" {
-                        &qop_param
-                    } else {
-                        "auth"
-                    },
+                    resolve_qop(&qop_param),
                     &algorithm,
                     false,
                 );
@@ -973,11 +909,7 @@ pub async fn digest_auth_full_handler(
             if is_stale || is_stale_by_count {
                 let challenge = generate_digest_challenge(
                     req.connection_info().host(),
-                    if qop_param == "auth" || qop_param == "auth-int" {
-                        &qop_param
-                    } else {
-                        "auth"
-                    },
+                    resolve_qop(&qop_param),
                     &algorithm,
                     true, // stale=TRUE
                 );
@@ -994,11 +926,7 @@ pub async fn digest_auth_full_handler(
             }
 
             // Validate QOP parameter
-            let effective_qop = if qop_param == "auth" || qop_param == "auth-int" {
-                Some(qop_param.as_str())
-            } else {
-                None
-            };
+            let effective_qop = resolve_qop(&qop_param);
 
             // Verify QOP consistency
             if let Some(expected_qop) = effective_qop {
@@ -1006,11 +934,7 @@ pub async fn digest_auth_full_handler(
                     if provided_qop != expected_qop {
                         let challenge = generate_digest_challenge(
                             req.connection_info().host(),
-                            if qop_param == "auth" || qop_param == "auth-int" {
-                                &qop_param
-                            } else {
-                                "auth"
-                            },
+                            resolve_qop(&qop_param),
                             &algorithm,
                             false,
                         );
@@ -1025,11 +949,7 @@ pub async fn digest_auth_full_handler(
                 } else if expected_qop != "auth" && expected_qop != "auth-int" {
                     let challenge = generate_digest_challenge(
                         req.connection_info().host(),
-                        if qop_param == "auth" || qop_param == "auth-int" {
-                            &qop_param
-                        } else {
-                            "auth"
-                        },
+                        resolve_qop(&qop_param),
                         &algorithm,
                         false,
                     );
@@ -1078,11 +998,7 @@ pub async fn digest_auth_full_handler(
             } else {
                 let challenge = generate_digest_challenge(
                     req.connection_info().host(),
-                    if qop_param == "auth" || qop_param == "auth-int" {
-                        &qop_param
-                    } else {
-                        "auth"
-                    },
+                    resolve_qop(&qop_param),
                     &algorithm,
                     false,
                 );
@@ -1101,11 +1017,7 @@ pub async fn digest_auth_full_handler(
         None => {
             let challenge = generate_digest_challenge(
                 req.connection_info().host(),
-                if qop_param == "auth" || qop_param == "auth-int" {
-                    &qop_param
-                } else {
-                    "auth"
-                },
+                resolve_qop(&qop_param),
                 &algorithm,
                 false,
             );

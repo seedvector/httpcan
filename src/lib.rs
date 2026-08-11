@@ -984,6 +984,59 @@ mod tests {
     }
 
     #[actix_web::test]
+    async fn digest_auth_omits_qop_rfc2069() {
+        // httpbin #592: `/digest-auth/none/...` must issue a challenge with NO
+        // qop directive (RFC 2069 legacy mode) and accept an RFC 2069 response
+        // computed as H(HA1:nonce:HA2) — no nc/cnonce/qop.
+        let app = test::init_service(create_app(cfg())).await;
+        let uri = "/digest-auth/none/user/passwd";
+
+        // 1) Challenge: 401, and qop must be ABSENT.
+        let req = test::TestRequest::get().uri(uri).to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+        let challenge = resp
+            .headers()
+            .get("www-authenticate")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
+        assert!(
+            !challenge.contains("qop="),
+            "RFC 2069 challenge must omit qop, got: {challenge}"
+        );
+        let field = |k: &str| -> String {
+            let pat = format!("{k}=\"");
+            let start = challenge.find(&pat).unwrap() + pat.len();
+            let end = challenge[start..].find('"').unwrap();
+            challenge[start..start + end].to_string()
+        };
+        let realm = field("realm");
+        let nonce = field("nonce");
+        let opaque = field("opaque");
+
+        // 2) RFC 2069 response = MD5(MD5(user:realm:passwd):nonce:MD5(GET:uri)).
+        let ha1 = format!("{:x}", md5::compute(format!("user:{realm}:passwd")));
+        let ha2 = format!("{:x}", md5::compute(format!("GET:{uri}")));
+        let response = format!("{:x}", md5::compute(format!("{ha1}:{nonce}:{ha2}")));
+        let auth = format!(
+            r#"Digest username="user", realm="{realm}", nonce="{nonce}", uri="{uri}", response="{response}", opaque="{opaque}""#
+        );
+
+        // 3) Replay with credentials -> 200, authenticated.
+        let req = test::TestRequest::get()
+            .uri(uri)
+            .insert_header(("Authorization", auth))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let v: serde_json::Value =
+            serde_json::from_slice(&test::read_body(resp).await).unwrap();
+        assert_eq!(v.get("authenticated").and_then(|x| x.as_bool()), Some(true));
+    }
+
+    #[actix_web::test]
     async fn cors_exposes_www_authenticate() {
         // httpbin #641: cross-origin clients must be able to read the 401
         // challenge, so CORS exposes WWW-Authenticate.
