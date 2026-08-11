@@ -2,7 +2,7 @@
   "openapi": "3.0.1",
   "info": {
     "title": "httpcan.org",
-    "description": "A simple, high‑performance HTTP request & response service built with Rust and Actix Web. Fully compatible with [httpbin.org](https://httpbin.org), with modern streaming and AI‑friendly enhancements. <br/> <br/> <b>Run locally:</b> <code>$ docker run -p 8080:8080 ghcr.io/seedvector/httpcan:latest</code> <br/> <br/> <b>✨ Features</b> <ul> <li><b>HTTPBin compatible</b>: Use as a drop‑in replacement for testing/migration</li> <li><b>Modern streaming</b>: Native SSE and NDJSON, AI‑compatible formats (OpenAI/Ollama)</li> <li><b>Tiny Docker image</b>: <10MB, fast to pull and start</li> <li><b>Minimal memory footprint</b>: Efficient async Rust I/O</li> <li><b>High throughput</b>: Actix Web + Tokio</li> </ul>",
+    "description": "A simple, high‑performance HTTP request & response service built with Rust and Actix Web. Fully compatible with [httpbin.org](https://httpbin.org), with modern streaming and AI‑friendly enhancements. <br/> <br/> <b>Run locally:</b> <code>$ docker run -p 8080:8080 ghcr.io/seedvector/httpcan:latest</code> <br/> <br/> <b>✨ Features</b> <ul> <li><b>HTTPBin compatible</b>: Use as a drop‑in replacement for testing/migration</li> <li><b>Modern streaming</b>: Native SSE and NDJSON, AI‑compatible formats (OpenAI/Ollama)</li> <li><b>Tiny Docker image</b>: <10MB, fast to pull and start</li> <li><b>Minimal memory footprint</b>: Efficient async Rust I/O</li> <li><b>High throughput</b>: Actix Web + Tokio</li> <li><b>Observability built-in</b>: every response carries <code>Server-Timing</code> and <code>X-Httpcan-Version</code> headers; instance tags via <code>/tags</code></li> </ul>",
     "version": "0.5.5"
   },
   "externalDocs": {
@@ -63,6 +63,10 @@
     {
       "name": "Streaming",
       "description": "Server-Sent Events and NDJSON streaming endpoints"
+    },
+    {
+      "name": "Observability",
+      "description": "Health checks and instance identification"
     }
   ],
   "paths": {
@@ -261,6 +265,31 @@
             "content": {}
           }
         }
+      },
+      "post": {
+        "tags": [
+          "Dynamic data"
+        ],
+        "summary": "Decodes the base64-encoded request body and returns it as text.",
+        "requestBody": {
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Decoded content as text/plain.",
+            "content": {}
+          },
+          "400": {
+            "description": "Invalid base64 data.",
+            "content": {}
+          }
+        }
       }
     },
     "/basic-auth/{user}/{passwd}": {
@@ -269,6 +298,45 @@
           "Auth"
         ],
         "summary": "Prompts the user for authorization using HTTP Basic Auth.",
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "passwd",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sucessful authentication.",
+            "content": {}
+          },
+          "401": {
+            "description": "Unsuccessful authentication.",
+            "content": {}
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Prompts the user for authorization using HTTP Basic Auth (POST).",
         "security": [
           {
             "basicAuth": []
@@ -522,6 +590,29 @@
             "content": {}
           }
         }
+      },
+      "post": {
+        "tags": [
+          "Response formats"
+        ],
+        "summary": "Echoes the request body, Brotli-encoded.",
+        "description": "Compresses the request body with the matching Content-Encoding and returns it.",
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The request body, Brotli-encoded.",
+            "content": {}
+          }
+        }
       }
     },
     "/zstd": {
@@ -536,6 +627,29 @@
             "content": {}
           }
         }
+      },
+      "post": {
+        "tags": [
+          "Response formats"
+        ],
+        "summary": "Echoes the request body, Zstandard-encoded.",
+        "description": "Compresses the request body with the matching Content-Encoding and returns it.",
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The request body, Zstandard-encoded.",
+            "content": {}
+          }
+        }
       }
     },
     "/bytes/{n}": {
@@ -543,7 +657,7 @@
         "tags": [
           "Dynamic data"
         ],
-        "summary": "Returns n random bytes generated with given seed",
+        "summary": "Returns n random bytes generated with given seed. Returns 404 when n exceeds the server max-bytes limit.",
         "parameters": [
           {
             "name": "n",
@@ -555,6 +669,10 @@
         "responses": {
           "200": {
             "description": "Bytes.",
+            "content": {}
+          },
+          "404": {
+            "description": "n exceeds the server max-bytes limit (configurable via --max-bytes).",
             "content": {}
           }
         }
@@ -655,13 +773,62 @@
         "tags": [
           "Cookies"
         ],
-        "summary": "Sets cookie(s) as provided by the query string and redirects to cookie list.",
+        "summary": "Sets cookie(s) as provided by the query string (name=value pairs) and redirects to cookie list. Reserved keys (httponly, secure, samesite, domain, max_age, path) configure cookie attributes.",
         "parameters": [
           {
             "name": "freeform",
             "in": "query",
             "allowEmptyValue": true,
             "schema": {}
+          },
+          {
+            "name": "httponly",
+            "in": "query",
+            "description": "If 'true', set the HttpOnly attribute on all cookies.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "secure",
+            "in": "query",
+            "description": "If 'true', set the Secure attribute (defaults to the request scheme).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "samesite",
+            "in": "query",
+            "description": "SameSite attribute.",
+            "schema": {
+              "type": "string",
+              "enum": ["strict", "lax", "none"]
+            }
+          },
+          {
+            "name": "domain",
+            "in": "query",
+            "description": "Cookie Domain attribute.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "max_age",
+            "in": "query",
+            "description": "Max-Age in seconds.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "description": "Cookie Path attribute (defaults to '/').",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -713,6 +880,29 @@
         "responses": {
           "200": {
             "description": "Defalte-encoded data.",
+            "content": {}
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Response formats"
+        ],
+        "summary": "Echoes the request body, Deflate-encoded.",
+        "description": "Compresses the request body with the matching Content-Encoding and returns it.",
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The request body, Deflate-encoded.",
             "content": {}
           }
         }
@@ -1154,7 +1344,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "enum": ["auth", "auth-int"]
+              "enum": ["auth", "auth-int", "none"]
             }
           },
           {
@@ -1204,7 +1394,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "enum": ["auth", "auth-int"]
+              "enum": ["auth", "auth-int", "none"]
             }
           },
           {
@@ -1271,7 +1461,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "enum": ["auth", "auth-int"]
+              "enum": ["auth", "auth-int", "none"]
             }
           },
           {
@@ -1297,7 +1487,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "enum": ["MD5", "SHA-256", "SHA-512"],
+              "enum": ["MD5", "SHA-256", "SHA-512", "SHA-512-256"],
               "default": "MD5"
             }
           }
@@ -1332,7 +1522,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "enum": ["auth", "auth-int"]
+              "enum": ["auth", "auth-int", "none"]
             }
           },
           {
@@ -1358,7 +1548,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "enum": ["MD5", "SHA-256", "SHA-512"],
+              "enum": ["MD5", "SHA-256", "SHA-512", "SHA-512-256"],
               "default": "MD5"
             }
           }
@@ -1410,7 +1600,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "enum": ["auth", "auth-int"]
+              "enum": ["auth", "auth-int", "none"]
             }
           },
           {
@@ -1436,7 +1626,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "enum": ["MD5", "SHA-256", "SHA-512"],
+              "enum": ["MD5", "SHA-256", "SHA-512", "SHA-512-256"],
               "default": "MD5"
             }
           },
@@ -1481,7 +1671,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "enum": ["auth", "auth-int"]
+              "enum": ["auth", "auth-int", "none"]
             }
           },
           {
@@ -1507,7 +1697,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "enum": ["MD5", "SHA-256", "SHA-512"],
+              "enum": ["MD5", "SHA-256", "SHA-512", "SHA-512-256"],
               "default": "MD5"
             }
           },
@@ -1591,6 +1781,15 @@
               "type": "number",
               "default": 2
             }
+          },
+          {
+            "name": "chunked",
+            "in": "query",
+            "description": "If true, stream with chunked transfer-encoding (omit Content-Length).",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
           }
         ],
         "responses": {
@@ -1615,13 +1814,42 @@
         }
       }
     },
+    "/encoding/iso-8859-1": {
+      "get": {
+        "tags": [
+          "Response formats"
+        ],
+        "summary": "Returns an ISO-8859-1 (Latin-1) encoded body.",
+        "responses": {
+          "200": {
+            "description": "Encoded Latin-1 content.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/etag/{etag}": {
       "get": {
         "tags": [
           "Response inspection"
         ],
-        "summary": "Assumes the resource has the given etag and responds to If-None-Match and If-Match headers appropriately.",
+        "summary": "Assumes the resource has the given etag and responds to If-None-Match and If-Match headers. Supports the weak form W/\"value\".",
         "parameters": [
+          {
+            "name": "etag",
+            "in": "path",
+            "required": true,
+            "description": "The etag value. Use the weak form W/\"value\" for weak validation.",
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "If-None-Match",
             "in": "header",
@@ -1659,6 +1887,45 @@
         }
       }
     },
+    "/head": {
+      "head": {
+        "tags": [
+          "HTTP Methods"
+        ],
+        "summary": "HEAD-only endpoint that echoes request headers as X-Echo-* response headers, with an empty body.",
+        "responses": {
+          "200": {
+            "description": "Empty body; request headers mirrored as X-Echo-* response headers.",
+            "content": {}
+          }
+        }
+      }
+    },
+    "/method": {
+      "get": {
+        "tags": [
+          "HTTP Methods"
+        ],
+        "summary": "Echoes the request's HTTP method name as {method}. Accepts any HTTP method.",
+        "responses": {
+          "200": {
+            "description": "JSON object with the method name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "method": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/gzip": {
       "get": {
         "tags": [
@@ -1668,6 +1935,29 @@
         "responses": {
           "200": {
             "description": "GZip-encoded data.",
+            "content": {}
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Response formats"
+        ],
+        "summary": "Echoes the request body, GZip-encoded.",
+        "description": "Compresses the request body with the matching Content-Encoding and returns it.",
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The request body, GZip-encoded.",
             "content": {}
           }
         }
@@ -2355,6 +2645,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "header",
+            "in": "query",
+            "description": "Response header to inject, formatted 'Name:Value'. Repeatable to add multiple (e.g. ?header=Retry-After:120).",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -2491,6 +2789,14 @@
             "name": "body",
             "in": "query",
             "description": "Custom body content to return in the response (overridden by request body if present)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "header",
+            "in": "query",
+            "description": "Response header to inject, formatted 'Name:Value'. Repeatable to add multiple (e.g. ?header=Retry-After:120).",
             "schema": {
               "type": "string"
             }
@@ -2642,6 +2948,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "header",
+            "in": "query",
+            "description": "Response header to inject, formatted 'Name:Value'. Repeatable to add multiple (e.g. ?header=Retry-After:120).",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -2787,6 +3101,14 @@
             "name": "body",
             "in": "query",
             "description": "Custom body content to return in the response (overridden by request body if present)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "header",
+            "in": "query",
+            "description": "Response header to inject, formatted 'Name:Value'. Repeatable to add multiple (e.g. ?header=Retry-After:120).",
             "schema": {
               "type": "string"
             }
@@ -2938,6 +3260,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "header",
+            "in": "query",
+            "description": "Response header to inject, formatted 'Name:Value'. Repeatable to add multiple (e.g. ?header=Retry-After:120).",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -3068,7 +3398,7 @@
         "tags": [
           "Dynamic data"
         ],
-        "summary": "Streams n random bytes generated with given seed, at given chunk size per packet.",
+        "summary": "Streams n random bytes generated with given seed, at given chunk size per packet. Returns 404 when n exceeds the server max-bytes limit.",
         "parameters": [
           {
             "name": "n",
@@ -3080,6 +3410,10 @@
         "responses": {
           "200": {
             "description": "Bytes.",
+            "content": {}
+          },
+          "404": {
+            "description": "n exceeds the server max-bytes limit (configurable via --max-bytes).",
             "content": {}
           }
         }
@@ -3102,6 +3436,91 @@
         "responses": {
           "200": {
             "description": "Streamed JSON responses.",
+            "content": {}
+          }
+        }
+      }
+    },
+    "/healthz": {
+      "get": {
+        "tags": [
+          "Observability"
+        ],
+        "summary": "Liveness probe for orchestrators.",
+        "responses": {
+          "200": {
+            "description": "Service is healthy.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tags": {
+      "get": {
+        "tags": [
+          "Observability"
+        ],
+        "summary": "Returns instance tags derived from HTTPCAN_* environment variables.",
+        "description": "Exposes every HTTPCAN_* environment variable as a JSON object (suffix mapped to value). Useful for identifying which instance handled a request behind a load balancer. Additionally, XHTTPCAN_* env vars are injected as response headers on every response.",
+        "responses": {
+          "200": {
+            "description": "Map of tag name to value.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tags/{name}": {
+      "get": {
+        "tags": [
+          "Observability"
+        ],
+        "summary": "Returns a single instance tag value by name.",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "Tag name (the HTTPCAN_ prefix is added automatically).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The tag value.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tag not set.",
             "content": {}
           }
         }
