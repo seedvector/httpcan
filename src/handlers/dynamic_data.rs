@@ -1,7 +1,7 @@
 use super::*;
 use actix_web::{body::SizedStream, web::Bytes, HttpResponseBuilder};
 use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng};
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -157,10 +157,10 @@ pub async fn bytes_handler(
     // Generate random bytes using the same method as httpbin
     let random_bytes: Vec<u8> = if let Some(seed) = query.seed {
         let mut rng = StdRng::seed_from_u64(seed);
-        (0..n).map(|_| rng.gen_range(0..=255)).collect()
+        (0..n).map(|_| rng.random_range(0..=255)).collect()
     } else {
-        let mut rng = rand::thread_rng();
-        (0..n).map(|_| rng.gen_range(0..=255)).collect()
+        let mut rng = rand::rng();
+        (0..n).map(|_| rng.random_range(0..=255)).collect()
     };
 
     Ok(HttpResponse::Ok()
@@ -196,7 +196,7 @@ pub async fn stream_bytes_handler(
         if let Some(seed) = seed {
             let mut rng = StdRng::seed_from_u64(seed);
             for _ in 0..n {
-                chunks.push(rng.gen_range(0..=255));
+                chunks.push(rng.random_range(0..=255));
 
                 if chunks.len() == chunk_size {
                     yield Ok::<_, actix_web::Error>(Bytes::from(chunks.clone()));
@@ -204,9 +204,9 @@ pub async fn stream_bytes_handler(
                 }
             }
         } else {
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
             for _ in 0..n {
-                chunks.push(rng.gen_range(0..=255));
+                chunks.push(rng.random_range(0..=255));
 
                 if chunks.len() == chunk_size {
                     yield Ok::<_, actix_web::Error>(Bytes::from(chunks.clone()));

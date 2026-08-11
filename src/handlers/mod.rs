@@ -3,7 +3,7 @@ use actix_multipart::Multipart;
 use actix_web::{cookie::Cookie, http::StatusCode, web, HttpRequest, HttpResponse, Result};
 use actix_web_httpauth::extractors::{basic::BasicAuth, bearer::BearerAuth};
 use base64::{engine::general_purpose, Engine as _};
-use rand::Rng;
+use rand::RngExt;
 use serde::Deserialize;
 use serde_json::json;
 use std::collections::HashMap;

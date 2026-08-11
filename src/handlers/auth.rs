@@ -1,6 +1,6 @@
 use super::*;
 use chrono::DateTime;
-use jsonwebtoken::{decode, decode_header, DecodingKey, Validation};
+use jsonwebtoken::{dangerous::insecure_decode, decode_header};
 use md5;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256, Sha512, Sha512_256};
@@ -50,25 +50,34 @@ struct DigestParams<'a> {
     body: Option<&'a [u8]>,
 }
 
-// Function to calculate digest hash with QOP support
+/// Lowercase hex encoding of a byte slice.
+pub(crate) fn hex_lower(bytes: &[u8]) -> String {
+    use std::fmt::Write;
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for &b in bytes {
+        write!(s, "{b:02x}").unwrap();
+    }
+    s
+}
+
 /// Hex digest for the given algorithm (MD5/SHA-256/SHA-512/SHA-512-256), or None.
-fn digest_hash_hex(algorithm: &str, data: &[u8]) -> Option<String> {
+pub(crate) fn digest_hash_hex(algorithm: &str, data: &[u8]) -> Option<String> {
     Some(match algorithm {
         "MD5" => format!("{:x}", md5::compute(data)),
         "SHA-256" => {
             let mut h = Sha256::new();
             h.update(data);
-            format!("{:x}", h.finalize())
+            hex_lower(h.finalize().as_slice())
         }
         "SHA-512" => {
             let mut h = Sha512::new();
             h.update(data);
-            format!("{:x}", h.finalize())
+            hex_lower(h.finalize().as_slice())
         }
         "SHA-512-256" => {
             let mut h = Sha512_256::new();
             h.update(data);
-            format!("{:x}", h.finalize())
+            hex_lower(h.finalize().as_slice())
         }
         _ => return None,
     })
@@ -170,7 +179,12 @@ fn is_require_cookie_enabled(req: &HttpRequest) -> bool {
 // Function to generate digest challenge response.
 // `qop = None` omits the qop directive entirely (RFC 2069 legacy mode,
 // httpbin #592); `Some(q)` advertises that qop value.
-fn generate_digest_challenge(host: &str, qop: Option<&str>, algorithm: &str, stale: bool) -> String {
+fn generate_digest_challenge(
+    host: &str,
+    qop: Option<&str>,
+    algorithm: &str,
+    stale: bool,
+) -> String {
     let nonce = format!("{:x}", rand::random::<u64>());
     let opaque = format!("{:x}", rand::random::<u64>());
 
@@ -1058,15 +1072,8 @@ fn validate_jwt_structure(token: &str) -> Result<(serde_json::Value, serde_json:
         Err(e) => return Err(format!("Invalid JWT header: {}", e)),
     };
 
-    // Try to decode payload (without verification)
-    let mut validation = Validation::default();
-    validation.insecure_disable_signature_validation();
-    validation.validate_exp = false;
-    validation.validate_nbf = false;
-    validation.validate_aud = false;
-    validation.required_spec_claims = std::collections::HashSet::new();
-
-    let payload = match decode::<Claims>(token, &DecodingKey::from_secret(&[]), &validation) {
+    // Decode payload without signature/exp validation (structure check only).
+    let payload = match insecure_decode::<Claims>(token) {
         Ok(token_data) => token_data.claims.standard_claims,
         Err(e) => return Err(format!("Invalid JWT payload: {}", e)),
     };

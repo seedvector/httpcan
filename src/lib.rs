@@ -952,7 +952,6 @@ mod tests {
     async fn digest_auth_sha_512_256_succeeds() {
         // httpbin #697: SHA-512-256 (RFC 7616) digest auth end-to-end. curl has
         // no SHA-512-256 client, so the digest response is computed here.
-        use sha2::{Digest, Sha512_256};
         let app = test::init_service(create_app(cfg())).await;
         let uri = "/digest-auth/auth/user/passwd/SHA-512-256";
 
@@ -979,9 +978,7 @@ mod tests {
 
         // 2) Compute the digest response (qop=auth).
         let hex = |data: &[u8]| -> String {
-            let mut h = Sha512_256::new();
-            h.update(data);
-            format!("{:x}", h.finalize())
+            crate::handlers::auth::digest_hash_hex("SHA-512-256", data).unwrap()
         };
         let ha1 = hex(format!("user:{realm}:passwd").as_bytes());
         let ha2 = hex(format!("GET:{uri}").as_bytes());

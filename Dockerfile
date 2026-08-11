@@ -1,12 +1,12 @@
 # Build stage
-FROM rust:alpine3.22 AS build
+FROM rust:alpine3.24 AS build
 RUN apk add --no-cache musl-dev
 WORKDIR /httpcan
 COPY . .
 RUN cargo build --release
 
 # User creation stage
-FROM alpine:3.22 AS files
+FROM alpine:3.24 AS files
 RUN adduser --disabled-password --gecos "" --home "/nonexistent" --shell "/sbin/nologin" --no-create-home --uid 10001 httpcan
 
 # Final stage

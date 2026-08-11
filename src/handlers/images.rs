@@ -73,7 +73,7 @@ fn load_image_data() -> Result<Value, Box<dyn std::error::Error>> {
 // Get random image data
 fn get_random_image() -> Result<(String, String, Vec<u8>), Box<dyn std::error::Error>> {
     let data = load_image_data()?;
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     // Get available formats (jpeg, png, svg, webp)
     let formats: Vec<String> = data
@@ -84,14 +84,14 @@ fn get_random_image() -> Result<(String, String, Vec<u8>), Box<dyn std::error::E
         .collect();
 
     // Randomly select a format
-    let format = formats[rng.gen_range(0..formats.len())].clone();
+    let format = formats[rng.random_range(0..formats.len())].clone();
     let format_data = data[&format].as_object().ok_or("Invalid format data")?;
 
     // Get available colors for this format
     let colors: Vec<String> = format_data.keys().cloned().collect();
 
     // Randomly select a color
-    let color = colors[rng.gen_range(0..colors.len())].clone();
+    let color = colors[rng.random_range(0..colors.len())].clone();
     let base64_data = format_data[&color].as_str().ok_or("Invalid base64 data")?;
 
     // Decode base64 data
@@ -114,7 +114,7 @@ fn get_random_image_by_format(
     format: &str,
 ) -> Result<(String, String, Vec<u8>), Box<dyn std::error::Error>> {
     let data = load_image_data()?;
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let format_data = data[format].as_object().ok_or("Invalid format data")?;
 
@@ -122,7 +122,7 @@ fn get_random_image_by_format(
     let colors: Vec<String> = format_data.keys().cloned().collect();
 
     // Randomly select a color
-    let color = colors[rng.gen_range(0..colors.len())].clone();
+    let color = colors[rng.random_range(0..colors.len())].clone();
     let base64_data = format_data[&color].as_str().ok_or("Invalid base64 data")?;
 
     // Decode base64 data

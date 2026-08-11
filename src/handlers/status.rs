@@ -1,6 +1,7 @@
 use super::*;
-use rand::distributions::WeightedIndex;
-use rand::prelude::*;
+use rand::distr::weighted::WeightedIndex;
+use rand::distr::Distribution;
+use rand::RngExt;
 
 #[derive(Deserialize)]
 pub struct StatusQuery {
@@ -67,7 +68,7 @@ fn select_weighted_code(choices: &[WeightedChoice]) -> Result<u16, String> {
         return Err("All weights are zero".to_string());
     }
 
-    let mut rng = thread_rng();
+    let mut rng = rand::rng();
 
     match WeightedIndex::new(&weights) {
         Ok(dist) => {
@@ -76,7 +77,7 @@ fn select_weighted_code(choices: &[WeightedChoice]) -> Result<u16, String> {
         }
         Err(_) => {
             // Fallback to uniform random selection if weights are invalid
-            let index = rng.gen_range(0..choices.len());
+            let index = rng.random_range(0..choices.len());
             Ok(choices[index].code)
         }
     }

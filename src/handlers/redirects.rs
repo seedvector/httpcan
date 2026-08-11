@@ -114,7 +114,7 @@ async fn extract_multipart_params(mut multipart: Multipart) -> Result<HashMap<St
 
     while let Some(mut field) = multipart.try_next().await? {
         let content_disposition = field.content_disposition();
-        let field_name = content_disposition.get_name().map(|s| s.to_string());
+        let field_name = content_disposition.and_then(|cd| cd.get_name()).map(|s| s.to_string());
 
         if let Some(name) = field_name {
             let mut data = Vec::new();

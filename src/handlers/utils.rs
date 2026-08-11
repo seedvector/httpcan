@@ -522,8 +522,8 @@ pub async fn extract_request_info_multipart(
     // Parse multipart data
     while let Some(mut field) = payload.try_next().await? {
         let content_disposition = field.content_disposition();
-        let field_name = content_disposition.get_name().map(|s| s.to_string());
-        let filename = content_disposition.get_filename().map(|s| s.to_string());
+        let field_name = content_disposition.and_then(|cd| cd.get_name()).map(|s| s.to_string());
+        let filename = content_disposition.and_then(|cd| cd.get_filename()).map(|s| s.to_string());
         // Capture the per-part Content-Type (httpbin #722).
         let part_content_type = field.content_type().map(|m| m.to_string());
 
