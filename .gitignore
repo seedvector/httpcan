@@ -50,3 +50,5 @@ target/
 
 # Build artifacts
 httpcan-linux-amd64
+# Internal analysis (not tracked)
+internal/
