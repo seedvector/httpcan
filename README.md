@@ -6,7 +6,7 @@ A simple, high‑performance HTTP request & response service built with Rust and
 [![ghcr.io](https://img.shields.io/badge/ghcr.io-seedvector%2Fhttpcan-1f6feb?logo=github)](https://github.com/orgs/seedvector/packages/container/package/httpcan)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Quick Links: [Quick Start](#quick-start) · [Installation](#installation) · [Configuration](#-configuration) · [Examples](#usage-examples) · [OpenAPI & Web UI](#openapi--web-ui) · [API Reference](#api-reference) · [Production](#-production-considerations) · [Library](#-library-usage) · [Development](#development) · [License](#license)
+Quick Links: [Quick Start](#quick-start) · [Installation](#installation) · [Configuration](#-configuration) · [Examples](#usage-examples) · [OpenAPI & Homepage](#openapi--homepage) · [API Reference](#api-reference) · [Production](#-production-considerations) · [Library](#-library-usage) · [Development](#development) · [License](#license)
 
 ## ✨ Features
 
@@ -170,10 +170,10 @@ curl http://localhost:8080/headers
 curl http://localhost:8080/ip
 ```
 
-## OpenAPI & Web UI
+## OpenAPI & Homepage
 
 - OpenAPI spec: `GET /openapi.json`
-- Web UI / API info: visit `/` in a browser; renders HTML or JSON based on `Accept` header
+- Homepage: visit `/` for a static, crawlable page listing every endpoint by category, with a compatibility badge (`Enhanced`/`New`) relative to httpbin.org. It always renders as HTML, regardless of the `Accept` header.
 
 ## API Reference
 

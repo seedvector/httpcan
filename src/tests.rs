@@ -2741,17 +2741,47 @@ async fn mw_exclude_header_wildcard_suffix() {
     );
 }
 
-// === Section: Root (/) content negotiation ===
+// === Section: Root (/) homepage ===
 
-/// GET / with Accept: text/html serves the HTML page: 200, text/html content-type,
-/// and a body containing an <html> tag.
+/// GET / always serves the static homepage as HTML — 200, text/html
+/// content-type, a body containing an <html> tag — regardless of the
+/// Accept header. Search engines, AI crawlers, and browsers must all see
+/// the same crawlable content (see the SEO/GEO discussion in the repo
+/// history for why this replaced Accept-based negotiation).
 #[actix_web::test]
-async fn root_serves_html_for_accept_html() {
+async fn root_always_serves_html() {
     let app = test::init_service(create_app(cfg())).await;
-    let req = test::TestRequest::get()
-        .uri("/")
-        .insert_header(("Accept", "text/html"))
-        .to_request();
+    for accept in ["text/html", "application/json", "*/*"] {
+        let req = test::TestRequest::get()
+            .uri("/")
+            .insert_header(("Accept", accept))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let ct = resp
+            .headers()
+            .get("content-type")
+            .expect("content-type header")
+            .to_str()
+            .unwrap();
+        assert!(
+            ct.starts_with("text/html"),
+            "expected text/html content-type for Accept: {accept}, got {ct}"
+        );
+        let body = test::read_body(resp).await;
+        let body_str = std::str::from_utf8(&body).expect("utf-8 html body");
+        assert!(
+            body_str.to_lowercase().contains("<html"),
+            "html body must contain an <html> tag"
+        );
+    }
+}
+
+/// GET / with no Accept header at all also serves the homepage.
+#[actix_web::test]
+async fn root_serves_html_without_accept_header() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::get().uri("/").to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), StatusCode::OK);
     let ct = resp
@@ -2760,52 +2790,51 @@ async fn root_serves_html_for_accept_html() {
         .expect("content-type header")
         .to_str()
         .unwrap();
-    assert!(
-        ct.starts_with("text/html"),
-        "expected text/html content-type, got {ct}"
-    );
+    assert!(ct.starts_with("text/html"));
+}
+
+/// The homepage lists real endpoints (grouped by category) and links to the
+/// machine-readable OpenAPI spec.
+#[actix_web::test]
+async fn root_homepage_lists_endpoints_and_links_to_openapi() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::get().uri("/").to_request();
+    let resp = test::call_service(&app, req).await;
     let body = test::read_body(resp).await;
     let body_str = std::str::from_utf8(&body).expect("utf-8 html body");
+    assert!(body_str.contains("/get"), "homepage should list /get");
+    assert!(body_str.contains("/sse"), "homepage should list /sse");
     assert!(
-        body_str.to_lowercase().contains("<html"),
-        "html body must contain an <html> tag"
+        body_str.contains("/openapi.json"),
+        "homepage should link to the OpenAPI spec"
     );
 }
 
-/// GET / with Accept: application/json negotiates to the JSON form: 200,
-/// application/json content-type, and a JSON object body (the OpenAPI document).
+/// Each endpoint on the homepage has a "Copy" button with a ready-to-run
+/// curl example (resolved against the request's own origin) attached via
+/// `data-curl`, plus the client-side script that wires up copy-to-clipboard.
 #[actix_web::test]
-async fn root_serves_json_for_accept_json() {
+async fn root_homepage_has_copy_curl_buttons() {
     let app = test::init_service(create_app(cfg())).await;
     let req = test::TestRequest::get()
         .uri("/")
-        .insert_header(("Accept", "application/json"))
+        .insert_header(("Host", "example.com"))
         .to_request();
     let resp = test::call_service(&app, req).await;
-    assert_eq!(resp.status(), StatusCode::OK);
-    let ct = resp
-        .headers()
-        .get("content-type")
-        .expect("content-type header")
-        .to_str()
-        .unwrap();
+    let body = test::read_body(resp).await;
+    let body_str = std::str::from_utf8(&body).expect("utf-8 html body");
+
     assert!(
-        ct.starts_with("application/json"),
-        "expected application/json content-type, got {ct}"
-    );
-    let v: serde_json::Value =
-        serde_json::from_slice(&test::read_body(resp).await).expect("JSON body");
-    assert!(v.is_object(), "root JSON response must be an object");
-    // The non-HTML branch returns the OpenAPI document, so it carries the
-    // spec's top-level shape (openapi version + paths) — confirms negotiation
-    // away from the HTML branch, not just any JSON.
-    assert!(
-        v.get("openapi").is_some(),
-        "negotiated JSON should be the OpenAPI document (has 'openapi')"
+        body_str.contains(r#"class="copy-btn""#),
+        "homepage should render a copy-curl button for each endpoint"
     );
     assert!(
-        v.get("paths").and_then(|p| p.as_object()).is_some(),
-        "negotiated JSON should carry a 'paths' object"
+        body_str.contains(r#"data-curl="curl http://example.com/uuid""#),
+        "copy button for /uuid should target the request's own origin"
+    );
+    assert!(
+        body_str.contains("navigator.clipboard"),
+        "homepage should include the copy-to-clipboard script"
     );
 }
 

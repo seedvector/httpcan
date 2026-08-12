@@ -479,7 +479,7 @@ fn create_app(
             "/ndjson/{count}/{delay}",
             web::get().to(ndjson_path_with_delay_handler),
         )
-        // Root endpoint - returns HTML or API info based on Accept header
+        // Root endpoint - always renders the static homepage (see src/handlers/root.rs)
         .route("/", web::get().to(root_handler));
 
     // Only add root static file service if the static directory exists
