@@ -1,6 +1,6 @@
 # HTTPCan
 
-A simple, high‑performance HTTP request & response service built with Rust and Actix Web. Fully compatible with [httpbin.org](https://httpbin.org), with modern streaming and AI‑friendly enhancements.
+A modern, high‑performance superset of [httpbin.org](https://httpbin.org) for testing HTTP clients, proxies, and AI agents — built with Rust and Actix Web.
 
 [![Crates.io](https://img.shields.io/crates/v/httpcan.svg)](https://crates.io/crates/httpcan)
 [![ghcr.io](https://img.shields.io/badge/ghcr.io-seedvector%2Fhttpcan-1f6feb?logo=github)](https://github.com/orgs/seedvector/packages/container/package/httpcan)
@@ -10,12 +10,14 @@ Quick Links: [Quick Start](#quick-start) · [Installation](#installation) · [Co
 
 ## ✨ Features
 
-- **HTTPBin compatible**: Use as a drop‑in replacement for testing/migration
-- **Modern streaming**: Native SSE and NDJSON, AI‑compatible formats (OpenAI/Ollama)
-- **Tiny Docker image**: <10MB, fast to pull and start
-- **Minimal memory footprint**: Efficient async Rust I/O
-- **High throughput**: Actix Web + Tokio
-- **Observability built‑in**: Every response carries `Server-Timing` and `X-Httpcan-Version` headers; `/healthz` liveness probe and `/tags` instance identification
+- **Superset of httpbin.org**: every httpbin.org endpoint is covered, drop‑in compatible, plus additional and enhanced endpoints — see the [homepage](#openapi--homepage) for the full badge‑tagged list
+- **Anti‑phishing redirects**: browser clients hitting `/redirect-to` see a confirmation page instead of a silent 302, closing an open‑redirect abuse vector
+- **AI‑friendly streaming**: native `/sse` and `/ndjson` endpoints with OpenAI/Ollama‑compatible chunk formats
+- **Cloud‑native observability**: `/healthz` liveness probe, `/tags` instance identification, and `Server-Timing`/`X-Httpcan-Version` headers on every response
+- **Correct header handling**: duplicate and non‑ASCII request headers are preserved instead of being dropped or crashing the server
+- **Safer by default**: built‑in filtering strips ~100 reverse‑proxy/CDN headers from echoed responses, with `--exclude-headers` for more
+- **Self‑documenting homepage**: `/` lists every endpoint by category with compatibility badges and one‑click "Copy curl" buttons — fully static HTML, crawlable by search engines and AI agents
+- **Tiny & fast**: <10MB Docker image, minimal memory footprint, high throughput via Actix Web + Tokio
 
 ## Quick Start
 
@@ -173,25 +175,35 @@ curl http://localhost:8080/ip
 ## OpenAPI & Homepage
 
 - OpenAPI spec: `GET /openapi.json`
-- Homepage: visit `/` for a static, crawlable page listing every endpoint by category, with a compatibility badge (`Enhanced`/`New`) relative to httpbin.org. It always renders as HTML, regardless of the `Accept` header.
+- Homepage: visit `/` for a static, crawlable page listing every endpoint by category, each with a compatibility badge (`Enhanced`/`New`) relative to httpbin.org and a one‑click "Copy curl" button (pre‑filled with sample parameters and resolved against the instance you're viewing). It always renders as HTML, regardless of the `Accept` header — no JavaScript required to read the content.
 
 ## API Reference
 
-### HTTPBin Compatibility (Overview)
+Endpoints are grouped into the same categories shown on the homepage (`/`) — visit a running instance for the full interactive list with compatibility badges and copy‑ready curl examples:
 
-- Methods: `GET /get`, `POST /post`, `PUT /put`, `PATCH /patch`, `DELETE /delete`
-- Anything: `/anything`, `/anything/{anything}` (supports multiple methods)
-- Auth: Basic, Hidden Basic, Digest
-- Formats: JSON, XML, HTML, `robots.txt`, `encoding/utf8`, gzip/deflate/brotli/zstd
-- Dynamic: `uuid`, `bytes`, `stream`, `range`, `links`, `delay`, `drip`
-- Redirects: `redirect`, `relative-redirect`, `absolute-redirect`, `redirect-to`
-- Inspection: `headers`, `ip`, `user-agent`
-- Response: `cache`, `etag`, `response-headers`
-- Cookies: `cookies` CRUD
-- Images: `image`, `image/png`, `image/jpeg`, `image/webp`, `image/svg`
-- Status: `/status/{codes}` (single or comma‑separated)
+| Category | Endpoints |
+|---|---|
+| HTTP Methods | `/get` `/post` `/put` `/patch` `/delete` `/method` `/head` `/echo` |
+| Anything | `/anything` `/anything/{path}` |
+| Auth | `/basic-auth` `/hidden-basic-auth` `/bearer` `/jwt-bearer` `/digest-auth` |
+| Status codes | `/status/{codes}` |
+| Request inspection | `/headers` `/ip` `/user-agent` |
+| Response inspection | `/cache` `/etag` `/response-headers` |
+| Response formats | `/json` `/xml` `/html` `/robots.txt` `/deny` `/encoding/utf8` `/encoding/iso-8859-1` `/gzip` `/deflate` `/brotli` `/zstd` |
+| Dynamic data | `/uuid` `/base64` `/bytes` `/stream-bytes` `/stream` `/range` `/links` `/drip` `/delay` |
+| Cookies | `/cookies` `/cookies/set` `/cookies/delete` |
+| Images | `/image` `/image/png` `/image/jpeg` `/image/webp` `/image/svg` |
+| Redirects | `/redirect` `/relative-redirect` `/absolute-redirect` `/redirect-to` |
+| Streaming | `/sse` `/ndjson` |
+| Observability | `/healthz` `/tags` |
 
-For the full, up‑to‑date list and schemas, consult the [OpenAPI spec](/openapi.json).
+Every endpoint carries a compatibility badge relative to httpbin.org:
+
+- *(no badge)* — drop‑in compatible with httpbin.org
+- **Enhanced** — httpbin.org has this endpoint, but httpcan fixes a bug or extends it
+- **New** — not available in httpbin.org
+
+For full parameter details and schemas, consult the [OpenAPI spec](/openapi.json).
 
 ### HTTPCan Enhancements
 
