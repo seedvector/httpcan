@@ -2974,6 +2974,60 @@ async fn root_markdown_includes_token_count_header() {
     assert!(tokens > 0, "token count should be positive, got {tokens}");
 }
 
+/// GET / (homepage) carries RFC 8288 / RFC 9727 `Link` headers advertising the
+/// machine-readable resources — api-catalog, service-desc, service-doc, and
+/// describedby — with correct targets, on both the HTML and Markdown
+/// representations so discovery works regardless of negotiated content type.
+#[actix_web::test]
+async fn root_homepage_has_discovery_link_headers() {
+    let app = test::init_service(create_app(cfg())).await;
+
+    // HTML (default) response.
+    let req = test::TestRequest::get().uri("/").to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let links: Vec<String> = resp
+        .headers()
+        .get_all("link")
+        .map(|h| h.to_str().unwrap().to_string())
+        .collect();
+    assert!(!links.is_empty(), "homepage must carry Link headers");
+    let joined = links.join(", ");
+    assert!(
+        joined.contains(r#"</.well-known/api-catalog>; rel="api-catalog""#),
+        "missing api-catalog link: {joined}"
+    );
+    assert!(
+        joined.contains(r#"</openapi.json>; rel="service-desc""#),
+        "missing service-desc link: {joined}"
+    );
+    assert!(
+        joined.contains(r#"</>; rel="service-doc""#),
+        "missing service-doc link: {joined}"
+    );
+    assert!(
+        joined.contains(r#"</openapi.json>; rel="describedby""#),
+        "missing describedby link: {joined}"
+    );
+
+    // The Markdown representation carries the same discovery links.
+    let req = test::TestRequest::get()
+        .uri("/")
+        .insert_header(("Accept", "text/markdown"))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    let links: Vec<String> = resp
+        .headers()
+        .get_all("link")
+        .map(|h| h.to_str().unwrap().to_string())
+        .collect();
+    let joined = links.join(", ");
+    assert!(
+        joined.contains(r#"</.well-known/api-catalog>; rel="api-catalog""#),
+        "markdown homepage must also carry discovery links: {joined}"
+    );
+}
+
 /// The homepage lists real endpoints (grouped by category) and links to the
 /// machine-readable OpenAPI spec.
 #[actix_web::test]

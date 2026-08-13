@@ -576,6 +576,23 @@ fn wants_markdown(req: &HttpRequest) -> bool {
         .unwrap_or(false)
 }
 
+/// Adds RFC 8288 / RFC 9727 `Link` headers to the homepage response so agents
+/// can discover HTTPCan's machine-readable resources without scraping HTML:
+/// the API catalog (`api-catalog`, RFC 9727 §3), the OpenAPI spec
+/// (`service-desc`, RFC 8631) which also describes the resource (`describedby`,
+/// RFC 8288), and the human-readable docs (`service-doc`, RFC 8631). Targets
+/// are relative refs resolved against the request URI, and each header carries
+/// a single relation type for broad parser compatibility.
+fn add_homepage_link_headers(
+    mut res: actix_web::HttpResponseBuilder,
+) -> actix_web::HttpResponseBuilder {
+    res.append_header(("Link", "</.well-known/api-catalog>; rel=\"api-catalog\""));
+    res.append_header(("Link", "</openapi.json>; rel=\"service-desc\""));
+    res.append_header(("Link", "</>; rel=\"service-doc\""));
+    res.append_header(("Link", "</openapi.json>; rel=\"describedby\""));
+    res
+}
+
 /// Homepage: a fully server-rendered, static HTML page describing HTTPCan and
 /// listing every endpoint grouped by category, with a compatibility badge
 /// relative to httpbin.org and a one-click "Copy" button for a ready-to-run
@@ -587,6 +604,10 @@ fn wants_markdown(req: &HttpRequest) -> bool {
 /// so AI agents receive clean text instead of scraping HTML. Every other
 /// request — browsers, search engines, AI crawlers — gets the HTML page (see
 /// `/openapi.json` for the machine-readable spec).
+///
+/// Every homepage response also carries RFC 8288 / RFC 9727 `Link` headers
+/// (api-catalog, service-desc, service-doc, describedby) so agents can discover
+/// the machine-readable resources without scraping the page.
 pub async fn root_handler(req: HttpRequest) -> Result<HttpResponse> {
     let connection_info = req.connection_info();
     let base = format!("{}://{}", connection_info.scheme(), connection_info.host());
@@ -597,13 +618,13 @@ pub async fn root_handler(req: HttpRequest) -> Result<HttpResponse> {
         let body = render_markdown(&base, version);
         // Rough estimate (~4 chars/token); exact counts need a BPE tokenizer.
         let tokens = body.chars().count() / 4;
-        return Ok(HttpResponse::Ok()
+        return Ok(add_homepage_link_headers(HttpResponse::Ok())
             .content_type("text/markdown; charset=utf-8")
             .insert_header(("x-markdown-tokens", tokens.to_string()))
             .body(body));
     }
 
-    Ok(HttpResponse::Ok()
+    Ok(add_homepage_link_headers(HttpResponse::Ok())
         .content_type("text/html; charset=utf-8")
         .body(render_homepage(&canonical_url, &base, version)))
 }
