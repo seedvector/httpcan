@@ -245,7 +245,9 @@ fn create_app(
         )
         .wrap(RequestLogger)
         // Dynamic OpenAPI specification endpoint
-        .route("/openapi.json", web::get().to(openapi_handler));
+        .route("/openapi.json", web::get().to(openapi_handler))
+        // RFC 9727 API catalog for automated API discovery
+        .route("/.well-known/api-catalog", web::get().to(api_catalog_handler));
 
     // Only add static file services if the static directory exists
     if static_path.exists() {

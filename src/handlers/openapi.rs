@@ -78,3 +78,41 @@ pub async fn openapi_handler(
         .content_type("application/json")
         .json(openapi))
 }
+
+/// `/.well-known/api-catalog` — an RFC 9727 API catalog that lets automated
+/// clients and agents discover HTTPCan's API. Published as a Linkset
+/// (application/linkset+json) carrying the RFC 9727 profile; the single entry's
+/// anchor is the API root, with `service-desc` (OpenAPI spec), `service-doc`
+/// (homepage), and `status` (health probe) link relations from RFC 8631. URLs
+/// are resolved against the request origin so every instance advertises its own
+/// endpoints (mirroring `openapi_handler` and `root_handler`).
+pub async fn api_catalog_handler(req: HttpRequest) -> Result<HttpResponse> {
+    let connection_info = req.connection_info();
+    let base = format!("{}://{}", connection_info.scheme(), connection_info.host());
+
+    let catalog = json!({
+        "linkset": [
+            {
+                "anchor": format!("{base}/"),
+                "service-desc": [
+                    { "href": format!("{base}/openapi.json"), "type": "application/json" }
+                ],
+                "service-doc": [
+                    { "href": format!("{base}/"), "type": "text/html" }
+                ],
+                "status": [
+                    { "href": format!("{base}/healthz"), "type": "application/json" }
+                ]
+            }
+        ]
+    });
+
+    // Serialize manually: `.json()` would force Content-Type: application/json,
+    // but the RFC-mandated media type is application/linkset+json (+profile).
+    let body = serde_json::to_string(&catalog)
+        .map_err(actix_web::error::ErrorInternalServerError)?;
+
+    Ok(HttpResponse::Ok()
+        .content_type(r#"application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727""#)
+        .body(body))
+}

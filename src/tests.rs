@@ -3061,6 +3061,87 @@ async fn openapi_json_returns_valid_spec() {
     );
 }
 
+/// GET /.well-known/api-catalog returns 200 with the RFC 9727 Linkset media
+/// type (application/linkset+json, profile=rfc9727). The single entry's anchor
+/// is the API root, with service-desc (OpenAPI spec), service-doc (homepage),
+/// and status (health probe) relations whose hrefs target the request origin.
+#[actix_web::test]
+async fn api_catalog_returns_rfc9727_linkset() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::get()
+        .uri("/.well-known/api-catalog")
+        .insert_header(("Host", "example.com"))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let ct = resp
+        .headers()
+        .get("content-type")
+        .expect("content-type header")
+        .to_str()
+        .unwrap();
+    assert!(
+        ct.starts_with("application/linkset+json"),
+        "expected application/linkset+json content-type, got {ct}"
+    );
+    assert!(
+        ct.contains("rfc9727"),
+        "content-type should carry the RFC 9727 profile parameter, got {ct}"
+    );
+    let v: serde_json::Value =
+        serde_json::from_slice(&test::read_body(resp).await).expect("JSON body");
+    let linkset = v
+        .get("linkset")
+        .and_then(|l| l.as_array())
+        .expect("linkset array");
+    assert!(!linkset.is_empty(), "linkset must list at least one API");
+    let entry = &linkset[0];
+    // anchor is an absolute URL at the API root.
+    assert_eq!(
+        entry.get("anchor").and_then(|a| a.as_str()),
+        Some("http://example.com/")
+    );
+    // service-desc -> OpenAPI spec.
+    let desc = entry
+        .get("service-desc")
+        .and_then(|s| s.as_array())
+        .expect("service-desc array");
+    assert_eq!(
+        desc[0].get("href").and_then(|h| h.as_str()),
+        Some("http://example.com/openapi.json")
+    );
+    assert_eq!(
+        desc[0].get("type").and_then(|t| t.as_str()),
+        Some("application/json")
+    );
+    // service-doc -> homepage.
+    let doc = entry
+        .get("service-doc")
+        .and_then(|s| s.as_array())
+        .expect("service-doc array");
+    assert_eq!(
+        doc[0].get("href").and_then(|h| h.as_str()),
+        Some("http://example.com/")
+    );
+    assert_eq!(
+        doc[0].get("type").and_then(|t| t.as_str()),
+        Some("text/html")
+    );
+    // status -> health probe.
+    let status = entry
+        .get("status")
+        .and_then(|s| s.as_array())
+        .expect("status array");
+    assert_eq!(
+        status[0].get("href").and_then(|h| h.as_str()),
+        Some("http://example.com/healthz")
+    );
+    assert_eq!(
+        status[0].get("type").and_then(|t| t.as_str()),
+        Some("application/json")
+    );
+}
+
 // ============================================================
 // Round 2: behavioral gaps — distinct code paths & documented features
 // (excludes same-handler method dispatch that's already covered)
