@@ -88,12 +88,44 @@ pub async fn html_handler(_req: HttpRequest) -> Result<HttpResponse> {
         .body(html_content))
 }
 
-pub async fn robots_txt_handler(_req: HttpRequest) -> Result<HttpResponse> {
-    let robots_content = "User-agent: *\nDisallow: /deny\n";
+/// `/robots.txt` — allows all crawlers, keeps `/deny` off-limits (httpbin
+/// parity), and advertises the sitemap with an absolute `Sitemap:` directive
+/// (RFC 9309 / https://www.sitemaps.org/protocol.html) so search engines and
+/// AI crawlers can discover it.
+pub async fn robots_txt_handler(req: HttpRequest) -> Result<HttpResponse> {
+    let connection_info = req.connection_info();
+    let base = format!("{}://{}", connection_info.scheme(), connection_info.host());
+    let robots_content = format!(
+        "User-agent: *\n\
+         Disallow: /deny\n\
+         \n\
+         Sitemap: {base}/sitemap.xml\n"
+    );
 
     Ok(HttpResponse::Ok()
         .content_type("text/plain")
         .body(robots_content))
+}
+
+/// `/sitemap.xml` — a Sitemaps-protocol index of the site's canonical public
+/// pages (https://www.sitemaps.org/protocol.html). Generated dynamically from
+/// the request origin so every instance advertises its own absolute URLs and
+/// stays in sync with whatever the homepage exposes. The homepage is the only
+/// crawlable content page; the API endpoints (/get, /post, …) echo request
+/// data and are intentionally not advertised to crawlers.
+pub async fn sitemap_handler(req: HttpRequest) -> Result<HttpResponse> {
+    let connection_info = req.connection_info();
+    let base = format!("{}://{}", connection_info.scheme(), connection_info.host());
+    let body = format!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+         <urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n\
+         <url><loc>{base}/</loc></url>\n\
+         </urlset>\n"
+    );
+
+    Ok(HttpResponse::Ok()
+        .content_type("application/xml")
+        .body(body))
 }
 
 pub async fn deny_handler(_req: HttpRequest) -> Result<HttpResponse> {

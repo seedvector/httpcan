@@ -375,6 +375,7 @@ fn create_app(
         .route("/xml", web::get().to(xml_handler))
         .route("/html", web::get().to(html_handler))
         .route("/robots.txt", web::get().to(robots_txt_handler))
+        .route("/sitemap.xml", web::get().to(sitemap_handler))
         .route("/deny", web::get().to(deny_handler))
         .route("/encoding/utf8", web::get().to(utf8_handler))
         .route("/encoding/iso-8859-1", web::get().to(iso_8859_1_handler))

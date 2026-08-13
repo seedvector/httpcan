@@ -1020,6 +1020,55 @@ async fn fmt_deny_body_and_content_type() {
     assert_eq!(&body[..], b"YOU SHOULDN'T BE HERE");
 }
 
+/// /robots.txt advertises the sitemap via a `Sitemap:` directive pointing at
+/// the request origin with an absolute URL (RFC 9309 / sitemaps.org).
+#[actix_web::test]
+async fn fmt_robots_txt_advertises_sitemap() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::get()
+        .uri("/robots.txt")
+        .insert_header(("Host", "example.com"))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = test::read_body(resp).await;
+    let text = std::str::from_utf8(&body).expect("utf8 body");
+    assert!(
+        text.contains("Sitemap: http://example.com/sitemap.xml"),
+        "robots.txt must advertise the sitemap with an absolute URL: {text}"
+    );
+}
+
+/// /sitemap.xml returns 200 with application/xml: a valid Sitemaps <urlset>
+/// containing at least one absolute <loc> entry for the homepage.
+#[actix_web::test]
+async fn fmt_sitemap_xml_body_and_content_type() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::get()
+        .uri("/sitemap.xml")
+        .insert_header(("Host", "example.com"))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        resp.headers().get("content-type").unwrap().to_str().unwrap(),
+        "application/xml"
+    );
+    let body = test::read_body(resp).await;
+    let text = std::str::from_utf8(&body).expect("utf8 body");
+    assert!(text.contains("<urlset"), "body is a sitemap <urlset>: {text}");
+    assert!(
+        text.contains("http://www.sitemaps.org/schemas/sitemap/0.9"),
+        "body declares the sitemaps namespace"
+    );
+    assert!(text.contains("<url>"), "body contains a <url> entry");
+    assert!(text.contains("<loc>"), "body contains a <loc> entry");
+    assert!(
+        text.contains("<loc>http://example.com/</loc>"),
+        "loc is an absolute URL pointing at the homepage: {text}"
+    );
+}
+
 /// /encoding/utf8 returns 200 with text/html; charset=utf-8 content type.
 #[actix_web::test]
 async fn fmt_utf8_content_type() {
