@@ -215,7 +215,7 @@ const CATEGORIES: &[Category] = &[
         endpoints: &[
             Endpoint { methods: "GET", path: "/healthz", badge: Some(Badge::New), desc: "Liveness probe; returns 200 whenever the server is up.", curl: "curl {base}/healthz" },
             Endpoint { methods: "GET", path: "/tags", badge: Some(Badge::New), desc: "Lists HTTPCAN_* environment variables, for instance identification.", curl: "curl {base}/tags" },
-            Endpoint { methods: "GET", path: "/tags/{name}", badge: Some(Badge::New), desc: "Returns a single HTTPCAN_* environment variable by name.", curl: "curl {base}/tags/HTTPCAN_VERSION" },
+            Endpoint { methods: "GET", path: "/tags/{name}", badge: Some(Badge::New), desc: "Returns a single HTTPCAN_* environment variable by name.", curl: "curl {base}/tags/VERSION" },
         ],
     },
 ];

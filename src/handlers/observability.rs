@@ -16,9 +16,17 @@ pub async fn tags_handler() -> Result<HttpResponse> {
     Ok(HttpResponse::Ok().json(tags))
 }
 
+/// Strip a redundant `HTTPCAN_` prefix from a tag name so that
+/// `/tags/VERSION` and `/tags/HTTPCAN_VERSION` resolve to the same variable.
+/// The keys returned by [`tags_handler`] are already prefix-stripped, so the
+/// unprefixed form is canonical; the prefixed form is accepted for convenience.
+pub fn tag_key(raw: &str) -> String {
+    raw.strip_prefix("HTTPCAN_").unwrap_or(raw).to_string()
+}
+
 /// Return a single tag value by name (httpbin #565).
 pub async fn tag_value_handler(path: web::Path<String>) -> Result<HttpResponse> {
-    let name = path.into_inner();
+    let name = tag_key(&path.into_inner());
     match std::env::var(format!("HTTPCAN_{name}")) {
         Ok(value) => {
             let mut map = serde_json::Map::new();
