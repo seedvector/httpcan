@@ -1,0 +1,35 @@
+# Build artifacts
+target/
+httpcan
+httpcan-*
+
+# Version control
+.git/
+.gitignore
+.github/
+
+# Docker metadata (not needed inside the build context)
+Dockerfile
+.dockerignore
+
+# Editor / OS junk
+.DS_Store
+._*
+*.icloud
+*.pdb
+**/*.rs.bk
+.vscode/
+.idea/
+
+# Docs & internal analysis (not compiled, not copied into the image)
+README.md
+LIBRARY_USAGE.md
+LICENSE
+internal/
+
+# Integration tests & examples — never compiled by `cargo build --release`
+tests/
+examples/
+
+# Non-Rust environments
+venv/
