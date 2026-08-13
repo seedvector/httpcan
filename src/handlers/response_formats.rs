@@ -89,15 +89,17 @@ pub async fn html_handler(_req: HttpRequest) -> Result<HttpResponse> {
 }
 
 /// `/robots.txt` — allows all crawlers, keeps `/deny` off-limits (httpbin
-/// parity), and advertises the sitemap with an absolute `Sitemap:` directive
-/// (RFC 9309 / https://www.sitemaps.org/protocol.html) so search engines and
-/// AI crawlers can discover it.
+/// parity), advertises the sitemap with an absolute `Sitemap:` directive
+/// (RFC 9309 / https://www.sitemaps.org/protocol.html), and declares AI usage
+/// preferences via `Content-Signal` (https://contentsignals.org/): search
+/// indexing allowed, AI training and model input disallowed.
 pub async fn robots_txt_handler(req: HttpRequest) -> Result<HttpResponse> {
     let connection_info = req.connection_info();
     let base = format!("{}://{}", connection_info.scheme(), connection_info.host());
     let robots_content = format!(
         "User-agent: *\n\
          Disallow: /deny\n\
+         Content-Signal: ai-train=no, search=yes, ai-input=no\n\
          \n\
          Sitemap: {base}/sitemap.xml\n"
     );

@@ -1039,6 +1039,36 @@ async fn fmt_robots_txt_advertises_sitemap() {
     );
 }
 
+/// /robots.txt declares AI usage preferences via Content-Signal directives
+/// (https://contentsignals.org/): search allowed, training and AI input denied.
+/// The directive must sit inside the `User-agent: *` group — before the
+/// groupless `Sitemap:` line — so it applies to every crawler.
+#[actix_web::test]
+async fn fmt_robots_txt_declares_content_signals() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::get()
+        .uri("/robots.txt")
+        .insert_header(("Host", "example.com"))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = test::read_body(resp).await;
+    let text = std::str::from_utf8(&body).expect("utf8 body");
+    assert!(
+        text.contains("Content-Signal: ai-train=no, search=yes, ai-input=no"),
+        "robots.txt must declare Content-Signal preferences: {text}"
+    );
+    // Structural placement: inside the User-agent group, before the groupless Sitemap line.
+    let ua = text.find("User-agent: *").unwrap();
+    let cs = text.find("Content-Signal:").unwrap();
+    let sm = text.find("Sitemap:").unwrap();
+    assert!(ua < cs, "Content-Signal must follow the User-agent group header");
+    assert!(
+        cs < sm,
+        "Content-Signal must be inside the User-agent group, before the groupless Sitemap directive"
+    );
+}
+
 /// /sitemap.xml returns 200 with application/xml: a valid Sitemaps <urlset>
 /// containing at least one absolute <loc> entry for the homepage.
 #[actix_web::test]
