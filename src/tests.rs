@@ -2836,11 +2836,11 @@ async fn mw_exclude_header_wildcard_suffix() {
 
 // === Section: Root (/) homepage ===
 
-/// GET / always serves the static homepage as HTML — 200, text/html
-/// content-type, a body containing an <html> tag — regardless of the
-/// Accept header. Search engines, AI crawlers, and browsers must all see
-/// the same crawlable content (see the SEO/GEO discussion in the repo
-/// history for why this replaced Accept-based negotiation).
+/// GET / serves the static homepage as HTML by default — 200, text/html
+/// content-type, a body containing an <html> tag — for every Accept value
+/// except an explicit `text/markdown` (covered by the markdown-negotiation
+/// tests below). Browsers, search engines, and AI crawlers all see the same
+/// crawlable HTML.
 #[actix_web::test]
 async fn root_always_serves_html() {
     let app = test::init_service(create_app(cfg())).await;
@@ -2884,6 +2884,94 @@ async fn root_serves_html_without_accept_header() {
         .to_str()
         .unwrap();
     assert!(ct.starts_with("text/html"));
+}
+
+/// GET / with `Accept: text/markdown` returns the homepage as Markdown
+/// (Content-Type: text/markdown) instead of HTML — clean text for AI agents,
+/// with curl examples resolved against the request's own origin.
+#[actix_web::test]
+async fn root_serves_markdown_for_markdown_accept() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::get()
+        .uri("/")
+        .insert_header(("Host", "example.com"))
+        .insert_header(("Accept", "text/markdown"))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let ct = resp
+        .headers()
+        .get("content-type")
+        .expect("content-type header")
+        .to_str()
+        .unwrap();
+    assert!(
+        ct.starts_with("text/markdown"),
+        "expected text/markdown content-type, got {ct}"
+    );
+    let body = test::read_body(resp).await;
+    let md = std::str::from_utf8(&body).expect("utf-8 markdown body");
+    assert!(md.contains("# HTTPCan"), "markdown has the page title");
+    assert!(md.contains("## Endpoints"), "markdown lists endpoints");
+    assert!(
+        md.contains("| Method | Path |"),
+        "markdown renders an endpoint table"
+    );
+    assert!(
+        !md.contains("{base}"),
+        "markdown must substitute the origin into curl examples: {md}"
+    );
+    assert!(
+        md.contains("http://example.com/get"),
+        "markdown curl examples target the request origin: {md}"
+    );
+    assert!(
+        !md.to_lowercase().contains("<html"),
+        "markdown response must not contain HTML"
+    );
+}
+
+/// An Accept header that lists `text/markdown` alongside other types still
+/// opts into the Markdown view (browsers never advertise text/markdown).
+#[actix_web::test]
+async fn root_serves_markdown_when_listed_alongside_other_types() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::get()
+        .uri("/")
+        .insert_header(("Accept", "text/markdown, text/html"))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    let ct = resp
+        .headers()
+        .get("content-type")
+        .expect("content-type header")
+        .to_str()
+        .unwrap();
+    assert!(
+        ct.starts_with("text/markdown"),
+        "Accept listing text/markdown should yield Markdown, got {ct}"
+    );
+}
+
+/// The Markdown response carries an `x-markdown-tokens` header with a positive
+/// estimated token count, per the Markdown-for-Agents spec.
+#[actix_web::test]
+async fn root_markdown_includes_token_count_header() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::get()
+        .uri("/")
+        .insert_header(("Accept", "text/markdown"))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    let tokens = resp
+        .headers()
+        .get("x-markdown-tokens")
+        .expect("x-markdown-tokens header")
+        .to_str()
+        .unwrap()
+        .parse::<usize>()
+        .expect("token count is an integer");
+    assert!(tokens > 0, "token count should be positive, got {tokens}");
 }
 
 /// The homepage lists real endpoints (grouped by category) and links to the

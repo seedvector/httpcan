@@ -478,17 +478,130 @@ curl http://localhost:8080/get</code></pre>
     )
 }
 
+/// Escapes `|` so a value is safe inside a Markdown table cell. Cell content
+/// here is single-line, so only the column-delimiting pipe needs escaping.
+fn md_table_escape(cell: &str) -> String {
+    cell.replace('|', "\\|")
+}
+
+/// Renders the homepage as Markdown for AI agents that send
+/// `Accept: text/markdown` (Content-Type: text/markdown). Mirrors the HTML
+/// page — intro, quick start, highlights, and every endpoint grouped by
+/// category with runnable curl examples resolved against `base` — so agents
+/// get clean text instead of scraping dense HTML. See
+/// <https://developers.cloudflare.com/fundamentals/reference/markdown-for-agents/>.
+fn render_markdown(base: &str, version: &str) -> String {
+    let (total, enhanced, new) = badge_counts();
+    let mut s = String::new();
+
+    let _ = writeln!(
+        s,
+        "# HTTPCan\n\nA modern, high-performance superset of [httpbin.org](https://httpbin.org) for testing HTTP clients, proxies, and AI agents — built with Rust and Actix Web.\n"
+    );
+    let _ = writeln!(s, "- [OpenAPI spec]({base}/openapi.json)");
+    let _ = writeln!(s, "- [Source on GitHub](https://github.com/seedvector/httpcan)\n");
+
+    let _ = writeln!(s, "## Quick Start\n");
+    let _ = writeln!(s, "```sh");
+    let _ = writeln!(s, "# Docker");
+    let _ = writeln!(s, "docker run -p 8080:8080 ghcr.io/seedvector/httpcan:latest\n");
+    let _ = writeln!(s, "# Cargo");
+    let _ = writeln!(s, "cargo install httpcan && httpcan\n");
+    let _ = writeln!(s, "curl http://localhost:8080/get");
+    let _ = writeln!(s, "```\n");
+
+    let _ = writeln!(s, "## Why HTTPCan\n");
+    let _ = writeln!(
+        s,
+        "HTTPCan is a drop-in replacement for httpbin.org: every httpbin.org endpoint is covered, plus {new} additional endpoints and {enhanced} bug-fixed or extended ones.\n"
+    );
+    let _ = writeln!(s, "- **Anti-phishing redirects** — browser clients hitting `/redirect-to` see a confirmation page instead of a silent 302, closing an open-redirect abuse vector.");
+    let _ = writeln!(s, "- **AI-friendly streaming** — native `/sse` and `/ndjson` endpoints with OpenAI/Ollama-compatible chunk formats.");
+    let _ = writeln!(s, "- **Cloud-native observability** — `/healthz` liveness probe, `/tags` instance identification, and `Server-Timing`/`X-Httpcan-Version` on every response.");
+    let _ = writeln!(s, "- **Correct header handling** — duplicate and non-ASCII request headers are preserved instead of being dropped or crashing the server.");
+    let _ = writeln!(
+        s,
+        "- **Safer by default** — built-in filtering strips ~100 reverse-proxy/CDN headers from echoed responses, with `--exclude-headers` for more.\n"
+    );
+    let _ = writeln!(
+        s,
+        "> **{enhanced}** Enhanced (httpbin has it; httpcan fixes/extends) · **{new}** New (not in httpbin.org) · no badge = drop-in compatible.\n"
+    );
+
+    let _ = writeln!(s, "## Endpoints\n");
+    let _ = writeln!(s, "All examples below target this instance (`{base}`).\n");
+    for cat in CATEGORIES {
+        let _ = writeln!(s, "### {}\n", cat.title);
+        let _ = writeln!(s, "{}\n", cat.desc);
+        let _ = writeln!(s, "| Method | Path | Description | Example |");
+        let _ = writeln!(s, "| --- | --- | --- | --- |");
+        for ep in cat.endpoints {
+            let badge = match ep.badge {
+                Some(Badge::Enhanced) => " _(Enhanced)_",
+                Some(Badge::New) => " _(New)_",
+                None => "",
+            };
+            let desc = format!("{}{badge}", ep.desc);
+            let example = ep.curl.replace("{base}", base);
+            let _ = writeln!(
+                s,
+                "| `{}` | `{}` | {} | `{}` |",
+                md_table_escape(ep.methods),
+                md_table_escape(ep.path),
+                md_table_escape(&desc),
+                md_table_escape(&example)
+            );
+        }
+        let _ = writeln!(s);
+    }
+
+    let _ = writeln!(s, "---\n");
+    let _ = writeln!(
+        s,
+        "HTTPCan · version {version} · {total} endpoints · MIT License\n"
+    );
+
+    s
+}
+
+/// Returns true when the client explicitly asks for Markdown via
+/// `Accept: text/markdown`. Mirrors the Accept parsing used by the `/image`
+/// endpoint; browsers and crawlers that don't request Markdown keep getting
+/// the HTML page.
+fn wants_markdown(req: &HttpRequest) -> bool {
+    req.headers()
+        .get("accept")
+        .and_then(|h| h.to_str().ok())
+        .map(|a| a.to_lowercase().contains("text/markdown"))
+        .unwrap_or(false)
+}
+
 /// Homepage: a fully server-rendered, static HTML page describing HTTPCan and
 /// listing every endpoint grouped by category, with a compatibility badge
 /// relative to httpbin.org and a one-click "Copy" button for a ready-to-run
-/// curl example. Always returns HTML regardless of the `Accept` header —
-/// search engines, AI crawlers, and browsers alike get the same crawlable
-/// content (see `/openapi.json` for the machine-readable spec).
+/// curl example.
+///
+/// Content negotiation (Markdown for Agents): a request carrying
+/// `Accept: text/markdown` gets the same content rendered as Markdown with
+/// `Content-Type: text/markdown` and an estimated `x-markdown-tokens` count,
+/// so AI agents receive clean text instead of scraping HTML. Every other
+/// request — browsers, search engines, AI crawlers — gets the HTML page (see
+/// `/openapi.json` for the machine-readable spec).
 pub async fn root_handler(req: HttpRequest) -> Result<HttpResponse> {
     let connection_info = req.connection_info();
     let base = format!("{}://{}", connection_info.scheme(), connection_info.host());
     let canonical_url = format!("{base}/");
     let version = option_env!("CARGO_PKG_VERSION").unwrap_or("unknown");
+
+    if wants_markdown(&req) {
+        let body = render_markdown(&base, version);
+        // Rough estimate (~4 chars/token); exact counts need a BPE tokenizer.
+        let tokens = body.chars().count() / 4;
+        return Ok(HttpResponse::Ok()
+            .content_type("text/markdown; charset=utf-8")
+            .insert_header(("x-markdown-tokens", tokens.to_string()))
+            .body(body));
+    }
 
     Ok(HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
