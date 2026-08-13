@@ -1055,7 +1055,7 @@ async fn fmt_robots_txt_declares_content_signals() {
     let body = test::read_body(resp).await;
     let text = std::str::from_utf8(&body).expect("utf8 body");
     assert!(
-        text.contains("Content-Signal: ai-train=no, search=yes, ai-input=no"),
+        text.contains("Content-Signal: ai-train=yes, search=yes, ai-input=yes"),
         "robots.txt must declare Content-Signal preferences: {text}"
     );
     // Structural placement: inside the User-agent group, before the groupless Sitemap line.
