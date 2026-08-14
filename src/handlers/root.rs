@@ -321,18 +321,6 @@ body {
     color: #1f2328;
     background: #fff;
 }
-@media (prefers-color-scheme: dark) {
-    body { color: #e6edf3; background: #0d1117; }
-    a { color: #58a6ff; }
-    .badge-enhanced { background: #1f3a5f; color: #9ecbff; }
-    .badge-new { background: #123a24; color: #7ee2a8; }
-    code, .kbd { background: #161b22; }
-    .highlights, .quick-start pre { background: #161b22; border-color: #30363d; }
-    footer { border-color: #30363d; }
-    .copy-btn { background: #161b22; border-color: #30363d; color: #e6edf3; }
-    .copy-btn:hover { background: #21262d; }
-    .copy-btn.copied { background: #123a24; border-color: #2ea043; color: #7ee2a8; }
-}
 a { color: #0969da; text-decoration: none; }
 a:hover { text-decoration: underline; }
 header.hero { padding: 2.5rem 0 1rem; }
@@ -358,7 +346,7 @@ code { background: #f6f8fa; padding: 0.1rem 0.4rem; border-radius: 4px; font-fam
 .copy-btn:hover { background: #eaeef2; }
 .copy-btn.copied { background: #dafbe1; border-color: #2ea043; color: #116329; }
 .toc { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; margin: 1rem 0 2rem; font-size: 0.95rem; }
-.highlights, .quick-start pre { background: #f6f8fa; border: 1px solid rgba(127,127,127,0.2); border-radius: 8px; padding: 1rem 1.25rem; }
+.highlights, pre { background: #f6f8fa; border: 1px solid rgba(127,127,127,0.2); border-radius: 8px; padding: 1rem 1.25rem; }
 .highlights ul { margin: 0.5rem 0 0; padding-left: 1.2rem; }
 .highlights li { margin: 0.35rem 0; }
 .legend { display: flex; flex-wrap: wrap; gap: 1.25rem; align-items: center; font-size: 0.9rem; opacity: 0.9; margin: 1rem 0 0; }
@@ -366,6 +354,24 @@ pre { overflow-x: auto; margin: 0.5rem 0; }
 pre code { background: none; padding: 0; font-size: 0.85em; }
 footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid rgba(127,127,127,0.2); font-size: 0.9rem; opacity: 0.85; }
 footer p { margin: 0.35rem 0; }
+/* Dark overrides: MUST stay after the light rules above — equal specificity,
+   so the later rule wins and these take precedence in dark mode. */
+@media (prefers-color-scheme: dark) {
+    body { color: #e6edf3; background: #0d1117; }
+    a { color: #58a6ff; }
+    .badge-enhanced { background: #1f3a5f; color: #9ecbff; }
+    .badge-new { background: #123a24; color: #7ee2a8; }
+    code { background: #161b22; }
+    .highlights, pre { background: #161b22; border-color: #30363d; }
+    footer { border-color: #30363d; }
+    .copy-btn { background: #161b22; border-color: #30363d; color: #e6edf3; }
+    .copy-btn:hover { background: #21262d; }
+    .copy-btn.copied { background: #123a24; border-color: #2ea043; color: #7ee2a8; }
+}
+/* No hover on touch devices: keep copy buttons visible instead of opacity:0. */
+@media (hover: none) {
+    .copy-btn { opacity: 1; }
+}
 "#;
 
 /// Vanilla JS, no dependencies: copies the clicked endpoint's `data-curl`
