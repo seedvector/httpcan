@@ -31,10 +31,10 @@ async fn main() -> std::io::Result<()> {
     // Create server configuration
     let mut config = ServerConfig::new()
         .port(args.port)
-        .add_current_server(!args.no_current_server)
+        .add_current_server(args.openapi_servers.add_current_server())
         .exclude_headers(exclude_headers)
         .max_bytes(args.max_bytes)
-        .scheme_override(args.scheme);
+        .canonical_scheme(args.canonical_scheme);
     if let Some(dir) = args.static_dir {
         config = config.static_dir(dir);
     }

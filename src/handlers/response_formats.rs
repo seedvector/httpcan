@@ -128,7 +128,7 @@ pub async fn sitemap_handler(
 ) -> Result<HttpResponse> {
     // User override: `static/sitemap.xml` replaces the generated index
     // verbatim. Note: absolute URLs in a static file do not follow the
-    // request origin or `--scheme` — the operator owns them.
+    // request origin or `--canonical-scheme` — the operator owns them.
     if let Some(file) = static_override(&config, "sitemap.xml") {
         return override_response(file, "application/xml", &req);
     }

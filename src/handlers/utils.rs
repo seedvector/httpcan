@@ -340,7 +340,7 @@ pub fn filter_proxy_headers(headers: HashMap<String, String>) -> HashMap<String,
 /// `req.connection_info().scheme()` directly, so a visitor always gets back
 /// URLs that actually work for the request they made.
 pub fn resolved_scheme(req: &HttpRequest, config: &crate::AppConfig) -> String {
-    match config.scheme_override.fixed() {
+    match config.canonical_scheme.fixed() {
         Some(scheme) => scheme.to_string(),
         None => req.connection_info().scheme().to_string(),
     }

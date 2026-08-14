@@ -1040,9 +1040,9 @@ async fn fmt_robots_txt_advertises_sitemap() {
 }
 
 #[actix_web::test]
-async fn fmt_robots_txt_honors_scheme_override() {
+async fn fmt_robots_txt_honors_canonical_scheme() {
     let app = test::init_service(create_app(
-        cfg().scheme_override(config::SchemeOverride::Https),
+        cfg().canonical_scheme(config::SchemeOverride::Https),
     ))
     .await;
     let req = test::TestRequest::get()
@@ -1054,7 +1054,7 @@ async fn fmt_robots_txt_honors_scheme_override() {
     let text = std::str::from_utf8(&body).expect("utf8 body");
     assert!(
         text.contains("Sitemap: https://example.com/sitemap.xml"),
-        "scheme_override(Https) must force an https sitemap URL even for a plain-http test request: {text}"
+        "canonical_scheme(Https) must force an https sitemap URL even for a plain-http test request: {text}"
     );
 }
 
@@ -1129,9 +1129,9 @@ async fn fmt_sitemap_xml_body_and_content_type() {
 }
 
 #[actix_web::test]
-async fn fmt_sitemap_xml_honors_scheme_override() {
+async fn fmt_sitemap_xml_honors_canonical_scheme() {
     let app = test::init_service(create_app(
-        cfg().scheme_override(config::SchemeOverride::Https),
+        cfg().canonical_scheme(config::SchemeOverride::Https),
     ))
     .await;
     let req = test::TestRequest::get()
@@ -1143,7 +1143,7 @@ async fn fmt_sitemap_xml_honors_scheme_override() {
     let text = std::str::from_utf8(&body).expect("utf8 body");
     assert!(
         text.contains("<loc>https://example.com/</loc>"),
-        "scheme_override(Https) must force an https loc even for a plain-http test request: {text}"
+        "canonical_scheme(Https) must force an https loc even for a plain-http test request: {text}"
     );
 }
 
@@ -3093,7 +3093,7 @@ async fn root_homepage_lists_endpoints_and_links_to_openapi() {
     );
 }
 
-/// `scheme_override` must only affect the SEO-facing canonical link, not the
+/// `canonical_scheme` must only affect the SEO-facing canonical link, not the
 /// user-facing copy-curl examples: a plain-http visitor should still see
 /// `http://` in the curl examples (so they're actually runnable as-is), even
 /// when the instance is configured to always advertise `https` for
@@ -3101,7 +3101,7 @@ async fn root_homepage_lists_endpoints_and_links_to_openapi() {
 #[actix_web::test]
 async fn root_canonical_honors_override_while_examples_mirror_request() {
     let app = test::init_service(create_app(
-        cfg().scheme_override(config::SchemeOverride::Https),
+        cfg().canonical_scheme(config::SchemeOverride::Https),
     ))
     .await;
     let req = test::TestRequest::get()
@@ -3113,7 +3113,7 @@ async fn root_canonical_honors_override_while_examples_mirror_request() {
     let body_str = std::str::from_utf8(&body).expect("utf-8 html body");
     assert!(
         body_str.contains(r#"<link rel="canonical" href="https://example.com/">"#),
-        "canonical link must honor scheme_override(Https): {body_str}"
+        "canonical link must honor canonical_scheme(Https): {body_str}"
     );
     assert!(
         body_str.contains("http://example.com/get"),
@@ -3121,7 +3121,7 @@ async fn root_canonical_honors_override_while_examples_mirror_request() {
     );
     assert!(
         !body_str.contains("https://example.com/get"),
-        "copy-curl examples must not be forced to https by scheme_override: {body_str}"
+        "copy-curl examples must not be forced to https by canonical_scheme: {body_str}"
     );
 }
 
@@ -3865,4 +3865,47 @@ async fn dynamic_robots_and_sitemap_served_when_no_override() {
     assert!(body.contains("<urlset"));
     assert!(body.contains("<loc>"));
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[actix_web::test]
+async fn range_honors_custom_max_bytes() {
+    // /range used to hardcode a 102400 cap regardless of --max-bytes.
+    let custom = ServerConfig::default().max_bytes(10);
+    let app = test::init_service(create_app(custom)).await;
+
+    let req = test::TestRequest::get().uri("/range/20").to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(
+        resp.status(),
+        StatusCode::NOT_FOUND,
+        "over-limit /range must 404, not silently cap"
+    );
+
+    let req = test::TestRequest::get().uri("/range/10").to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
+#[actix_web::test]
+async fn drip_honors_custom_max_bytes() {
+    // /drip used to silently clamp numbytes to 10MB; it must follow the same
+    // configurable cap as /bytes, /stream-bytes, and /range.
+    let custom = ServerConfig::default().max_bytes(10);
+    let app = test::init_service(create_app(custom)).await;
+
+    let req = test::TestRequest::get()
+        .uri("/drip?numbytes=20&duration=0")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(
+        resp.status(),
+        StatusCode::NOT_FOUND,
+        "over-limit /drip numbytes must 404, not silently clamp"
+    );
+
+    let req = test::TestRequest::get()
+        .uri("/drip?numbytes=5&duration=0")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), StatusCode::OK);
 }

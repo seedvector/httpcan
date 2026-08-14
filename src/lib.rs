@@ -21,9 +21,9 @@ pub struct AppConfig {
     /// Maximum bytes served by `/bytes` and `/stream-bytes`. Requests
     /// exceeding this return a 404 instead of silently truncating (httpbin #594).
     pub max_bytes: usize,
-    /// Scheme override for self-referential absolute URLs (see
+    /// Canonical scheme for SEO-facing URLs (see
     /// [`config::SchemeOverride`]).
-    pub scheme_override: config::SchemeOverride,
+    pub canonical_scheme: config::SchemeOverride,
     /// Resolved static assets directory (`ServerConfig::static_dir`, else the
     /// `static` dir next to the binary, else `./static`). User override files
     /// placed here replace built-in defaults (see `handlers::utils`).
@@ -53,9 +53,9 @@ pub struct ServerConfig {
     pub static_dir: Option<PathBuf>,
     /// Maximum bytes for `/bytes` and `/stream-bytes` (httpbin #594)
     pub max_bytes: usize,
-    /// Scheme override for self-referential absolute URLs (see
+    /// Canonical scheme for SEO-facing URLs (see
     /// [`config::SchemeOverride`]).
-    pub scheme_override: config::SchemeOverride,
+    pub canonical_scheme: config::SchemeOverride,
 }
 
 impl Default for ServerConfig {
@@ -67,7 +67,7 @@ impl Default for ServerConfig {
             exclude_headers: Vec::new(),
             static_dir: None,
             max_bytes: config::DEFAULT_MAX_BYTES,
-            scheme_override: config::SchemeOverride::Auto,
+            canonical_scheme: config::SchemeOverride::Auto,
         }
     }
 }
@@ -120,10 +120,10 @@ impl ServerConfig {
         self
     }
 
-    /// Set the scheme override for self-referential absolute URLs (see
+    /// Set the canonical scheme override for self-referential SEO URLs (see
     /// [`config::SchemeOverride`]).
-    pub fn scheme_override(mut self, scheme_override: config::SchemeOverride) -> Self {
-        self.scheme_override = scheme_override;
+    pub fn canonical_scheme(mut self, canonical_scheme: config::SchemeOverride) -> Self {
+        self.canonical_scheme = canonical_scheme;
         self
     }
 }
@@ -188,10 +188,10 @@ impl HttpCanServer {
         self
     }
 
-    /// Set the scheme override for self-referential absolute URLs (see
+    /// Set the canonical scheme override for self-referential SEO URLs (see
     /// [`config::SchemeOverride`]).
-    pub fn scheme_override(mut self, scheme_override: config::SchemeOverride) -> Self {
-        self.config.scheme_override = scheme_override;
+    pub fn canonical_scheme(mut self, canonical_scheme: config::SchemeOverride) -> Self {
+        self.config.canonical_scheme = canonical_scheme;
         self
     }
 
@@ -266,7 +266,7 @@ fn create_app(
         add_current_server: server_config.add_current_server,
         exclude_headers: server_config.exclude_headers,
         max_bytes: server_config.max_bytes,
-        scheme_override: server_config.scheme_override,
+        canonical_scheme: server_config.canonical_scheme,
         static_path: static_path.clone(),
     };
 

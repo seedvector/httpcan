@@ -259,15 +259,20 @@ pub async fn range_handler(
     req: HttpRequest,
     path: web::Path<usize>,
     query: web::Query<RangeQuery>,
+    config: web::Data<AppConfig>,
 ) -> Result<HttpResponse> {
     let numbytes = path.into_inner();
 
-    // Check bounds first like httpbin
-    if numbytes == 0 || numbytes > (100 * 1024) {
+    // Check bounds first like httpbin; the cap is the configured --max-bytes
+    // (httpbin #594), consistent with /bytes and /stream-bytes.
+    if numbytes == 0 || numbytes > config.max_bytes {
         return Ok(HttpResponse::NotFound()
             .append_header(("ETag", format!("range{}", numbytes)))
             .append_header(("Accept-Ranges", "bytes"))
-            .body("number of bytes must be in the range (0, 102400]"));
+            .body(format!(
+                "number of bytes must be in the range (0, {}]",
+                config.max_bytes
+            )));
     }
 
     let chunk_size = query.chunk_size.unwrap_or(10 * 1024).max(1);
@@ -366,7 +371,11 @@ pub async fn links_redirect_handler(
         .body(""))
 }
 
-pub async fn drip_handler(_req: HttpRequest, query: web::Query<DripQuery>) -> Result<HttpResponse> {
+pub async fn drip_handler(
+    _req: HttpRequest,
+    query: web::Query<DripQuery>,
+    config: web::Data<AppConfig>,
+) -> Result<HttpResponse> {
     let duration = query.duration.unwrap_or(2.0);
     let numbytes = query.numbytes.unwrap_or(10);
     let code = query.code.unwrap_or(200);
@@ -379,8 +388,13 @@ pub async fn drip_handler(_req: HttpRequest, query: web::Query<DripQuery>) -> Re
         })));
     }
 
-    // Set reasonable limit (10MB)
-    let numbytes = numbytes.min(10 * 1024 * 1024);
+    // Reject over-limit requests with a clear error instead of silently
+    // clamping, consistent with /bytes, /stream-bytes, and /range (httpbin #594).
+    if numbytes > config.max_bytes {
+        return Ok(HttpResponse::NotFound().json(json!({
+            "error": format!("number of bytes must be in the range (0, {}]", config.max_bytes)
+        })));
+    }
 
     // Validate status code
     let status = StatusCode::from_u16(code).unwrap_or(StatusCode::OK);

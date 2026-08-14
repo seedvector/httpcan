@@ -85,11 +85,11 @@ CLI flags:
 
 | Option                         | Description                                                                                                       | Default | Example                                                    |
 |--------------------------------|-------------------------------------------------------------------------------------------------------------------|---------|------------------------------------------------------------|
-| `-p, --port <PORT>`            | Port number to listen on                                                                                          | `8080`  | `--port 3000`                                             |
-| `--no-current-server`          | Do not add current server to OpenAPI `servers` list                                                               | `false` | `--no-current-server`                                     |
-| `--exclude-headers <HEADERS>`  | Exclude headers in responses; comma‑separated; supports wildcard suffix (e.g. `x-bar-*`)                          | `""`    | `--exclude-headers "x-forwarded-*,cf-*,server"`           |
-| `--max-bytes <BYTES>`          | Max bytes for `/bytes` & `/stream-bytes`; over‑limit returns 404 instead of truncating (httpbin #594)              | `102400` | `--max-bytes 1048576`                                     |
-| `--scheme <auto\|http\|https>` | Scheme for SEO‑facing URLs only (canonical link, sitemap.xml, robots.txt); doesn't affect copy‑curl examples or the OpenAPI current server, which always mirror the actual request. Also settable via `HTTPCAN_SCHEME` | `auto`  | `--scheme https`                                          |
+| `-p, --port <PORT>`            | Port number to listen on. Also settable via `HTTPCAN_PORT`                                                        | `8080`  | `--port 3000`                                             |
+| `--openapi-servers <MODE>`     | How `/openapi.json` builds its `servers` array: `current-first` (default) prepends the instance the visitor is talking to; `spec-only` serves the spec's own servers verbatim. Also settable via `HTTPCAN_OPENAPI_SERVERS` | `current-first` | `--openapi-servers spec-only` |
+| `--exclude-headers <HEADERS>`  | Exclude headers in responses; comma‑separated; supports wildcard suffix (e.g., `x-bar-*`). Also settable via `HTTPCAN_EXCLUDE_HEADERS` | `""`    | `--exclude-headers "x-forwarded-*,cf-*,server"`           |
+| `--max-bytes <BYTES>`          | Max bytes for `/bytes`, `/stream-bytes`, `/range`, and `/drip`; over‑limit returns 404 instead of truncating (httpbin #594). Also settable via `HTTPCAN_MAX_BYTES` | `102400` | `--max-bytes 1048576`                                     |
+| `--canonical-scheme <auto\|http\|https>` | Scheme for SEO‑facing URLs only (canonical link, sitemap.xml, robots.txt); doesn't affect copy‑curl examples or the OpenAPI current server, which always mirror the actual request. Also settable via `HTTPCAN_CANONICAL_SCHEME` | `auto`  | `--canonical-scheme https` |
 | `--static-dir <DIR>`          | Static assets directory: user overrides for `openapi.json`, `favicon.png`, `index.html`, `robots.txt`, `sitemap.xml`, plus extra files served at `/static/<name>` or `/<name>`. Also settable via `HTTPCAN_STATIC_DIR` | *binary-relative `static`, else `./static`* | `--static-dir /etc/httpcan/static` |
 | `-h, --help`                   | Print help information                                                                                             |         | `--help`                                                  |
 | `-V, --version`                | Print version                                                                                                      |         | `--version`                                               |
@@ -98,18 +98,18 @@ Notes:
 - Built‑in filtering includes reverse proxy/CDN providers (Nginx, Cloudflare, AWS, GCP, Azure).
 - When using Docker, ensure `-p host:container` mapping matches your `--port` if you override it.
 
-Any flag backed by an environment variable (e.g. `HTTPCAN_SCHEME`) can also be set via a `.env` file in the working directory — handy for a bare‑binary deployment on a server, where there's no Docker `--env-file`/`env_file:` or systemd `EnvironmentFile=` to inject real environment variables for you:
+Any flag backed by an environment variable (e.g. `HTTPCAN_CANONICAL_SCHEME`) can also be set via a `.env` file in the working directory — handy for a bare‑binary deployment on a server, where there's no Docker `--env-file`/`env_file:` or systemd `EnvironmentFile=` to inject real environment variables for you:
 
 ```bash
 # .env
-HTTPCAN_SCHEME=https
+HTTPCAN_CANONICAL_SCHEME=https
 ```
 
 ```bash
 ./httpcan   # picks up .env from the current directory automatically
 ```
 
-`.env` values are loaded before CLI flags are parsed, so an explicit `--scheme` flag still takes precedence over `HTTPCAN_SCHEME` in `.env`.
+`.env` values are loaded before CLI flags are parsed, so an explicit `--canonical-scheme` flag still takes precedence over `HTTPCAN_CANONICAL_SCHEME` in `.env`.
 
 ## Usage Examples
 
@@ -253,11 +253,11 @@ The binary is fully self-contained: the OpenAPI spec and favicon are embedded at
 
 | File in static dir | Replaces | Notes |
 |---|---|---|
-| `openapi.json` | embedded spec at `/openapi.json` | The current server is still injected into `servers` (disable with `--no-current-server`) |
+| `openapi.json` | embedded spec at `/openapi.json` | The current server is still injected into `servers` (verbatim with `--openapi-servers spec-only`) |
 | `favicon.png` | embedded favicon at `/favicon.png` | |
 | `index.html` | generated homepage at `/` | Forfeits origin-resolved curl examples, markdown negotiation, and Link headers |
 | `robots.txt` | generated policy at `/robots.txt` | E.g. `Disallow: *` for private instances |
-| `sitemap.xml` | generated index at `/sitemap.xml` | Absolute URLs in a static file don't follow the request origin or `--scheme` |
+| `sitemap.xml` | generated index at `/sitemap.xml` | Absolute URLs in a static file don't follow the request origin or `--canonical-scheme` |
 
 Behavior notes:
 
