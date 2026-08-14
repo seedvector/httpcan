@@ -10,7 +10,7 @@ Add HTTPCan as a dependency in your `Cargo.toml`:
 [dependencies]
 httpcan = { path = "path/to/httpcan" }
 # Or if published to crates.io:
-# httpcan = "0.6.3"
+# httpcan = "0.6.4"
 ```
 
 ### Basic Usage
