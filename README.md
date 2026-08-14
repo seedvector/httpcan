@@ -10,7 +10,7 @@ Quick Links: [Quick Start](#quick-start) · [Installation](#installation) · [Co
 
 ## ✨ Features
 
-- **Superset of httpbin.org**: every httpbin.org endpoint is covered, drop‑in compatible, plus additional and enhanced endpoints — see the [homepage](#openapi--homepage) for the full badge‑tagged list
+- **69-endpoint superset of httpbin.org**: every httpbin.org endpoint covered and drop‑in compatible, plus 19 endpoints httpbin.org doesn't have and 18 it has but httpcan fixes or extends — see the [homepage](#openapi--homepage) for the full badge‑tagged list
 - **Anti‑phishing redirects**: browser clients hitting `/redirect-to` see a confirmation page instead of a silent 302, closing an open‑redirect abuse vector
 - **AI‑friendly streaming**: native `/sse` and `/ndjson` endpoints with OpenAI/Ollama‑compatible chunk formats
 - **Cloud‑native observability**: `/healthz` liveness probe, `/tags` instance identification, and `Server-Timing`/`X-Httpcan-Version` headers on every response

@@ -398,15 +398,15 @@ document.addEventListener('click', function (event) {
 "#;
 
 fn render_homepage(canonical_url: &str, base: &str, version: &str) -> String {
-    let (_total, enhanced, new) = badge_counts();
+    let (total, enhanced, new) = badge_counts();
     format!(
         r##"<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>HTTPCan &mdash; HTTP Request &amp; Response Testing Service</title>
-<meta name="description" content="HTTPCan is a modern, high-performance superset of httpbin.org for testing HTTP clients, proxies, and AI agents: fully httpbin-compatible, plus SSE/NDJSON streaming, an anti-phishing redirect interstitial, and cloud-native observability.">
+<title>HTTPCan &mdash; An Open-Source httpbin Alternative</title>
+<meta name="description" content="HTTPCan is a {total}-endpoint superset of httpbin.org built in Rust: fully compatible, plus SSE/NDJSON streaming and cloud-native observability.">
 <link rel="canonical" href="{canonical_url}">
 <link rel="icon" type="image/png" href="/favicon.png">
 <style>{style}</style>
@@ -437,7 +437,7 @@ curl http://localhost:8080/get</code></pre>
 <section id="why-httpcan">
 <h2>Why HTTPCan <a class="hash" href="#why-httpcan">#</a></h2>
 <div class="highlights">
-<p>HTTPCan is a drop-in replacement for httpbin.org: every httpbin.org endpoint is covered, plus {new} additional endpoints and {enhanced} bug-fixed or extended ones (see the badges below). On top of that:</p>
+<p>HTTPCan is a <strong>{total}-endpoint superset of httpbin.org</strong>: every httpbin.org endpoint is covered and drop-in compatible, plus {new} endpoints httpbin.org doesn't have and {enhanced} it has but httpcan fixes or extends (see the badges below). On top of that:</p>
 <ul>
 <li><strong>Anti-phishing redirects</strong> &mdash; browser clients hitting <code>/redirect-to</code> see a confirmation page instead of a silent 302, closing an open-redirect abuse vector.</li>
 <li><strong>AI-friendly streaming</strong> &mdash; native <code>/sse</code> and <code>/ndjson</code> endpoints with OpenAI/Ollama-compatible chunk formats.</li>
@@ -469,6 +469,7 @@ curl http://localhost:8080/get</code></pre>
 </html>"##,
         canonical_url = canonical_url,
         style = STYLE,
+        total = total,
         enhanced = enhanced,
         new = new,
         toc = render_toc(),
@@ -513,7 +514,7 @@ fn render_markdown(base: &str, version: &str) -> String {
     let _ = writeln!(s, "## Why HTTPCan\n");
     let _ = writeln!(
         s,
-        "HTTPCan is a drop-in replacement for httpbin.org: every httpbin.org endpoint is covered, plus {new} additional endpoints and {enhanced} bug-fixed or extended ones.\n"
+        "HTTPCan is a **{total}-endpoint superset of httpbin.org**: every httpbin.org endpoint is covered and drop-in compatible, plus {new} endpoints httpbin.org doesn't have and {enhanced} it has but httpcan fixes or extends.\n"
     );
     let _ = writeln!(s, "- **Anti-phishing redirects** — browser clients hitting `/redirect-to` see a confirmation page instead of a silent 302, closing an open-redirect abuse vector.");
     let _ = writeln!(s, "- **AI-friendly streaming** — native `/sse` and `/ndjson` endpoints with OpenAI/Ollama-compatible chunk formats.");
