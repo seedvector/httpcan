@@ -10,7 +10,7 @@ Quick Links: [Quick Start](#quick-start) · [Installation](#installation) · [Co
 
 ## ✨ Features
 
-- **69-endpoint superset of httpbin.org**: every httpbin.org endpoint covered and drop‑in compatible, plus 19 endpoints httpbin.org doesn't have and 18 it has but httpcan fixes or extends — see the [homepage](#openapi--homepage) for the full badge‑tagged list
+- **72-endpoint superset of httpbin.org**: every httpbin.org endpoint covered and drop‑in compatible, plus 22 endpoints httpbin.org doesn't have and 18 it has but httpcan fixes or extends — see the [homepage](#openapi--homepage) for the full badge‑tagged list
 - **Anti‑phishing redirects**: browser clients hitting `/redirect-to` see a confirmation page instead of a silent 302, closing an open‑redirect abuse vector
 - **AI‑friendly streaming**: native `/sse` and `/ndjson` endpoints with OpenAI/Ollama‑compatible chunk formats
 - **Cloud‑native observability**: `/healthz` liveness probe, `/tags` instance identification, and `Server-Timing`/`X-Httpcan-Version` headers on every response
@@ -199,7 +199,7 @@ Endpoints are grouped into the same categories shown on the homepage (`/`) — v
 
 | Category | Endpoints |
 |---|---|
-| HTTP Methods | `/get` `/post` `/put` `/patch` `/delete` `/method` `/head` `/echo` |
+| HTTP Methods | `/get` `/post` `/put` `/patch` `/delete` `/method` `/head` `/options` `/trace` `/query` `/echo` |
 | Anything | `/anything` `/anything/{path}` |
 | Auth | `/basic-auth` `/hidden-basic-auth` `/bearer` `/jwt-bearer` `/digest-auth` |
 | Status codes | `/status/{codes}` |
@@ -224,14 +224,14 @@ For full parameter details and schemas, consult the [OpenAPI spec](/openapi.json
 ### HTTPCan Enhancements
 
 - Echo endpoint: `/echo` reflects request body and headers (multi‑method)
-- Methods+: `QUERY` HTTP method (RFC 9430 — a safe, idempotent GET with a body) accepted on `/anything`, `/anything/{anything}`, and `/echo`
+- Methods+: `QUERY` HTTP method (RFC 9430 — a safe, idempotent GET with a body) accepted on `/anything`, `/anything/{anything}`, and `/echo`, with a dedicated `/query` endpoint echoing URL args plus the parsed body
 - Auth+: Basic auth with username only; JWT Bearer decode/inspect at `/jwt-bearer`
 - Status+: Content‑type priority: `Accept` > request `Content-Type` > default; supports custom bodies via query/body
 - Redirects+: `POST /redirect-to` supports `application/x-www-form-urlencoded`, `multipart/form-data`, `application/json`; browser clients get an open-redirect interstitial (see [above](#status--redirects))
 - Streaming+: SSE/NDJSON endpoints with `count`, `delay`, and AI formats (OpenAI/Ollama)
 - File uploads+: Multiple files with the same field return as array across multipart endpoints
 - Observability+: `/healthz` liveness probe; `/tags` exposes `HTTPCAN_*` env vars; every response carries `Server-Timing` and `X-Httpcan-Version` headers
-- Method echo+: `/method` echoes any HTTP method name; `/head` (HEAD‑only) mirrors request headers as `X‑Echo‑*`; GET endpoints also answer `HEAD`
+- Method echo+: `/method` echoes any method name; `/head` `/options` `/trace` `/query` are dedicated echo endpoints; GET endpoints also answer `HEAD`
 - Status headers+: `?header=Name:Value` injects response headers on `/status/{codes}` (repeatable; e.g. `Retry-After` for rate‑limit testing)
 - Body encoding+: POST to `/gzip`, `/deflate`, `/brotli`, `/zstd`, or `/base64` returns the request body in the matching encoding
 

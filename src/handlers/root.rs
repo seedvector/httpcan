@@ -70,6 +70,9 @@ const CATEGORIES: &[Category] = &[
             Endpoint { methods: "DELETE", path: "/delete", badge: None, desc: "Same as /post, for DELETE requests.", curl: "curl -X DELETE {base}/delete" },
             Endpoint { methods: "ANY", path: "/method", badge: Some(Badge::New), desc: "Echoes back whichever HTTP method name was used to call it.", curl: "curl -X LINK {base}/method" },
             Endpoint { methods: "HEAD", path: "/head", badge: Some(Badge::New), desc: "HEAD-only endpoint; mirrors request headers back as X-Echo-* response headers.", curl: "curl -I {base}/head" },
+            Endpoint { methods: "OPTIONS", path: "/options", badge: Some(Badge::New), desc: "OPTIONS-only endpoint; echoes the request with an Allow header (RFC 9110 §9.3.7).", curl: "curl -X OPTIONS {base}/options" },
+            Endpoint { methods: "TRACE", path: "/trace", badge: Some(Badge::New), desc: "TRACE-only endpoint; echoes the request like /anything (RFC 9110 §9.8).", curl: "curl -X TRACE {base}/trace" },
+            Endpoint { methods: "QUERY", path: "/query", badge: Some(Badge::New), desc: "Echoes a QUERY request: URL args plus the parsed body, like /post (RFC 9430).", curl: "curl -X QUERY {base}/query -d 'select=everything'" },
             Endpoint { methods: "GET/POST/PUT/PATCH/DELETE/QUERY", path: "/echo", badge: Some(Badge::New), desc: "Reflects the request body and headers verbatim, for any method including QUERY (RFC 9430).", curl: "curl -X POST {base}/echo -d 'hello httpcan'" },
         ],
     },
@@ -78,8 +81,8 @@ const CATEGORIES: &[Category] = &[
         title: "Anything",
         desc: "Returns anything that is passed to the request.",
         endpoints: &[
-            Endpoint { methods: "GET/POST/PUT/PATCH/DELETE/TRACE/QUERY", path: "/anything", badge: Some(Badge::Enhanced), desc: "Accepts any method and echoes the full request; multipart handling matches /post.", curl: "curl -X POST {base}/anything -d 'hello httpcan'" },
-            Endpoint { methods: "GET/POST/PUT/PATCH/DELETE/TRACE/QUERY", path: "/anything/{path}", badge: Some(Badge::Enhanced), desc: "Same as /anything, with an extra path segment that is ignored.", curl: "curl {base}/anything/foo/bar" },
+            Endpoint { methods: "GET/POST/PUT/PATCH/DELETE/OPTIONS/TRACE/QUERY", path: "/anything", badge: Some(Badge::Enhanced), desc: "Accepts any method and echoes the full request; multipart handling matches /post.", curl: "curl -X POST {base}/anything -d 'hello httpcan'" },
+            Endpoint { methods: "GET/POST/PUT/PATCH/DELETE/OPTIONS/TRACE/QUERY", path: "/anything/{path}", badge: Some(Badge::Enhanced), desc: "Same as /anything, with an extra path segment that is ignored.", curl: "curl {base}/anything/foo/bar" },
         ],
     },
     Category {

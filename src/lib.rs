@@ -342,6 +342,14 @@ fn create_app(
         .service(web::resource("/method").route(web::to(method_handler)))
         // HEAD-only endpoint echoing headers as X-Echo-* (httpbin #630)
         .service(web::resource("/head").route(web::head().to(head_handler)))
+        // Dedicated echo endpoints completing the standard-method family
+        // (OPTIONS: RFC 9110 §9.3.7, TRACE: §9.8, QUERY: RFC 9430).
+        .service(
+            web::resource("/options")
+                .route(web::method(actix_web::http::Method::OPTIONS).to(options_handler)),
+        )
+        .service(web::resource("/trace").route(web::trace().to(trace_handler)))
+        .service(web::resource("/query").route(web::method(query_method()).to(query_handler)))
         // Anything endpoints - supporting multiple methods
         .service(
             web::resource("/anything")
@@ -351,6 +359,7 @@ fn create_app(
                 .route(web::patch().to(anything_handler))
                 .route(web::delete().to(anything_handler))
                 .route(web::trace().to(anything_handler_get))
+                .route(web::method(actix_web::http::Method::OPTIONS).to(anything_handler_get))
                 .route(web::method(query_method()).to(anything_handler)),
         )
         // Support for any path after /anything (single or multi-segment)
@@ -362,6 +371,10 @@ fn create_app(
                 .route(web::patch().to(anything_with_param_handler))
                 .route(web::delete().to(anything_with_param_handler))
                 .route(web::trace().to(anything_with_param_handler_get))
+                .route(
+                    web::method(actix_web::http::Method::OPTIONS)
+                        .to(anything_with_param_handler_get),
+                )
                 .route(web::method(query_method()).to(anything_with_param_handler)),
         )
         // Auth endpoints

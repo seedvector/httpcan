@@ -80,6 +80,91 @@ async fn query_method_echo_mirrors_body() {
     assert_eq!(resp.status(), StatusCode::OK);
     assert_eq!(test::read_body(resp).await, "ping");
 }
+
+// Dedicated echo endpoints completing the standard-method family:
+// /options (RFC 9110 §9.3.7), /trace (§9.8), /query (RFC 9430).
+#[actix_web::test]
+async fn options_endpoint_echoes_request_with_allow_header() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::default()
+        .method(actix_web::http::Method::OPTIONS)
+        .uri("/options?k=v")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    // RFC 9110 §10.2.1: Allow lists the target resource's methods.
+    let allow = resp
+        .headers()
+        .get("allow")
+        .and_then(|v| v.to_str().ok())
+        .expect("Allow header on OPTIONS success");
+    assert!(allow.contains("OPTIONS"), "Allow: {allow}");
+
+    let v: serde_json::Value =
+        serde_json::from_slice(&test::read_body(resp).await).expect("JSON body");
+    assert_eq!(v["args"]["k"].as_str(), Some("v"));
+    assert!(v.get("url").is_some());
+}
+
+#[actix_web::test]
+async fn trace_endpoint_echoes_method() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::default()
+        .method(actix_web::http::Method::TRACE)
+        .uri("/trace")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let v: serde_json::Value =
+        serde_json::from_slice(&test::read_body(resp).await).expect("JSON body");
+    assert_eq!(v.get("method").and_then(|x| x.as_str()), Some("TRACE"));
+    assert!(v.get("url").is_some());
+}
+
+#[actix_web::test]
+async fn query_endpoint_parses_url_args_and_body() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::default()
+        .method(query_method())
+        .uri("/query?lang=rust")
+        .insert_header(("content-type", "application/x-www-form-urlencoded"))
+        .set_payload("select=stars")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let v: serde_json::Value =
+        serde_json::from_slice(&test::read_body(resp).await).expect("JSON body");
+    // Both channels echoed: URL args and the body-carried query (RFC 9430:
+    // the body *is* the query).
+    assert_eq!(v["args"]["lang"].as_str(), Some("rust"));
+    assert_eq!(v["form"]["select"].as_str(), Some("stars"));
+    assert!(v.get("url").is_some());
+}
+
+#[actix_web::test]
+async fn dedicated_method_endpoints_405_on_wrong_method() {
+    // Each dedicated endpoint answers only its own method with 200;
+    // mismatches are 405 + Allow, like the rest of the method family.
+    let app = test::init_service(create_app(cfg())).await;
+    for (uri, allowed) in [
+        ("/options", "OPTIONS"),
+        ("/trace", "TRACE"),
+        ("/query", "QUERY"),
+    ] {
+        let req = test::TestRequest::get().uri(uri).to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED, "GET {uri}");
+        let allow = resp
+            .headers()
+            .get("allow")
+            .and_then(|v| v.to_str().ok())
+            .expect("Allow header on 405");
+        assert!(allow.contains(allowed), "Allow: {allow}");
+    }
+}
 #[actix_web::test]
 async fn duplicate_request_headers_are_joined() {
     // Regression for httpbin #355: multiple headers with the same name
@@ -336,7 +421,9 @@ async fn head_on_non_get_endpoints_is_405() {
     // Flask does not auto-map HEAD onto POST-only routes: httpbin answers
     // 405 there (never 404). Method endpoints must keep that behavior.
     let app = test::init_service(create_app(cfg())).await;
-    for uri in ["/post", "/put", "/patch", "/delete", "/base64"] {
+    for uri in [
+        "/post", "/put", "/patch", "/delete", "/options", "/trace", "/query", "/base64",
+    ] {
         let req = test::TestRequest::default()
             .method(actix_web::http::Method::HEAD)
             .uri(uri)

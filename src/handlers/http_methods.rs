@@ -112,3 +112,36 @@ pub async fn head_handler(req: HttpRequest) -> Result<HttpResponse> {
     }
     Ok(builder.finish())
 }
+
+/// `/query` — dedicated echo endpoint for the QUERY method (RFC 9430).
+/// QUERY is a safe, idempotent method whose request body carries the query,
+/// so this echoes URL args *and* the parsed body (form/JSON/multipart),
+/// exactly like /post.
+pub async fn query_handler(
+    req: HttpRequest,
+    payload: web::Payload,
+    config: web::Data<AppConfig>,
+) -> Result<HttpResponse> {
+    universal_body_handler_httpbin(req, payload, config).await
+}
+
+/// `/trace` — dedicated echo endpoint for the TRACE method (RFC 9110 §9.8).
+/// TRACE requests carry no body; echo the request metadata like /anything.
+pub async fn trace_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Result<HttpResponse> {
+    anything_handler_get(req, config).await
+}
+
+/// `/options` — dedicated echo endpoint for the OPTIONS method
+/// (RFC 9110 §9.3.7). Plain OPTIONS returns 200 with an `Allow` header
+/// listing the target resource's methods (§10.2.1) plus a `/get`-style JSON
+/// echo. CORS preflight OPTIONS (carrying `Access-Control-Request-Method`)
+/// is intercepted earlier by the CORS middleware and never reaches this.
+pub async fn options_handler(
+    req: HttpRequest,
+    config: web::Data<AppConfig>,
+) -> Result<HttpResponse> {
+    let request_info = extract_get_request_info(&req, &config.exclude_headers);
+    Ok(HttpResponse::Ok()
+        .insert_header((actix_web::http::header::ALLOW, "OPTIONS"))
+        .json(request_info))
+}

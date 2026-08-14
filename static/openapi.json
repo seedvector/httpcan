@@ -1926,6 +1926,38 @@
         }
       }
     },
+    "/options": {
+      "options": {
+        "tags": [
+          "HTTP Methods"
+        ],
+        "summary": "OPTIONS-only endpoint: echoes the request like /get and returns an Allow header (RFC 9110 §9.3.7).",
+        "responses": {
+          "200": {
+            "description": "JSON echo of args/headers/origin/url, plus Allow: OPTIONS.",
+            "content": {}
+          }
+        }
+      }
+    },
+    "/query": {
+      "summary": "Echo endpoint for the QUERY method (RFC 9430).",
+      "description": "Accepts only the QUERY extension method, which OpenAPI cannot express as a Path Item operation key. Echoes URL args plus the parsed request body (form/JSON/multipart), like /post."
+    },
+    "/trace": {
+      "trace": {
+        "tags": [
+          "HTTP Methods"
+        ],
+        "summary": "TRACE-only endpoint: echoes the request like /anything (RFC 9110 §9.8).",
+        "responses": {
+          "200": {
+            "description": "JSON echo of the request.",
+            "content": {}
+          }
+        }
+      }
+    },
     "/gzip": {
       "get": {
         "tags": [
