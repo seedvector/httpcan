@@ -322,7 +322,19 @@ fn create_app(
     }
 
     app = app
-        // Echo endpoint - mirrors request body and headers
+        // Body reflection — returns the request body verbatim with mirrored
+        // headers. /body is the facet-named primary (/headers, /body, /method,
+        // ...); /echo is kept as a compatibility alias for pre-0.7 clients.
+        .service(
+            web::resource("/body")
+                .route(get_or_head(echo_handler_get))
+                .route(web::post().to(echo_handler))
+                .route(web::put().to(echo_handler))
+                .route(web::patch().to(echo_handler))
+                .route(web::delete().to(echo_handler))
+                .route(web::method(query_method()).to(echo_handler)),
+        )
+        // Compatibility alias of /body
         .service(
             web::resource("/echo")
                 .route(get_or_head(echo_handler_get))

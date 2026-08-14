@@ -1,9 +1,13 @@
 {
-  "openapi": "3.0.1",
+  "openapi": "3.2.0",
   "info": {
     "title": "httpcan.org",
     "description": "A simple, high‑performance HTTP request & response service built with Rust and Actix Web. Fully compatible with [httpbin.org](https://httpbin.org), with modern streaming and AI‑friendly enhancements. <br/> <br/> <b>Run locally:</b> <code>$ docker run -p 8080:8080 ghcr.io/seedvector/httpcan:latest</code> <br/> <br/> <b>✨ Features</b> <ul> <li><b>HTTPBin compatible</b>: Use as a drop‑in replacement for testing/migration</li> <li><b>Modern streaming</b>: Native SSE and NDJSON, AI‑compatible formats (OpenAI/Ollama)</li> <li><b>Tiny Docker image</b>: <10MB, fast to pull and start</li> <li><b>Minimal memory footprint</b>: Efficient async Rust I/O</li> <li><b>High throughput</b>: Actix Web + Tokio</li> <li><b>Observability built-in</b>: every response carries <code>Server-Timing</code> and <code>X-Httpcan-Version</code> headers; instance tags via <code>/tags</code></li> </ul>",
-    "version": "0.6.4"
+    "version": "0.7.0",
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
   },
   "externalDocs": {
     "description": "GitHub",
@@ -18,55 +22,55 @@
   "tags": [
     {
       "name": "HTTP Methods",
-      "description": "Testing different HTTP verbs"
-    },
-    {
-      "name": "Auth",
-      "description": "Auth methods"
-    },
-    {
-      "name": "Status codes",
-      "description": "Generates responses with given status code"
-    },
-    {
-      "name": "Request inspection",
-      "description": "Inspect the request data"
-    },
-    {
-      "name": "Response inspection",
-      "description": "Inspect the response data like caching and headers"
-    },
-    {
-      "name": "Response formats",
-      "description": "Returns responses in different data formats"
-    },
-    {
-      "name": "Dynamic data",
-      "description": "Generates random and dynamic data"
-    },
-    {
-      "name": "Cookies",
-      "description": "Creates, reads and deletes Cookies"
-    },
-    {
-      "name": "Images",
-      "description": "Returns different image formats"
-    },
-    {
-      "name": "Redirects",
-      "description": "Returns different redirect responses"
+      "description": "Testing different HTTP verbs."
     },
     {
       "name": "Anything",
-      "description": "Returns anything that is passed to request"
+      "description": "Returns anything that is passed to the request."
+    },
+    {
+      "name": "Auth",
+      "description": "Auth methods."
+    },
+    {
+      "name": "Status codes",
+      "description": "Generates responses with a given status code."
+    },
+    {
+      "name": "Request inspection",
+      "description": "Inspect the request data."
+    },
+    {
+      "name": "Response inspection",
+      "description": "Inspect the response data, like caching and headers."
+    },
+    {
+      "name": "Response formats",
+      "description": "Returns responses in different data formats."
+    },
+    {
+      "name": "Dynamic data",
+      "description": "Generates random and dynamic data."
+    },
+    {
+      "name": "Cookies",
+      "description": "Creates, reads, and deletes cookies."
+    },
+    {
+      "name": "Images",
+      "description": "Returns different image formats."
+    },
+    {
+      "name": "Redirects",
+      "description": "Returns different redirect responses."
     },
     {
       "name": "Streaming",
-      "description": "Server-Sent Events and NDJSON streaming endpoints"
+      "description": "Server-Sent Events and NDJSON streaming endpoints."
     },
     {
       "name": "Observability",
-      "description": "Health checks and instance identification"
+      "description": "Health checks and instance identification."
     }
   ],
   "paths": {
@@ -75,18 +79,25 @@
         "tags": [
           "Redirects"
         ],
-        "summary": "Absolutely 302 Redirects n times.",
+        "summary": "Redirects n times, using absolute Location URLs.",
+        "operationId": "getAbsoluteRedirectN",
+        "description": "Same as /redirect/{n}, using absolute Location URLs.",
         "parameters": [
           {
             "name": "n",
             "in": "path",
             "required": true,
-            "schema": {}
+            "schema": {},
+            "description": "Number of redirects to perform"
           }
         ],
         "responses": {
           "302": {
             "description": "A redirection.",
+            "content": {}
+          },
+          "400": {
+            "description": "n must be greater than 0.",
             "content": {}
           }
         }
@@ -98,9 +109,11 @@
           "Anything"
         ],
         "summary": "Returns anything passed in request data.",
+        "operationId": "getAnything",
+        "description": "Accepts any method and echoes the full request; multipart handling matches /post.",
         "responses": {
           "200": {
-            "description": "Anything passed in request",
+            "description": "The echoed request data (args, headers, origin, url, and body).",
             "content": {}
           }
         }
@@ -110,9 +123,11 @@
           "Anything"
         ],
         "summary": "Returns anything passed in request data.",
+        "operationId": "putAnything",
+        "description": "Accepts any method and echoes the full request; multipart handling matches /post.",
         "responses": {
           "200": {
-            "description": "Anything passed in request",
+            "description": "The echoed request data (args, headers, origin, url, and body).",
             "content": {}
           }
         }
@@ -122,9 +137,11 @@
           "Anything"
         ],
         "summary": "Returns anything passed in request data.",
+        "operationId": "postAnything",
+        "description": "Accepts any method and echoes the full request; multipart handling matches /post.",
         "responses": {
           "200": {
-            "description": "Anything passed in request",
+            "description": "The echoed request data (args, headers, origin, url, and body).",
             "content": {}
           }
         }
@@ -134,9 +151,11 @@
           "Anything"
         ],
         "summary": "Returns anything passed in request data.",
+        "operationId": "deleteAnything",
+        "description": "Accepts any method and echoes the full request; multipart handling matches /post.",
         "responses": {
           "200": {
-            "description": "Anything passed in request",
+            "description": "The echoed request data (args, headers, origin, url, and body).",
             "content": {}
           }
         }
@@ -146,9 +165,11 @@
           "Anything"
         ],
         "summary": "Returns anything passed in request data.",
+        "operationId": "patchAnything",
+        "description": "Accepts any method and echoes the full request; multipart handling matches /post.",
         "responses": {
           "200": {
-            "description": "Anything passed in request",
+            "description": "The echoed request data (args, headers, origin, url, and body).",
             "content": {}
           }
         }
@@ -158,10 +179,39 @@
           "Anything"
         ],
         "summary": "Returns anything passed in request data.",
+        "operationId": "queryAnything",
         "description": "Uses the QUERY HTTP method (RFC 9430): a safe, idempotent method that carries a request body.",
         "responses": {
           "200": {
-            "description": "Anything passed in request",
+            "description": "The echoed request data (args, headers, origin, url, and body).",
+            "content": {}
+          }
+        }
+      },
+      "trace": {
+        "tags": [
+          "Anything"
+        ],
+        "summary": "Returns anything passed in request data.",
+        "operationId": "traceAnything",
+        "description": "TRACE variant (RFC 9110 §9.8): echoes the request like GET; TRACE carries no body.",
+        "responses": {
+          "200": {
+            "description": "The echoed request data (args, headers, origin, url, and body).",
+            "content": {}
+          }
+        }
+      },
+      "options": {
+        "tags": [
+          "Anything"
+        ],
+        "summary": "Returns anything passed in request data.",
+        "operationId": "optionsAnything",
+        "description": "Plain OPTIONS (non-preflight) echoes the request like GET; CORS preflights carrying Access-Control-Request-Method are handled by the CORS middleware.",
+        "responses": {
+          "200": {
+            "description": "The echoed request data (args, headers, origin, url, and body).",
             "content": {}
           }
         }
@@ -173,9 +223,22 @@
           "Anything"
         ],
         "summary": "Returns anything passed in request data.",
+        "operationId": "getAnythingAnything",
+        "description": "Same as /anything, with extra path segment(s) that are ignored.",
+        "parameters": [
+          {
+            "name": "anything",
+            "in": "path",
+            "required": true,
+            "description": "Arbitrary path content after /anything (single or multi-segment), echoed back in the response",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Anything passed in request",
+            "description": "The echoed request data (args, headers, origin, url, and body).",
             "content": {}
           }
         }
@@ -185,9 +248,22 @@
           "Anything"
         ],
         "summary": "Returns anything passed in request data.",
+        "operationId": "putAnythingAnything",
+        "description": "Same as /anything, with extra path segment(s) that are ignored.",
+        "parameters": [
+          {
+            "name": "anything",
+            "in": "path",
+            "required": true,
+            "description": "Arbitrary path content after /anything (single or multi-segment), echoed back in the response",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Anything passed in request",
+            "description": "The echoed request data (args, headers, origin, url, and body).",
             "content": {}
           }
         }
@@ -197,9 +273,22 @@
           "Anything"
         ],
         "summary": "Returns anything passed in request data.",
+        "operationId": "postAnythingAnything",
+        "description": "Same as /anything, with extra path segment(s) that are ignored.",
+        "parameters": [
+          {
+            "name": "anything",
+            "in": "path",
+            "required": true,
+            "description": "Arbitrary path content after /anything (single or multi-segment), echoed back in the response",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Anything passed in request",
+            "description": "The echoed request data (args, headers, origin, url, and body).",
             "content": {}
           }
         }
@@ -209,9 +298,22 @@
           "Anything"
         ],
         "summary": "Returns anything passed in request data.",
+        "operationId": "deleteAnythingAnything",
+        "description": "Same as /anything, with extra path segment(s) that are ignored.",
+        "parameters": [
+          {
+            "name": "anything",
+            "in": "path",
+            "required": true,
+            "description": "Arbitrary path content after /anything (single or multi-segment), echoed back in the response",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Anything passed in request",
+            "description": "The echoed request data (args, headers, origin, url, and body).",
             "content": {}
           }
         }
@@ -221,9 +323,22 @@
           "Anything"
         ],
         "summary": "Returns anything passed in request data.",
+        "operationId": "patchAnythingAnything",
+        "description": "Same as /anything, with extra path segment(s) that are ignored.",
+        "parameters": [
+          {
+            "name": "anything",
+            "in": "path",
+            "required": true,
+            "description": "Arbitrary path content after /anything (single or multi-segment), echoed back in the response",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Anything passed in request",
+            "description": "The echoed request data (args, headers, origin, url, and body).",
             "content": {}
           }
         }
@@ -233,44 +348,85 @@
           "Anything"
         ],
         "summary": "Returns anything passed in request data.",
+        "operationId": "queryAnythingAnything",
         "description": "Uses the QUERY HTTP method (RFC 9430): a safe, idempotent method that carries a request body.",
-        "responses": {
-          "200": {
-            "description": "Anything passed in request",
-            "content": {}
-          }
-        }
-      }
-    },
-    "/base64/{value}": {
-      "get": {
-        "tags": [
-          "Dynamic data"
-        ],
-        "summary": "Decodes base64url-encoded string.",
         "parameters": [
           {
-            "name": "value",
+            "name": "anything",
             "in": "path",
             "required": true,
+            "description": "Arbitrary path content after /anything (single or multi-segment), echoed back in the response",
             "schema": {
-              "type": "string",
-              "default": "SFRUUEJJTiBpcyBhd2Vzb21l"
+              "type": "string"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Decoded base64 content.",
+            "description": "The echoed request data (args, headers, origin, url, and body).",
             "content": {}
           }
         }
       },
+      "trace": {
+        "tags": [
+          "Anything"
+        ],
+        "summary": "Returns anything passed in request data.",
+        "operationId": "traceAnythingAnything",
+        "description": "TRACE variant (RFC 9110 §9.8): echoes the request like GET; TRACE carries no body.",
+        "parameters": [
+          {
+            "name": "anything",
+            "in": "path",
+            "required": true,
+            "description": "Arbitrary path content after /anything (single or multi-segment), echoed back in the response",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The echoed request data (args, headers, origin, url, and body).",
+            "content": {}
+          }
+        }
+      },
+      "options": {
+        "tags": [
+          "Anything"
+        ],
+        "summary": "Returns anything passed in request data.",
+        "operationId": "optionsAnythingAnything",
+        "description": "Plain OPTIONS (non-preflight) echoes the request like GET; CORS preflights carrying Access-Control-Request-Method are handled by the CORS middleware.",
+        "parameters": [
+          {
+            "name": "anything",
+            "in": "path",
+            "required": true,
+            "description": "Arbitrary path content after /anything (single or multi-segment), echoed back in the response",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The echoed request data (args, headers, origin, url, and body).",
+            "content": {}
+          }
+        }
+      }
+    },
+    "/base64": {
       "post": {
         "tags": [
           "Dynamic data"
         ],
-        "summary": "Decodes the base64-encoded request body and returns it as text.",
+        "summary": "Decodes the base64-encoded request body and returns it as text/plain.",
+        "operationId": "postBase64",
+        "description": "Decodes the base64-encoded request body and returns the decoded content as text/plain; invalid base64 returns 400.",
         "requestBody": {
           "content": {
             "text/plain": {
@@ -292,12 +448,46 @@
         }
       }
     },
+    "/base64/{value}": {
+      "get": {
+        "tags": [
+          "Dynamic data"
+        ],
+        "summary": "Decodes a standard base64 string.",
+        "operationId": "getBase64Value",
+        "description": "Decodes a standard base64 string; returns raw bytes (application/octet-stream) for non-UTF-8 content instead of erroring.",
+        "parameters": [
+          {
+            "name": "value",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "default": "SFRUUEJJTiBpcyBhd2Vzb21l"
+            },
+            "description": "Standard base64-encoded string to decode"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Decoded base64 content.",
+            "content": {}
+          },
+          "400": {
+            "description": "Invalid base64 data.",
+            "content": {}
+          }
+        }
+      }
+    },
     "/basic-auth/{user}/{passwd}": {
       "get": {
         "tags": [
           "Auth"
         ],
-        "summary": "Prompts the user for authorization using HTTP Basic Auth.",
+        "summary": "Prompts for HTTP Basic Auth with the given credentials.",
+        "operationId": "getBasicAuthUserPasswd",
+        "description": "Returns {\"user\": ...} on success; challenges with 401 on incorrect credentials.",
         "security": [
           {
             "basicAuth": []
@@ -310,7 +500,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Username to authenticate with"
           },
           {
             "name": "passwd",
@@ -318,12 +509,13 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Password to authenticate with"
           }
         ],
         "responses": {
           "200": {
-            "description": "Sucessful authentication.",
+            "description": "Successful authentication.",
             "content": {}
           },
           "401": {
@@ -336,7 +528,9 @@
         "tags": [
           "Auth"
         ],
-        "summary": "Prompts the user for authorization using HTTP Basic Auth (POST).",
+        "summary": "Prompts for HTTP Basic Auth with the given credentials.",
+        "operationId": "postBasicAuthUserPasswd",
+        "description": "Returns {\"user\": ...} on success; challenges with 401 on incorrect credentials.",
         "security": [
           {
             "basicAuth": []
@@ -349,7 +543,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Username to authenticate with"
           },
           {
             "name": "passwd",
@@ -357,12 +552,13 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Password to authenticate with"
           }
         ],
         "responses": {
           "200": {
-            "description": "Sucessful authentication.",
+            "description": "Successful authentication.",
             "content": {}
           },
           "401": {
@@ -377,7 +573,9 @@
         "tags": [
           "Auth"
         ],
-        "summary": "Prompts the user for authorization using HTTP Basic Auth with username only (empty password).",
+        "summary": "Prompts for HTTP Basic Auth with username-only check.",
+        "operationId": "getBasicAuthUser",
+        "description": "Challenges HTTP Basic Auth with an empty password (username-only check).",
         "security": [
           {
             "basicAuth": []
@@ -390,12 +588,47 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Username to authenticate with"
           }
         ],
         "responses": {
           "200": {
-            "description": "Sucessful authentication.",
+            "description": "Successful authentication.",
+            "content": {}
+          },
+          "401": {
+            "description": "Unsuccessful authentication.",
+            "content": {}
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Prompts for HTTP Basic Auth with username-only check.",
+        "operationId": "postBasicAuthUser",
+        "description": "POST variant of the username-only Basic Auth check (empty password).",
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Username to authenticate with"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful authentication.",
             "content": {}
           },
           "401": {
@@ -410,7 +643,9 @@
         "tags": [
           "Auth"
         ],
-        "summary": "Prompts the user for authorization using bearer authentication.",
+        "summary": "Prompts for Bearer authentication.",
+        "operationId": "getBearer",
+        "description": "Checks for a Bearer token in the Authorization header.",
         "security": [
           {
             "bearerAuth": []
@@ -418,7 +653,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Sucessful authentication.",
+            "description": "Successful authentication.",
             "content": {}
           },
           "401": {
@@ -433,8 +668,9 @@
         "tags": [
           "Auth"
         ],
-        "summary": "Validates JWT Bearer tokens and returns detailed token information.",
-        "description": "This endpoint validates JWT Bearer tokens, checks expiration claims, and returns comprehensive token analysis including header, payload, claims, and validation status. Useful for testing JWT authentication implementations.",
+        "summary": "Validates a JWT Bearer token and returns its details.",
+        "operationId": "getJwtBearer",
+        "description": "Decodes and inspects a JWT Bearer token without verifying its signature: checks expiration claims and returns token analysis including header, payload, claims, and validation status. Useful for testing JWT authentication implementations.",
         "security": [
           {
             "bearerAuth": []
@@ -492,12 +728,20 @@
                           "properties": {
                             "structure": {
                               "type": "string",
-                              "enum": ["valid", "invalid"],
+                              "enum": [
+                                "valid",
+                                "invalid"
+                              ],
                               "example": "valid"
                             },
                             "expiration": {
                               "type": "string",
-                              "enum": ["valid", "expired", "not_present", "invalid_format"],
+                              "enum": [
+                                "valid",
+                                "expired",
+                                "not_present",
+                                "invalid_format"
+                              ],
                               "example": "not_present"
                             }
                           }
@@ -555,27 +799,29 @@
             }
           }
         },
-        "parameters": [],
-        "examples": {
-          "Valid Token": {
-            "summary": "Example with valid JWT token",
-            "description": "Request with a valid JWT token that includes standard claims",
-            "value": {
-              "headers": {
-                "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
-              }
-            }
-          },
-          "Expired Token": {
-            "summary": "Example with expired JWT token",
-            "description": "Request with an expired JWT token",
-            "value": {
-              "headers": {
-                "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjE1MTYyMzkwMjJ9.expired_signature"
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "description": "JWT Bearer token to validate",
+            "schema": {
+              "type": "string"
+            },
+            "examples": {
+              "Valid Token": {
+                "summary": "Example with valid JWT token",
+                "description": "Request with a valid JWT token that includes standard claims",
+                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+              },
+              "Expired Token": {
+                "summary": "Example with expired JWT token",
+                "description": "Request with an expired JWT token",
+                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjE1MTYyMzkwMjJ9.expired_signature"
               }
             }
           }
-        }
+        ]
       }
     },
     "/brotli": {
@@ -584,6 +830,8 @@
           "Response formats"
         ],
         "summary": "Returns Brotli-encoded data.",
+        "operationId": "getBrotli",
+        "description": "Returns a fixed sample JSON document, Brotli-encoded.",
         "responses": {
           "200": {
             "description": "Brotli-encoded data.",
@@ -596,6 +844,7 @@
           "Response formats"
         ],
         "summary": "Echoes the request body, Brotli-encoded.",
+        "operationId": "postBrotli",
         "description": "Compresses the request body with the matching Content-Encoding and returns it.",
         "requestBody": {
           "content": {
@@ -621,6 +870,8 @@
           "Response formats"
         ],
         "summary": "Returns Zstandard-encoded data.",
+        "operationId": "getZstd",
+        "description": "Returns a fixed sample JSON document, Zstandard-encoded.",
         "responses": {
           "200": {
             "description": "Zstandard-encoded data.",
@@ -633,6 +884,7 @@
           "Response formats"
         ],
         "summary": "Echoes the request body, Zstandard-encoded.",
+        "operationId": "postZstd",
         "description": "Compresses the request body with the matching Content-Encoding and returns it.",
         "requestBody": {
           "content": {
@@ -657,18 +909,30 @@
         "tags": [
           "Dynamic data"
         ],
-        "summary": "Returns n random bytes generated with given seed. Returns 404 when n exceeds the server max-bytes limit.",
+        "summary": "Returns n random bytes.",
+        "operationId": "getBytesN",
+        "description": "Returns n random bytes; an optional ?seed= makes them deterministic. Over the configured --max-bytes limit returns 404 instead of silently truncating.",
         "parameters": [
           {
             "name": "n",
             "in": "path",
             "required": true,
-            "schema": {}
+            "schema": {},
+            "description": "Number of random bytes to return"
+          },
+          {
+            "name": "seed",
+            "in": "query",
+            "description": "Optional seed for deterministic random bytes",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Bytes.",
+            "description": "n random bytes (application/octet-stream).",
             "content": {}
           },
           "404": {
@@ -683,26 +947,30 @@
         "tags": [
           "Response inspection"
         ],
-        "summary": "Returns a 304 if an If-Modified-Since header or If-None-Match is present. Returns the same as a GET otherwise.",
+        "summary": "Returns 304 for conditional requests, 200 otherwise.",
+        "operationId": "getCache",
+        "description": "Returns 304 if If-Modified-Since or If-None-Match is present, 200 otherwise.",
         "parameters": [
           {
             "name": "If-Modified-Since",
             "in": "header",
-            "schema": {}
+            "schema": {},
+            "description": "Conditional request header; a match returns 304"
           },
           {
             "name": "If-None-Match",
             "in": "header",
-            "schema": {}
+            "schema": {},
+            "description": "Conditional request header; a match returns 304"
           }
         ],
         "responses": {
           "200": {
-            "description": "Cached response",
+            "description": "Cached response.",
             "content": {}
           },
           "304": {
-            "description": "Modified",
+            "description": "Modified.",
             "content": {}
           }
         }
@@ -714,6 +982,8 @@
           "Response inspection"
         ],
         "summary": "Sets a Cache-Control header for n seconds.",
+        "operationId": "getCacheValue",
+        "description": "Sets Cache-Control: public, max-age=<value> seconds on the response.",
         "parameters": [
           {
             "name": "value",
@@ -721,12 +991,13 @@
             "required": true,
             "schema": {
               "type": "integer"
-            }
+            },
+            "description": "Cache duration in seconds"
           }
         ],
         "responses": {
           "200": {
-            "description": "Cache control set",
+            "description": "Cache control set.",
             "content": {}
           }
         }
@@ -738,6 +1009,8 @@
           "Cookies"
         ],
         "summary": "Returns cookie data.",
+        "operationId": "getCookies",
+        "description": "Returns the request cookies as {\"cookies\": {...}}.",
         "responses": {
           "200": {
             "description": "Set cookies.",
@@ -751,18 +1024,21 @@
         "tags": [
           "Cookies"
         ],
-        "summary": "Deletes cookie(s) as provided by the query string and redirects to cookie list.",
+        "summary": "Deletes the given cookies.",
+        "operationId": "getCookiesDelete",
+        "description": "Deletes the given cookies and redirects to /cookies.",
         "parameters": [
           {
             "name": "freeform",
             "in": "query",
             "allowEmptyValue": true,
-            "schema": {}
+            "schema": {},
+            "description": "Cookie names to delete (one per query parameter)"
           }
         ],
         "responses": {
           "200": {
-            "description": "Redirect to cookie list",
+            "description": "Redirects to /cookies.",
             "content": {}
           }
         }
@@ -773,18 +1049,21 @@
         "tags": [
           "Cookies"
         ],
-        "summary": "Sets cookie(s) as provided by the query string (name=value pairs) and redirects to cookie list. Reserved keys (httponly, secure, samesite, domain, max_age, path) configure cookie attributes.",
+        "summary": "Sets cookies from query string name=value pairs.",
+        "operationId": "getCookiesSet",
+        "description": "Sets cookies from query parameters and redirects to /cookies; supports httponly/secure/samesite/domain/path/max_age attributes.",
         "parameters": [
           {
             "name": "freeform",
             "in": "query",
             "allowEmptyValue": true,
-            "schema": {}
+            "schema": {},
+            "description": "Each name=value query pair becomes a cookie (plus httponly/secure/samesite/domain/path/max_age attributes)"
           },
           {
             "name": "httponly",
             "in": "query",
-            "description": "If 'true', set the HttpOnly attribute on all cookies.",
+            "description": "If 'true', set the HttpOnly attribute on all cookies",
             "schema": {
               "type": "string"
             }
@@ -792,7 +1071,7 @@
           {
             "name": "secure",
             "in": "query",
-            "description": "If 'true', set the Secure attribute (defaults to the request scheme).",
+            "description": "If 'true', set the Secure attribute (defaults to the request scheme)",
             "schema": {
               "type": "string"
             }
@@ -800,16 +1079,20 @@
           {
             "name": "samesite",
             "in": "query",
-            "description": "SameSite attribute.",
+            "description": "SameSite attribute",
             "schema": {
               "type": "string",
-              "enum": ["strict", "lax", "none"]
+              "enum": [
+                "strict",
+                "lax",
+                "none"
+              ]
             }
           },
           {
             "name": "domain",
             "in": "query",
-            "description": "Cookie Domain attribute.",
+            "description": "Cookie Domain attribute",
             "schema": {
               "type": "string"
             }
@@ -817,7 +1100,7 @@
           {
             "name": "max_age",
             "in": "query",
-            "description": "Max-Age in seconds.",
+            "description": "Max-Age in seconds",
             "schema": {
               "type": "integer"
             }
@@ -825,7 +1108,7 @@
           {
             "name": "path",
             "in": "query",
-            "description": "Cookie Path attribute (defaults to '/').",
+            "description": "Cookie Path attribute (defaults to '/')",
             "schema": {
               "type": "string"
             }
@@ -833,7 +1116,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Redirect to cookie list",
+            "description": "Redirects to /cookies.",
             "content": {}
           }
         }
@@ -844,7 +1127,9 @@
         "tags": [
           "Cookies"
         ],
-        "summary": "Sets a cookie and redirects to cookie list.",
+        "summary": "Sets a single cookie and redirects to /cookies.",
+        "operationId": "getCookiesSetNameValue",
+        "description": "Equivalent to /cookies/set?<name>=<value>: sets one cookie, then redirects to /cookies.",
         "parameters": [
           {
             "name": "name",
@@ -852,7 +1137,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Cookie name"
           },
           {
             "name": "value",
@@ -860,12 +1146,13 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Cookie value"
           }
         ],
         "responses": {
           "200": {
-            "description": "Set cookies and redirects to cookie list.",
+            "description": "Set cookies and redirects to /cookies.",
             "content": {}
           }
         }
@@ -877,9 +1164,11 @@
           "Response formats"
         ],
         "summary": "Returns Deflate-encoded data.",
+        "operationId": "getDeflate",
+        "description": "Returns a fixed sample JSON document, Deflate-encoded.",
         "responses": {
           "200": {
-            "description": "Defalte-encoded data.",
+            "description": "Deflate-encoded data.",
             "content": {}
           }
         }
@@ -889,6 +1178,7 @@
           "Response formats"
         ],
         "summary": "Echoes the request body, Deflate-encoded.",
+        "operationId": "postDeflate",
         "description": "Compresses the request body with the matching Content-Encoding and returns it.",
         "requestBody": {
           "content": {
@@ -914,12 +1204,17 @@
           "Dynamic data"
         ],
         "summary": "Returns a delayed response (max of 10 seconds).",
+        "operationId": "getDelayDelay",
+        "description": "Delays the response by up to 10 seconds.",
         "parameters": [
           {
             "name": "delay",
             "in": "path",
             "required": true,
-            "schema": {}
+            "schema": {
+              "type": "number"
+            },
+            "description": "Delay duration in seconds (max 10)"
           }
         ],
         "responses": {
@@ -934,12 +1229,17 @@
           "Dynamic data"
         ],
         "summary": "Returns a delayed response (max of 10 seconds).",
+        "operationId": "putDelayDelay",
+        "description": "Delays the response by up to 10 seconds.",
         "parameters": [
           {
             "name": "delay",
             "in": "path",
             "required": true,
-            "schema": {}
+            "schema": {
+              "type": "number"
+            },
+            "description": "Delay duration in seconds (max 10)"
           }
         ],
         "responses": {
@@ -954,12 +1254,17 @@
           "Dynamic data"
         ],
         "summary": "Returns a delayed response (max of 10 seconds).",
+        "operationId": "postDelayDelay",
+        "description": "Delays the response by up to 10 seconds.",
         "parameters": [
           {
             "name": "delay",
             "in": "path",
             "required": true,
-            "schema": {}
+            "schema": {
+              "type": "number"
+            },
+            "description": "Delay duration in seconds (max 10)"
           }
         ],
         "responses": {
@@ -974,12 +1279,17 @@
           "Dynamic data"
         ],
         "summary": "Returns a delayed response (max of 10 seconds).",
+        "operationId": "deleteDelayDelay",
+        "description": "Delays the response by up to 10 seconds.",
         "parameters": [
           {
             "name": "delay",
             "in": "path",
             "required": true,
-            "schema": {}
+            "schema": {
+              "type": "number"
+            },
+            "description": "Delay duration in seconds (max 10)"
           }
         ],
         "responses": {
@@ -994,12 +1304,42 @@
           "Dynamic data"
         ],
         "summary": "Returns a delayed response (max of 10 seconds).",
+        "operationId": "patchDelayDelay",
+        "description": "Delays the response by up to 10 seconds.",
         "parameters": [
           {
             "name": "delay",
             "in": "path",
             "required": true,
-            "schema": {}
+            "schema": {
+              "type": "number"
+            },
+            "description": "Delay duration in seconds (max 10)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A delayed response.",
+            "content": {}
+          }
+        }
+      },
+      "trace": {
+        "tags": [
+          "Dynamic data"
+        ],
+        "summary": "Returns a delayed response (max of 10 seconds).",
+        "operationId": "traceDelayDelay",
+        "description": "TRACE variant: delays up to 10 seconds, then responds like GET (TRACE carries no body).",
+        "parameters": [
+          {
+            "name": "delay",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "number"
+            },
+            "description": "Delay duration in seconds (max 10)"
           }
         ],
         "responses": {
@@ -1015,297 +1355,13 @@
         "tags": [
           "HTTP Methods"
         ],
-        "summary": "The request's DELETE parameters.",
+        "summary": "Echoes the request's DELETE parameters.",
+        "operationId": "deleteDelete",
+        "description": "Same as /post, for DELETE requests.",
         "responses": {
           "200": {
             "description": "The request's DELETE parameters.",
             "content": {}
-          }
-        }
-      }
-    },
-    "/echo": {
-      "get": {
-        "tags": [
-          "Request inspection"
-        ],
-        "summary": "Returns an empty response for GET requests (no body to echo).",
-        "description": "Mirrors request headers in the response. GET requests return empty body since there's no request body to echo.",
-        "responses": {
-          "200": {
-            "description": "Empty response with mirrored headers",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string",
-                  "example": ""
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "Request inspection"
-        ],
-        "summary": "Returns the exact request body with mirrored headers.",
-        "description": "Echoes the request body exactly as received and mirrors request headers in the response. Content-Type and custom headers are preserved.",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object"
-              },
-              "example": {
-                "hello": "world"
-              }
-            },
-            "text/plain": {
-              "schema": {
-                "type": "string"
-              },
-              "example": "Hello, world!"
-            },
-            "application/x-www-form-urlencoded": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
-            },
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": true
-              }
-            },
-            "application/octet-stream": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Echoed request body with mirrored headers",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                },
-                "example": {
-                  "hello": "world"
-                }
-              },
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                },
-                "example": "Hello, world!"
-              },
-              "application/octet-stream": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "Request inspection"
-        ],
-        "summary": "Returns the exact request body with mirrored headers.",
-        "description": "Echoes the request body exactly as received and mirrors request headers in the response. Content-Type and custom headers are preserved.",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object"
-              }
-            },
-            "text/plain": {
-              "schema": {
-                "type": "string"
-              }
-            },
-            "application/x-www-form-urlencoded": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
-            },
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": true
-              }
-            },
-            "application/octet-stream": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Echoed request body with mirrored headers",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              },
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "application/octet-stream": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "Request inspection"
-        ],
-        "summary": "Returns the exact request body with mirrored headers.",
-        "description": "Echoes the request body exactly as received and mirrors request headers in the response. Content-Type and custom headers are preserved.",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object"
-              }
-            },
-            "text/plain": {
-              "schema": {
-                "type": "string"
-              }
-            },
-            "application/x-www-form-urlencoded": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
-            },
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": true
-              }
-            },
-            "application/octet-stream": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Echoed request body with mirrored headers",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              },
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "application/octet-stream": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "Request inspection"
-        ],
-        "summary": "Returns the exact request body with mirrored headers.",
-        "description": "Echoes the request body exactly as received and mirrors request headers in the response. Content-Type and custom headers are preserved.",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object"
-              }
-            },
-            "text/plain": {
-              "schema": {
-                "type": "string"
-              }
-            },
-            "application/x-www-form-urlencoded": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
-            },
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": true
-              }
-            },
-            "application/octet-stream": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Echoed request body with mirrored headers",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              },
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "application/octet-stream": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
           }
         }
       }
@@ -1316,9 +1372,11 @@
           "Response formats"
         ],
         "summary": "Returns page denied by robots.txt rules.",
+        "operationId": "getDeny",
+        "description": "Returns the page that robots.txt disallows.",
         "responses": {
           "200": {
-            "description": "Denied message",
+            "description": "Denied message.",
             "content": {}
           }
         }
@@ -1329,8 +1387,9 @@
         "tags": [
           "Auth"
         ],
-        "summary": "Prompts the user for authorization using Digest Auth.",
-        "description": "Supports both 'auth' and 'auth-int' QoP (Quality of Protection). For 'auth-int', the HA2 hash includes the request body per RFC-7616: HA2 = H(method:uri:H(entity-body)).",
+        "summary": "Prompts for HTTP Digest Auth.",
+        "operationId": "getDigestAuthQopUserPasswd",
+        "description": "Supports both 'auth' and 'auth-int' QoP (Quality of Protection). For 'auth-int', the HA2 hash includes the request body per RFC-7616: HA2 = H(method:uri:H(entity-body)). Supported hash algorithms include SHA-512-256; qop=none enables RFC 2069 legacy mode.",
         "security": [
           {
             "digestAuth": []
@@ -1340,11 +1399,15 @@
           {
             "name": "qop",
             "in": "path",
-            "description": "auth or auth-int. Use 'auth-int' for integrity protection that includes request body in hash calculation.",
+            "description": "auth, auth-int, or none. 'auth-int' includes the request body in the hash calculation; 'none' omits qop entirely (RFC 2069 legacy mode).",
             "required": true,
             "schema": {
               "type": "string",
-              "enum": ["auth", "auth-int", "none"]
+              "enum": [
+                "auth",
+                "auth-int",
+                "none"
+              ]
             }
           },
           {
@@ -1353,7 +1416,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Username to authenticate with"
           },
           {
             "name": "passwd",
@@ -1361,12 +1425,13 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Password to authenticate with"
           }
         ],
         "responses": {
           "200": {
-            "description": "Sucessful authentication.",
+            "description": "Successful authentication.",
             "content": {}
           },
           "401": {
@@ -1379,8 +1444,9 @@
         "tags": [
           "Auth"
         ],
-        "summary": "Prompts the user for authorization using Digest Auth with request body support.",
-        "description": "POST method for testing 'auth-int' QoP with request bodies. For 'auth-int', the HA2 hash includes the request body per RFC-7616: HA2 = H(method:uri:H(entity-body)). This is essential for proper auth-int testing.",
+        "summary": "Prompts for HTTP Digest Auth.",
+        "operationId": "postDigestAuthQopUserPasswd",
+        "description": "POST method for testing 'auth-int' QoP with request bodies. For 'auth-int', the HA2 hash includes the request body per RFC-7616: HA2 = H(method:uri:H(entity-body)). This is essential for proper auth-int testing. Supported hash algorithms include SHA-512-256; qop=none enables RFC 2069 legacy mode.",
         "security": [
           {
             "digestAuth": []
@@ -1390,11 +1456,15 @@
           {
             "name": "qop",
             "in": "path",
-            "description": "auth or auth-int. Use 'auth-int' for integrity protection that includes request body in hash calculation.",
+            "description": "auth, auth-int, or none. 'auth-int' includes the request body in the hash calculation; 'none' omits qop entirely (RFC 2069 legacy mode).",
             "required": true,
             "schema": {
               "type": "string",
-              "enum": ["auth", "auth-int", "none"]
+              "enum": [
+                "auth",
+                "auth-int",
+                "none"
+              ]
             }
           },
           {
@@ -1403,7 +1473,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Username to authenticate with"
           },
           {
             "name": "passwd",
@@ -1411,7 +1482,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Password to authenticate with"
           }
         ],
         "requestBody": {
@@ -1431,7 +1503,7 @@
         },
         "responses": {
           "200": {
-            "description": "Sucessful authentication.",
+            "description": "Successful authentication.",
             "content": {}
           },
           "401": {
@@ -1446,7 +1518,8 @@
         "tags": [
           "Auth"
         ],
-        "summary": "Prompts the user for authorization using Digest Auth + Algorithm.",
+        "summary": "Prompts for HTTP Digest Auth with a configurable hash algorithm.",
+        "operationId": "getDigestAuthQopUserPasswdAlgorithm",
         "description": "Supports both 'auth' and 'auth-int' QoP with configurable hash algorithm. For 'auth-int', the HA2 hash includes the request body per RFC-7616.",
         "security": [
           {
@@ -1457,11 +1530,15 @@
           {
             "name": "qop",
             "in": "path",
-            "description": "auth or auth-int. Use 'auth-int' for integrity protection that includes request body in hash calculation.",
+            "description": "auth, auth-int, or none. 'auth-int' includes the request body in the hash calculation; 'none' omits qop entirely (RFC 2069 legacy mode).",
             "required": true,
             "schema": {
               "type": "string",
-              "enum": ["auth", "auth-int", "none"]
+              "enum": [
+                "auth",
+                "auth-int",
+                "none"
+              ]
             }
           },
           {
@@ -1470,7 +1547,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Username to authenticate with"
           },
           {
             "name": "passwd",
@@ -1478,7 +1556,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Password to authenticate with"
           },
           {
             "name": "algorithm",
@@ -1487,18 +1566,27 @@
             "required": true,
             "schema": {
               "type": "string",
-              "enum": ["MD5", "SHA-256", "SHA-512", "SHA-512-256"],
+              "enum": [
+                "MD5",
+                "SHA-256",
+                "SHA-512",
+                "SHA-512-256"
+              ],
               "default": "MD5"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Sucessful authentication.",
+            "description": "Successful authentication.",
             "content": {}
           },
           "401": {
             "description": "Unsuccessful authentication.",
+            "content": {}
+          },
+          "400": {
+            "description": "Unsupported hash algorithm.",
             "content": {}
           }
         }
@@ -1507,7 +1595,8 @@
         "tags": [
           "Auth"
         ],
-        "summary": "Prompts the user for authorization using Digest Auth + Algorithm with request body support.",
+        "summary": "Prompts for HTTP Digest Auth with a configurable hash algorithm.",
+        "operationId": "postDigestAuthQopUserPasswdAlgorithm",
         "description": "POST method for testing 'auth-int' QoP with request bodies and configurable hash algorithm. For 'auth-int', the HA2 hash includes the request body per RFC-7616.",
         "security": [
           {
@@ -1518,11 +1607,15 @@
           {
             "name": "qop",
             "in": "path",
-            "description": "auth or auth-int. Use 'auth-int' for integrity protection that includes request body in hash calculation.",
+            "description": "auth, auth-int, or none. 'auth-int' includes the request body in the hash calculation; 'none' omits qop entirely (RFC 2069 legacy mode).",
             "required": true,
             "schema": {
               "type": "string",
-              "enum": ["auth", "auth-int", "none"]
+              "enum": [
+                "auth",
+                "auth-int",
+                "none"
+              ]
             }
           },
           {
@@ -1531,7 +1624,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Username to authenticate with"
           },
           {
             "name": "passwd",
@@ -1539,7 +1633,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Password to authenticate with"
           },
           {
             "name": "algorithm",
@@ -1548,7 +1643,12 @@
             "required": true,
             "schema": {
               "type": "string",
-              "enum": ["MD5", "SHA-256", "SHA-512", "SHA-512-256"],
+              "enum": [
+                "MD5",
+                "SHA-256",
+                "SHA-512",
+                "SHA-512-256"
+              ],
               "default": "MD5"
             }
           }
@@ -1570,11 +1670,15 @@
         },
         "responses": {
           "200": {
-            "description": "Sucessful authentication.",
+            "description": "Successful authentication.",
             "content": {}
           },
           "401": {
             "description": "Unsuccessful authentication.",
+            "content": {}
+          },
+          "400": {
+            "description": "Unsupported hash algorithm.",
             "content": {}
           }
         }
@@ -1585,7 +1689,8 @@
         "tags": [
           "Auth"
         ],
-        "summary": "Prompts the user for authorization using Digest Auth + Algorithm with stale nonce control.",
+        "summary": "Prompts for HTTP Digest Auth with algorithm and stale_after control.",
+        "operationId": "getDigestAuthQopUserPasswdAlgorithmStaleAfter",
         "description": "Full Digest Auth endpoint with stale_after control. Supports both 'auth' and 'auth-int' QoP. For 'auth-int', the HA2 hash includes the request body per RFC-7616.",
         "security": [
           {
@@ -1596,11 +1701,15 @@
           {
             "name": "qop",
             "in": "path",
-            "description": "auth or auth-int. Use 'auth-int' for integrity protection that includes request body in hash calculation.",
+            "description": "auth, auth-int, or none. 'auth-int' includes the request body in the hash calculation; 'none' omits qop entirely (RFC 2069 legacy mode).",
             "required": true,
             "schema": {
               "type": "string",
-              "enum": ["auth", "auth-int", "none"]
+              "enum": [
+                "auth",
+                "auth-int",
+                "none"
+              ]
             }
           },
           {
@@ -1609,7 +1718,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Username to authenticate with"
           },
           {
             "name": "passwd",
@@ -1617,7 +1727,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Password to authenticate with"
           },
           {
             "name": "algorithm",
@@ -1626,7 +1737,12 @@
             "required": true,
             "schema": {
               "type": "string",
-              "enum": ["MD5", "SHA-256", "SHA-512", "SHA-512-256"],
+              "enum": [
+                "MD5",
+                "SHA-256",
+                "SHA-512",
+                "SHA-512-256"
+              ],
               "default": "MD5"
             }
           },
@@ -1643,11 +1759,15 @@
         ],
         "responses": {
           "200": {
-            "description": "Sucessful authentication.",
+            "description": "Successful authentication.",
             "content": {}
           },
           "401": {
             "description": "Unsuccessful authentication.",
+            "content": {}
+          },
+          "400": {
+            "description": "Unsupported hash algorithm.",
             "content": {}
           }
         }
@@ -1656,7 +1776,8 @@
         "tags": [
           "Auth"
         ],
-        "summary": "Prompts the user for authorization using Digest Auth + Algorithm with stale nonce control and request body support.",
+        "summary": "Prompts for HTTP Digest Auth with algorithm and stale_after control.",
+        "operationId": "postDigestAuthQopUserPasswdAlgorithmStaleAfter",
         "description": "Full Digest Auth endpoint with stale_after control. POST method for testing 'auth-int' QoP with request bodies. For 'auth-int', the HA2 hash includes the request body per RFC-7616.",
         "security": [
           {
@@ -1667,11 +1788,15 @@
           {
             "name": "qop",
             "in": "path",
-            "description": "auth or auth-int. Use 'auth-int' for integrity protection that includes request body in hash calculation.",
+            "description": "auth, auth-int, or none. 'auth-int' includes the request body in the hash calculation; 'none' omits qop entirely (RFC 2069 legacy mode).",
             "required": true,
             "schema": {
               "type": "string",
-              "enum": ["auth", "auth-int", "none"]
+              "enum": [
+                "auth",
+                "auth-int",
+                "none"
+              ]
             }
           },
           {
@@ -1680,7 +1805,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Username to authenticate with"
           },
           {
             "name": "passwd",
@@ -1688,7 +1814,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Password to authenticate with"
           },
           {
             "name": "algorithm",
@@ -1697,7 +1824,12 @@
             "required": true,
             "schema": {
               "type": "string",
-              "enum": ["MD5", "SHA-256", "SHA-512", "SHA-512-256"],
+              "enum": [
+                "MD5",
+                "SHA-256",
+                "SHA-512",
+                "SHA-512-256"
+              ],
               "default": "MD5"
             }
           },
@@ -1729,11 +1861,15 @@
         },
         "responses": {
           "200": {
-            "description": "Sucessful authentication.",
+            "description": "Successful authentication.",
             "content": {}
           },
           "401": {
             "description": "Unsuccessful authentication.",
+            "content": {}
+          },
+          "400": {
+            "description": "Unsupported hash algorithm.",
             "content": {}
           }
         }
@@ -1745,6 +1881,8 @@
           "Dynamic data"
         ],
         "summary": "Drips data over a duration after an optional initial delay.",
+        "operationId": "getDrip",
+        "description": "Drips data over a duration; ?chunked=true streams with real chunked transfer-encoding.",
         "parameters": [
           {
             "name": "duration",
@@ -1785,7 +1923,7 @@
           {
             "name": "chunked",
             "in": "query",
-            "description": "If true, stream with chunked transfer-encoding (omit Content-Length).",
+            "description": "If true, stream with chunked transfer-encoding (omit Content-Length)",
             "schema": {
               "type": "boolean",
               "default": false
@@ -1795,6 +1933,14 @@
         "responses": {
           "200": {
             "description": "A dripped response.",
+            "content": {}
+          },
+          "400": {
+            "description": "numbytes must be positive.",
+            "content": {}
+          },
+          "404": {
+            "description": "numbytes exceeds the server max-bytes limit (configurable via --max-bytes).",
             "content": {}
           }
         }
@@ -1806,6 +1952,8 @@
           "Response formats"
         ],
         "summary": "Returns a UTF-8 encoded body.",
+        "operationId": "getEncodingUtf8",
+        "description": "Returns an HTML page of multi-byte UTF-8 demo text.",
         "responses": {
           "200": {
             "description": "Encoded UTF-8 content.",
@@ -1820,6 +1968,8 @@
           "Response formats"
         ],
         "summary": "Returns an ISO-8859-1 (Latin-1) encoded body.",
+        "operationId": "getEncodingIso88591",
+        "description": "Returns an ISO-8859-1 encoded page.",
         "responses": {
           "200": {
             "description": "Encoded Latin-1 content.",
@@ -1839,13 +1989,15 @@
         "tags": [
           "Response inspection"
         ],
-        "summary": "Assumes the resource has the given etag and responds to If-None-Match and If-Match headers. Supports the weak form W/\"value\".",
+        "summary": "Validates conditional requests against the given ETag.",
+        "operationId": "getEtagEtag",
+        "description": "Validates If-Match/If-None-Match against the given ETag; supports weak W/\"...\" validators.",
         "parameters": [
           {
             "name": "etag",
             "in": "path",
             "required": true,
-            "description": "The etag value. Use the weak form W/\"value\" for weak validation.",
+            "description": "The etag value. Use the weak form W/\"value\" for weak validation",
             "schema": {
               "type": "string"
             }
@@ -1853,21 +2005,23 @@
           {
             "name": "If-None-Match",
             "in": "header",
-            "schema": {}
+            "schema": {},
+            "description": "Conditional request header; a match returns 304"
           },
           {
             "name": "If-Match",
             "in": "header",
-            "schema": {}
+            "schema": {},
+            "description": "Conditional request header; a mismatch returns 412"
           }
         ],
         "responses": {
           "200": {
-            "description": "Normal response",
+            "description": "Normal response.",
             "content": {}
           },
           "412": {
-            "description": "match",
+            "description": "Precondition failed: the conditional header did not match the given ETag.",
             "content": {}
           }
         }
@@ -1878,11 +2032,19 @@
         "tags": [
           "HTTP Methods"
         ],
-        "summary": "The request's query parameters.",
+        "summary": "Echoes the request's query parameters, headers, origin, and URL.",
+        "operationId": "getGet",
+        "description": "Echoes the request's query parameters, headers, origin, and URL (GET and HEAD); response shape per the GetRequestInfo schema.",
         "responses": {
           "200": {
             "description": "The request's query parameters.",
-            "content": {}
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetRequestInfo"
+                }
+              }
+            }
           }
         }
       }
@@ -1892,7 +2054,9 @@
         "tags": [
           "HTTP Methods"
         ],
-        "summary": "HEAD-only endpoint that echoes request headers as X-Echo-* response headers, with an empty body.",
+        "summary": "Echoes the request headers as X-Echo-* response headers.",
+        "operationId": "headHead",
+        "description": "HEAD-only: echoes the request headers back as X-Echo-* response headers.",
         "responses": {
           "200": {
             "description": "Empty body; request headers mirrored as X-Echo-* response headers.",
@@ -1904,9 +2068,11 @@
     "/method": {
       "get": {
         "tags": [
-          "HTTP Methods"
+          "Request inspection"
         ],
-        "summary": "Echoes the request's HTTP method name as {method}. Accepts any HTTP method.",
+        "summary": "Echoes the request's HTTP method name.",
+        "operationId": "getMethod",
+        "description": "Echoes back the HTTP method name used. Any method name is accepted, including extension methods not listed here.",
         "responses": {
           "200": {
             "description": "JSON object with the method name.",
@@ -1924,6 +2090,233 @@
             }
           }
         }
+      },
+      "post": {
+        "tags": [
+          "Request inspection"
+        ],
+        "summary": "Echoes the request's HTTP method name.",
+        "operationId": "postMethod",
+        "description": "Echoes back the HTTP method name used. Any method name is accepted, including extension methods not listed here.",
+        "responses": {
+          "200": {
+            "description": "JSON object with the method name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "method": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Request inspection"
+        ],
+        "summary": "Echoes the request's HTTP method name.",
+        "operationId": "putMethod",
+        "description": "Echoes back the HTTP method name used. Any method name is accepted, including extension methods not listed here.",
+        "responses": {
+          "200": {
+            "description": "JSON object with the method name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "method": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Request inspection"
+        ],
+        "summary": "Echoes the request's HTTP method name.",
+        "operationId": "patchMethod",
+        "description": "Echoes back the HTTP method name used. Any method name is accepted, including extension methods not listed here.",
+        "responses": {
+          "200": {
+            "description": "JSON object with the method name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "method": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Request inspection"
+        ],
+        "summary": "Echoes the request's HTTP method name.",
+        "operationId": "deleteMethod",
+        "description": "Echoes back the HTTP method name used. Any method name is accepted, including extension methods not listed here.",
+        "responses": {
+          "200": {
+            "description": "JSON object with the method name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "method": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "tags": [
+          "Request inspection"
+        ],
+        "summary": "Echoes the request's HTTP method name.",
+        "operationId": "headMethod",
+        "description": "Echoes back the HTTP method name used. Any method name is accepted, including extension methods not listed here. HEAD responses carry the headers with an empty body.",
+        "responses": {
+          "200": {
+            "description": "Headers only; no response body (HEAD).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "method": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "options": {
+        "tags": [
+          "Request inspection"
+        ],
+        "summary": "Echoes the request's HTTP method name.",
+        "operationId": "optionsMethod",
+        "description": "Echoes back the HTTP method name used. Any method name is accepted, including extension methods not listed here.",
+        "responses": {
+          "200": {
+            "description": "JSON object with the method name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "method": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "trace": {
+        "tags": [
+          "Request inspection"
+        ],
+        "summary": "Echoes the request's HTTP method name.",
+        "operationId": "traceMethod",
+        "description": "Echoes back the HTTP method name used. Any method name is accepted, including extension methods not listed here.",
+        "responses": {
+          "200": {
+            "description": "JSON object with the method name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "method": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "query": {
+        "tags": [
+          "Request inspection"
+        ],
+        "summary": "Echoes the request's HTTP method name.",
+        "operationId": "queryMethod",
+        "description": "Echoes back the HTTP method name used. Any method name is accepted, including extension methods not listed here.",
+        "responses": {
+          "200": {
+            "description": "JSON object with the method name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "method": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "additionalOperations": {
+        "ANY_CUSTOM_METHOD": {
+          "tags": [
+            "Request inspection"
+          ],
+          "summary": "Echoes the request's HTTP method name.",
+          "operationId": "anyCustomMethod",
+          "description": "Placeholder key demonstrating that ANY method token is accepted: sending ANY_CUSTOM_METHOD — or any other non-standard token such as LINK (RFC 4918) or PURGE — echoes the method name back unchanged.",
+          "responses": {
+            "200": {
+              "description": "JSON object with the method name.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "method": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/options": {
@@ -1931,7 +2324,9 @@
         "tags": [
           "HTTP Methods"
         ],
-        "summary": "OPTIONS-only endpoint: echoes the request like /get and returns an Allow header (RFC 9110 §9.3.7).",
+        "summary": "Echoes the request and returns an Allow header.",
+        "operationId": "optionsOptions",
+        "description": "OPTIONS-only: echoes the request and returns an Allow header (RFC 9110 §9.3.7).",
         "responses": {
           "200": {
             "description": "JSON echo of args/headers/origin/url, plus Allow: OPTIONS.",
@@ -1941,15 +2336,29 @@
       }
     },
     "/query": {
-      "summary": "Echo endpoint for the QUERY method (RFC 9430).",
-      "description": "Accepts only the QUERY extension method, which OpenAPI cannot express as a Path Item operation key. Echoes URL args plus the parsed request body (form/JSON/multipart), like /post."
+      "query": {
+        "tags": [
+          "HTTP Methods"
+        ],
+        "summary": "Echoes the request like /post (RFC 9430).",
+        "operationId": "queryQuery",
+        "description": "Echoes the request's URL args and parsed body (form/JSON/multipart), like /post. Uses the QUERY HTTP method (RFC 9430): a safe, idempotent method that carries a request body.",
+        "responses": {
+          "200": {
+            "description": "Echoed request data.",
+            "content": {}
+          }
+        }
+      }
     },
     "/trace": {
       "trace": {
         "tags": [
           "HTTP Methods"
         ],
-        "summary": "TRACE-only endpoint: echoes the request like /anything (RFC 9110 §9.8).",
+        "summary": "Echoes the request back to the client.",
+        "operationId": "traceTrace",
+        "description": "TRACE-only: echoes the request like /anything (RFC 9110 §9.8).",
         "responses": {
           "200": {
             "description": "JSON echo of the request.",
@@ -1964,6 +2373,8 @@
           "Response formats"
         ],
         "summary": "Returns GZip-encoded data.",
+        "operationId": "getGzip",
+        "description": "Returns a fixed sample JSON document, GZip-encoded.",
         "responses": {
           "200": {
             "description": "GZip-encoded data.",
@@ -1976,6 +2387,7 @@
           "Response formats"
         ],
         "summary": "Echoes the request body, GZip-encoded.",
+        "operationId": "postGzip",
         "description": "Compresses the request body with the matching Content-Encoding and returns it.",
         "requestBody": {
           "content": {
@@ -2000,7 +2412,9 @@
         "tags": [
           "Request inspection"
         ],
-        "summary": "Return the incoming request's HTTP headers.",
+        "summary": "Returns the request's HTTP headers.",
+        "operationId": "getHeaders",
+        "description": "Returns the request's HTTP headers as a JSON object; proxy/CDN headers are filtered per --exclude-headers.",
         "responses": {
           "200": {
             "description": "The request's headers.",
@@ -2014,7 +2428,9 @@
         "tags": [
           "Auth"
         ],
-        "summary": "Prompts the user for authorization using HTTP Basic Auth.",
+        "summary": "Hidden HTTP Basic Auth: 404 instead of 401 on failure.",
+        "operationId": "getHiddenBasicAuthUserPasswd",
+        "description": "Like /basic-auth, but returns 404 instead of 401 on failure.",
         "security": [
           {
             "basicAuth": []
@@ -2027,7 +2443,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Username to authenticate with"
           },
           {
             "name": "passwd",
@@ -2035,12 +2452,56 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Password to authenticate with"
           }
         ],
         "responses": {
           "200": {
-            "description": "Sucessful authentication.",
+            "description": "Successful authentication.",
+            "content": {}
+          },
+          "404": {
+            "description": "Unsuccessful authentication.",
+            "content": {}
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Hidden HTTP Basic Auth: 404 instead of 401 on failure.",
+        "operationId": "postHiddenBasicAuthUserPasswd",
+        "description": "POST variant: like /basic-auth, but returns 404 instead of 401 on failure.",
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Username to authenticate with"
+          },
+          {
+            "name": "passwd",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Password to authenticate with"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful authentication.",
             "content": {}
           },
           "404": {
@@ -2055,7 +2516,9 @@
         "tags": [
           "Auth"
         ],
-        "summary": "Prompts the user for authorization using HTTP Basic Auth with username only (empty password). Returns 404 on failure.",
+        "summary": "Hidden HTTP Basic Auth, username-only: 404 instead of 401 on failure.",
+        "operationId": "getHiddenBasicAuthUser",
+        "description": "Like /basic-auth/{user}, but returns 404 instead of 401 on failure.",
         "security": [
           {
             "basicAuth": []
@@ -2068,12 +2531,47 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Username to authenticate with"
           }
         ],
         "responses": {
           "200": {
-            "description": "Sucessful authentication.",
+            "description": "Successful authentication.",
+            "content": {}
+          },
+          "404": {
+            "description": "Unsuccessful authentication.",
+            "content": {}
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Hidden HTTP Basic Auth, username-only: 404 instead of 401 on failure.",
+        "operationId": "postHiddenBasicAuthUser",
+        "description": "POST variant: like /basic-auth/{user}, but returns 404 instead of 401 on failure.",
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Username to authenticate with"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful authentication.",
             "content": {}
           },
           "404": {
@@ -2088,7 +2586,9 @@
         "tags": [
           "Response formats"
         ],
-        "summary": "Returns a simple HTML document.",
+        "summary": "Returns a sample HTML document.",
+        "operationId": "getHtml",
+        "description": "Returns a sample HTML document (text/html).",
         "responses": {
           "200": {
             "description": "An HTML page.",
@@ -2102,17 +2602,24 @@
         "tags": [
           "Images"
         ],
-        "summary": "Returns a random colored image in various formats (png, jpeg, webp, svg). Respects Accept header for format preference.",
+        "summary": "Returns a random image, negotiated via the Accept header.",
+        "operationId": "getImage",
         "description": "Returns a random colored image. If the Accept header specifies an image format (image/png, image/jpeg, image/webp, image/svg+xml), returns an image in that format. Otherwise returns a random format.",
         "parameters": [
           {
             "name": "Accept",
             "in": "header",
-            "description": "Preferred image format. Supports image/png, image/jpeg, image/webp, image/svg+xml, or image/* for random format.",
+            "description": "Preferred image format. Supports image/png, image/jpeg, image/webp, image/svg+xml, or image/* for random format",
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["image/png", "image/jpeg", "image/webp", "image/svg+xml", "image/*"]
+              "enum": [
+                "image/png",
+                "image/jpeg",
+                "image/webp",
+                "image/svg+xml",
+                "image/*"
+              ]
             },
             "example": "image/png"
           }
@@ -2131,7 +2638,11 @@
                 "description": "How the image format was determined: 'accept-header', 'random', or 'fallback'",
                 "schema": {
                   "type": "string",
-                  "enum": ["accept-header", "random", "fallback"]
+                  "enum": [
+                    "accept-header",
+                    "random",
+                    "fallback"
+                  ]
                 }
               }
             },
@@ -2171,6 +2682,8 @@
           "Images"
         ],
         "summary": "Returns a random colored JPEG image.",
+        "operationId": "getImageJpeg",
+        "description": "Returns a random colored JPEG image, served as image/jpeg.",
         "responses": {
           "200": {
             "description": "A random colored JPEG image with X-Image-Color header indicating the color.",
@@ -2200,6 +2713,8 @@
           "Images"
         ],
         "summary": "Returns a random colored PNG image.",
+        "operationId": "getImagePng",
+        "description": "Returns a random colored PNG image, served as image/png.",
         "responses": {
           "200": {
             "description": "A random colored PNG image with X-Image-Color header indicating the color.",
@@ -2229,6 +2744,8 @@
           "Images"
         ],
         "summary": "Returns a random colored SVG image.",
+        "operationId": "getImageSvg",
+        "description": "Returns a random colored SVG image, served as image/svg+xml.",
         "responses": {
           "200": {
             "description": "A random colored SVG image with X-Image-Color header indicating the color.",
@@ -2258,6 +2775,8 @@
           "Images"
         ],
         "summary": "Returns a random colored WEBP image.",
+        "operationId": "getImageWebp",
+        "description": "Returns a random colored WEBP image, served as image/webp.",
         "responses": {
           "200": {
             "description": "A random colored WEBP image with X-Image-Color header indicating the color.",
@@ -2286,10 +2805,12 @@
         "tags": [
           "Request inspection"
         ],
-        "summary": "Returns the requester's IP Address.",
+        "summary": "Returns the requester's IP address.",
+        "operationId": "getIp",
+        "description": "Returns the client IP as {\"origin\": \"...\"}.",
         "responses": {
           "200": {
-            "description": "The Requester's IP Address.",
+            "description": "The requester's IP address.",
             "content": {}
           }
         }
@@ -2300,10 +2821,37 @@
         "tags": [
           "Response formats"
         ],
-        "summary": "Returns a simple JSON document.",
+        "summary": "Returns a sample JSON document.",
+        "operationId": "getJson",
+        "description": "Returns a sample JSON document (application/json).",
         "responses": {
           "200": {
             "description": "An JSON document.",
+            "content": {}
+          }
+        }
+      }
+    },
+    "/links/{n}": {
+      "get": {
+        "tags": [
+          "Dynamic data"
+        ],
+        "summary": "Returns the first page of n links.",
+        "operationId": "getLinks",
+        "description": "Same as /links/{n}/{offset}, with offset defaulted to 0; redirects to the page.",
+        "parameters": [
+          {
+            "name": "n",
+            "in": "path",
+            "required": true,
+            "schema": {},
+            "description": "Number of links per page"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "HTML links.",
             "content": {}
           }
         }
@@ -2314,19 +2862,23 @@
         "tags": [
           "Dynamic data"
         ],
-        "summary": "Generate a page containing n links to other pages which do the same.",
+        "summary": "Returns a page of n links.",
+        "operationId": "getLinksNOffset",
+        "description": "Returns a page of n links, starting at offset.",
         "parameters": [
           {
             "name": "n",
             "in": "path",
             "required": true,
-            "schema": {}
+            "schema": {},
+            "description": "Number of links per page"
           },
           {
             "name": "offset",
             "in": "path",
             "required": true,
-            "schema": {}
+            "schema": {},
+            "description": "Page offset (0-based)"
           }
         ],
         "responses": {
@@ -2342,7 +2894,9 @@
         "tags": [
           "HTTP Methods"
         ],
-        "summary": "The request's PATCH parameters.",
+        "summary": "Echoes the request's PATCH parameters.",
+        "operationId": "patchPatch",
+        "description": "Same as /post, for PATCH requests.",
         "responses": {
           "200": {
             "description": "The request's PATCH parameters.",
@@ -2356,8 +2910,9 @@
         "tags": [
           "HTTP Methods"
         ],
-        "summary": "The request's POST parameters and uploaded files.",
-        "description": "Supports multipart/form-data file uploads. Multiple files with the same parameter name are returned as an array.",
+        "summary": "Echoes the request's POST parameters and uploaded files.",
+        "operationId": "postPost",
+        "description": "Echoes the request's parsed body and uploaded files; multiple files with the same parameter name are returned as an array.",
         "requestBody": {
           "content": {
             "application/x-www-form-urlencoded": {
@@ -2406,7 +2961,9 @@
         "tags": [
           "HTTP Methods"
         ],
-        "summary": "The request's PUT parameters.",
+        "summary": "Echoes the request's PUT parameters.",
+        "operationId": "putPut",
+        "description": "Same as /post, for PUT requests.",
         "responses": {
           "200": {
             "description": "The request's PUT parameters.",
@@ -2420,18 +2977,45 @@
         "tags": [
           "Dynamic data"
         ],
-        "summary": "Streams n random bytes generated with given seed, at given chunk size per packet.",
+        "summary": "Streams bytes with HTTP Range support.",
+        "operationId": "getRangeNumbytes",
+        "description": "Streams numbytes bytes; supports Range requests.",
         "parameters": [
           {
             "name": "numbytes",
             "in": "path",
             "required": true,
-            "schema": {}
+            "schema": {},
+            "description": "Total number of bytes in the payload"
+          },
+          {
+            "name": "chunk_size",
+            "in": "query",
+            "description": "Bytes per chunk (default: 10240)",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "duration",
+            "in": "query",
+            "description": "Total streaming duration in seconds (default: 0)",
+            "schema": {
+              "type": "number"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Bytes.",
+            "description": "The requested byte range of the numbytes payload.",
+            "content": {}
+          },
+          "404": {
+            "description": "numbytes is 0 or exceeds the server max-bytes limit (configurable via --max-bytes).",
+            "content": {}
+          },
+          "416": {
+            "description": "Requested Range is not satisfiable for the given numbytes.",
             "content": {}
           }
         }
@@ -2442,25 +3026,37 @@
         "tags": [
           "Redirects"
         ],
-        "summary": "302/3XX Redirects to the given URL.",
+        "summary": "Redirects to the given URL (302 by default, or a custom status).",
+        "operationId": "getRedirectTo",
+        "description": "Redirects to ?url=; POST/PUT/PATCH/DELETE also accept urlencoded, multipart, or JSON bodies (body fields win over query); browser clients see an anti-phishing interstitial instead of a silent redirect.",
         "parameters": [
           {
             "name": "url",
             "in": "query",
             "required": true,
+            "description": "Target URL to redirect to",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "format": "uri"
             }
           },
           {
             "name": "status_code",
             "in": "query",
-            "schema": {}
+            "required": false,
+            "description": "HTTP status code for the redirect (default 302)",
+            "schema": {
+              "type": "integer"
+            }
           }
         ],
         "responses": {
           "302": {
             "description": "A redirection.",
+            "content": {}
+          },
+          "400": {
+            "description": "Missing required url query parameter.",
             "content": {}
           }
         }
@@ -2469,7 +3065,9 @@
         "tags": [
           "Redirects"
         ],
-        "summary": "302/3XX Redirects to the given URL.",
+        "summary": "Redirects to the given URL (302 by default, or a custom status).",
+        "operationId": "putRedirectTo",
+        "description": "Redirects to ?url=; POST/PUT/PATCH/DELETE also accept urlencoded, multipart, or JSON bodies (body fields win over query); browser clients see an anti-phishing interstitial instead of a silent redirect.",
         "requestBody": {
           "content": {
             "multipart/form-data": {
@@ -2485,22 +3083,77 @@
                   "status_code": {}
                 }
               }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "required": [
+                  "url"
+                ],
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "status_code": {}
+                }
+              }
+            },
+            "application/json": {
+              "schema": {
+                "required": [
+                  "url"
+                ],
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "status_code": {}
+                }
+              }
             }
           },
-          "required": true
+          "required": false
         },
         "responses": {
           "302": {
             "description": "A redirection.",
             "content": {}
+          },
+          "400": {
+            "description": "Missing required url query parameter.",
+            "content": {}
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "description": "Target URL to redirect to",
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          {
+            "name": "status_code",
+            "in": "query",
+            "required": false,
+            "description": "HTTP status code for the redirect (default 302)",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
       },
       "post": {
         "tags": [
           "Redirects"
         ],
-        "summary": "302/3XX Redirects to the given URL.",
+        "summary": "Redirects to the given URL (302 by default, or a custom status).",
+        "operationId": "postRedirectTo",
+        "description": "Redirects to ?url=; POST/PUT/PATCH/DELETE also accept urlencoded, multipart, or JSON bodies (body fields win over query); browser clients see an anti-phishing interstitial instead of a silent redirect.",
         "requestBody": {
           "content": {
             "multipart/form-data": {
@@ -2516,37 +3169,277 @@
                   "status_code": {}
                 }
               }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "required": [
+                  "url"
+                ],
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "status_code": {}
+                }
+              }
+            },
+            "application/json": {
+              "schema": {
+                "required": [
+                  "url"
+                ],
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "status_code": {}
+                }
+              }
             }
           },
-          "required": true
+          "required": false
         },
         "responses": {
           "302": {
             "description": "A redirection.",
             "content": {}
+          },
+          "400": {
+            "description": "Missing required url query parameter.",
+            "content": {}
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "description": "Target URL to redirect to",
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          {
+            "name": "status_code",
+            "in": "query",
+            "required": false,
+            "description": "HTTP status code for the redirect (default 302)",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
       },
       "delete": {
         "tags": [
           "Redirects"
         ],
-        "summary": "302/3XX Redirects to the given URL.",
+        "summary": "Redirects to the given URL (302 by default, or a custom status).",
+        "operationId": "deleteRedirectTo",
+        "description": "Redirects to ?url=; POST/PUT/PATCH/DELETE also accept urlencoded, multipart, or JSON bodies (body fields win over query); browser clients see an anti-phishing interstitial instead of a silent redirect.",
         "responses": {
           "302": {
             "description": "A redirection.",
             "content": {}
+          },
+          "400": {
+            "description": "Missing required url query parameter.",
+            "content": {}
           }
-        }
+        },
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "required": [
+                  "url"
+                ],
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "status_code": {}
+                }
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "required": [
+                  "url"
+                ],
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "status_code": {}
+                }
+              }
+            },
+            "application/json": {
+              "schema": {
+                "required": [
+                  "url"
+                ],
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "status_code": {}
+                }
+              }
+            }
+          },
+          "required": false
+        },
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "description": "Target URL to redirect to",
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          {
+            "name": "status_code",
+            "in": "query",
+            "required": false,
+            "description": "HTTP status code for the redirect (default 302)",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
       },
       "patch": {
         "tags": [
           "Redirects"
         ],
-        "summary": "302/3XX Redirects to the given URL.",
+        "summary": "Redirects to the given URL (302 by default, or a custom status).",
+        "operationId": "patchRedirectTo",
+        "description": "Redirects to ?url=; POST/PUT/PATCH/DELETE also accept urlencoded, multipart, or JSON bodies (body fields win over query); browser clients see an anti-phishing interstitial instead of a silent redirect.",
         "responses": {
           "302": {
             "description": "A redirection.",
+            "content": {}
+          },
+          "400": {
+            "description": "Missing required url query parameter.",
+            "content": {}
+          }
+        },
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "required": [
+                  "url"
+                ],
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "status_code": {}
+                }
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "required": [
+                  "url"
+                ],
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "status_code": {}
+                }
+              }
+            },
+            "application/json": {
+              "schema": {
+                "required": [
+                  "url"
+                ],
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "status_code": {}
+                }
+              }
+            }
+          },
+          "required": false
+        },
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "description": "Target URL to redirect to",
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          {
+            "name": "status_code",
+            "in": "query",
+            "required": false,
+            "description": "HTTP status code for the redirect (default 302)",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "trace": {
+        "tags": [
+          "Redirects"
+        ],
+        "summary": "Redirects to the given URL (302 by default, or a custom status).",
+        "operationId": "traceRedirectTo",
+        "description": "Redirects to ?url=; POST/PUT/PATCH/DELETE also accept urlencoded, multipart, or JSON bodies (body fields win over query); browser clients see an anti-phishing interstitial instead of a silent redirect.",
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "description": "Target URL to redirect to",
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          {
+            "name": "status_code",
+            "in": "query",
+            "required": false,
+            "description": "HTTP status code for the redirect (default 302)",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "A redirection.",
+            "content": {}
+          },
+          "400": {
+            "description": "Missing required url query parameter.",
             "content": {}
           }
         }
@@ -2557,18 +3450,38 @@
         "tags": [
           "Redirects"
         ],
-        "summary": "302 Redirects n times.",
+        "summary": "Redirects n times before returning 200.",
+        "operationId": "getRedirectN",
+        "description": "Each hop is a 302; after n redirects the chain ends at /get with a 200. ?absolute=true builds absolute (scheme+host) Location URLs and chains via /absolute-redirect instead of /relative-redirect.",
         "parameters": [
           {
             "name": "n",
             "in": "path",
             "required": true,
-            "schema": {}
+            "schema": {},
+            "description": "Number of redirects to perform"
+          },
+          {
+            "name": "absolute",
+            "in": "query",
+            "description": "If 'true' (case-insensitive), redirect using absolute URLs and chain via /absolute-redirect; default relative via /relative-redirect.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "default": "false"
+            }
           }
         ],
         "responses": {
           "302": {
             "description": "A redirection.",
+            "content": {}
+          },
+          "400": {
+            "description": "n must be greater than 0.",
             "content": {}
           }
         }
@@ -2579,18 +3492,25 @@
         "tags": [
           "Redirects"
         ],
-        "summary": "Relatively 302 Redirects n times.",
+        "summary": "Redirects n times, using relative Location URLs.",
+        "operationId": "getRelativeRedirectN",
+        "description": "Same as /redirect/{n}, using relative Location URLs.",
         "parameters": [
           {
             "name": "n",
             "in": "path",
             "required": true,
-            "schema": {}
+            "schema": {},
+            "description": "Number of redirects to perform"
           }
         ],
         "responses": {
           "302": {
             "description": "A redirection.",
+            "content": {}
+          },
+          "400": {
+            "description": "n must be greater than 0.",
             "content": {}
           }
         }
@@ -2602,17 +3522,20 @@
           "Response inspection"
         ],
         "summary": "Returns a set of response headers from the query string.",
+        "operationId": "getResponseHeaders",
+        "description": "Echoes query parameters as response headers; ?body= and ?status= override the response body and status code.",
         "parameters": [
           {
             "name": "freeform",
             "in": "query",
             "allowEmptyValue": true,
-            "schema": {}
+            "schema": {},
+            "description": "Each name=value query pair becomes a response header"
           }
         ],
         "responses": {
           "200": {
-            "description": "Response headers",
+            "description": "Response headers.",
             "content": {}
           }
         }
@@ -2622,31 +3545,20 @@
           "Response inspection"
         ],
         "summary": "Returns a set of response headers from the query string.",
+        "operationId": "postResponseHeaders",
+        "description": "Echoes query parameters as response headers; ?body= and ?status= override the response body and status code.",
         "parameters": [
           {
             "name": "freeform",
             "in": "query",
             "allowEmptyValue": true,
-            "schema": {}
+            "schema": {},
+            "description": "Each name=value query pair becomes a response header"
           }
         ],
         "responses": {
           "200": {
-            "description": "Response headers",
-            "content": {}
-          }
-        }
-      }
-    },
-    "/robots.txt": {
-      "get": {
-        "tags": [
-          "Response formats"
-        ],
-        "summary": "Returns some robots.txt rules.",
-        "responses": {
-          "200": {
-            "description": "Robots file",
+            "description": "Response headers.",
             "content": {}
           }
         }
@@ -2657,16 +3569,18 @@
         "tags": [
           "Status codes"
         ],
-        "summary": "Return specified status code or random status code if multiple are given. Supports custom response body via query parameter.",
+        "summary": "Returns the given status code, or a random pick from a list.",
+        "operationId": "getStatusCodes",
+        "description": "Returns the given status, or a random one from a comma-separated list; supports ?header= injection, a custom body, and trailing path segments, and weighted random picks via 'code:weight'.",
         "parameters": [
           {
             "name": "codes",
             "in": "path",
             "required": true,
-            "description": "HTTP status code(s). Multiple codes can be comma-separated (e.g., '200,201,202') for random selection.",
+            "description": "HTTP status code(s). Multiple codes can be comma-separated (e.g., '200,201,202') for random selection; an optional relative weight per code via 'code:weight' (e.g. '200:3,404:1') biases the random pick.",
             "schema": {
               "type": "string",
-              "pattern": "^[0-9]+(,[0-9]+)*$",
+              "pattern": "^(\\d+(:\\d+(\\.\\d+)?)?)(,\\d+(:\\d+(\\.\\d+)?)?)*$",
               "example": "200"
             }
           },
@@ -2681,7 +3595,7 @@
           {
             "name": "header",
             "in": "query",
-            "description": "Response header to inject, formatted 'Name:Value'. Repeatable to add multiple (e.g. ?header=Retry-After:120).",
+            "description": "Response header to inject, formatted 'Name:Value'. Repeatable to add multiple (e.g. ?header=Retry-After:120)",
             "schema": {
               "type": "string"
             }
@@ -2689,11 +3603,11 @@
         ],
         "responses": {
           "100": {
-            "description": "Informational responses - empty body",
+            "description": "Informational responses - empty body.",
             "content": {}
           },
           "200": {
-            "description": "Success",
+            "description": "Success.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2722,11 +3636,11 @@
             }
           },
           "204": {
-            "description": "No Content - empty body",
+            "description": "No Content - empty body.",
             "content": {}
           },
           "300": {
-            "description": "Redirection",
+            "description": "Redirection.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2749,11 +3663,11 @@
             }
           },
           "304": {
-            "description": "Not Modified - empty body",
+            "description": "Not Modified - empty body.",
             "content": {}
           },
           "400": {
-            "description": "Client Errors",
+            "description": "Client Errors.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2776,7 +3690,7 @@
             }
           },
           "500": {
-            "description": "Server Errors",
+            "description": "Server Errors.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2804,16 +3718,18 @@
         "tags": [
           "Status codes"
         ],
-        "summary": "Return specified status code or random status code if multiple are given. Supports custom response body via query parameter or request body.",
+        "summary": "Returns the given status code, or a random pick from a list.",
+        "operationId": "putStatusCodes",
+        "description": "Returns the given status, or a random one from a comma-separated list; supports ?header= injection, a custom body, and trailing path segments, and weighted random picks via 'code:weight'.",
         "parameters": [
           {
             "name": "codes",
             "in": "path",
             "required": true,
-            "description": "HTTP status code(s). Multiple codes can be comma-separated (e.g., '200,201,202') for random selection.",
+            "description": "HTTP status code(s). Multiple codes can be comma-separated (e.g., '200,201,202') for random selection; an optional relative weight per code via 'code:weight' (e.g. '200:3,404:1') biases the random pick.",
             "schema": {
               "type": "string",
-              "pattern": "^[0-9]+(,[0-9]+)*$",
+              "pattern": "^(\\d+(:\\d+(\\.\\d+)?)?)(,\\d+(:\\d+(\\.\\d+)?)?)*$",
               "example": "200"
             }
           },
@@ -2828,7 +3744,7 @@
           {
             "name": "header",
             "in": "query",
-            "description": "Response header to inject, formatted 'Name:Value'. Repeatable to add multiple (e.g. ?header=Retry-After:120).",
+            "description": "Response header to inject, formatted 'Name:Value'. Repeatable to add multiple (e.g. ?header=Retry-After:120)",
             "schema": {
               "type": "string"
             }
@@ -2851,11 +3767,11 @@
         },
         "responses": {
           "100": {
-            "description": "Informational responses - empty body",
+            "description": "Informational responses - empty body.",
             "content": {}
           },
           "200": {
-            "description": "Success",
+            "description": "Success.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2878,11 +3794,11 @@
             }
           },
           "204": {
-            "description": "No Content - empty body",
+            "description": "No Content - empty body.",
             "content": {}
           },
           "300": {
-            "description": "Redirection",
+            "description": "Redirection.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2905,11 +3821,11 @@
             }
           },
           "304": {
-            "description": "Not Modified - empty body",
+            "description": "Not Modified - empty body.",
             "content": {}
           },
           "400": {
-            "description": "Client Errors",
+            "description": "Client Errors.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2932,7 +3848,7 @@
             }
           },
           "500": {
-            "description": "Server Errors",
+            "description": "Server Errors.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2960,16 +3876,18 @@
         "tags": [
           "Status codes"
         ],
-        "summary": "Return specified status code or random status code if multiple are given. Supports custom response body via query parameter or request body.",
+        "summary": "Returns the given status code, or a random pick from a list.",
+        "operationId": "postStatusCodes",
+        "description": "Returns the given status, or a random one from a comma-separated list; supports ?header= injection, a custom body, and trailing path segments, and weighted random picks via 'code:weight'.",
         "parameters": [
           {
             "name": "codes",
             "in": "path",
             "required": true,
-            "description": "HTTP status code(s). Multiple codes can be comma-separated (e.g., '200,201,202') for random selection.",
+            "description": "HTTP status code(s). Multiple codes can be comma-separated (e.g., '200,201,202') for random selection; an optional relative weight per code via 'code:weight' (e.g. '200:3,404:1') biases the random pick.",
             "schema": {
               "type": "string",
-              "pattern": "^[0-9]+(,[0-9]+)*$",
+              "pattern": "^(\\d+(:\\d+(\\.\\d+)?)?)(,\\d+(:\\d+(\\.\\d+)?)?)*$",
               "example": "200"
             }
           },
@@ -2984,7 +3902,7 @@
           {
             "name": "header",
             "in": "query",
-            "description": "Response header to inject, formatted 'Name:Value'. Repeatable to add multiple (e.g. ?header=Retry-After:120).",
+            "description": "Response header to inject, formatted 'Name:Value'. Repeatable to add multiple (e.g. ?header=Retry-After:120)",
             "schema": {
               "type": "string"
             }
@@ -3007,11 +3925,11 @@
         },
         "responses": {
           "100": {
-            "description": "Informational responses - empty body",
+            "description": "Informational responses - empty body.",
             "content": {}
           },
           "200": {
-            "description": "Success",
+            "description": "Success.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3034,11 +3952,11 @@
             }
           },
           "204": {
-            "description": "No Content - empty body",
+            "description": "No Content - empty body.",
             "content": {}
           },
           "300": {
-            "description": "Redirection",
+            "description": "Redirection.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3061,11 +3979,11 @@
             }
           },
           "304": {
-            "description": "Not Modified - empty body",
+            "description": "Not Modified - empty body.",
             "content": {}
           },
           "400": {
-            "description": "Client Errors",
+            "description": "Client Errors.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3088,7 +4006,7 @@
             }
           },
           "500": {
-            "description": "Server Errors",
+            "description": "Server Errors.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3116,16 +4034,18 @@
         "tags": [
           "Status codes"
         ],
-        "summary": "Return specified status code or random status code if multiple are given. Supports custom response body via query parameter or request body.",
+        "summary": "Returns the given status code, or a random pick from a list.",
+        "operationId": "deleteStatusCodes",
+        "description": "Returns the given status, or a random one from a comma-separated list; supports ?header= injection, a custom body, and trailing path segments, and weighted random picks via 'code:weight'.",
         "parameters": [
           {
             "name": "codes",
             "in": "path",
             "required": true,
-            "description": "HTTP status code(s). Multiple codes can be comma-separated (e.g., '200,201,202') for random selection.",
+            "description": "HTTP status code(s). Multiple codes can be comma-separated (e.g., '200,201,202') for random selection; an optional relative weight per code via 'code:weight' (e.g. '200:3,404:1') biases the random pick.",
             "schema": {
               "type": "string",
-              "pattern": "^[0-9]+(,[0-9]+)*$",
+              "pattern": "^(\\d+(:\\d+(\\.\\d+)?)?)(,\\d+(:\\d+(\\.\\d+)?)?)*$",
               "example": "200"
             }
           },
@@ -3140,7 +4060,7 @@
           {
             "name": "header",
             "in": "query",
-            "description": "Response header to inject, formatted 'Name:Value'. Repeatable to add multiple (e.g. ?header=Retry-After:120).",
+            "description": "Response header to inject, formatted 'Name:Value'. Repeatable to add multiple (e.g. ?header=Retry-After:120)",
             "schema": {
               "type": "string"
             }
@@ -3163,11 +4083,11 @@
         },
         "responses": {
           "100": {
-            "description": "Informational responses - empty body",
+            "description": "Informational responses - empty body.",
             "content": {}
           },
           "200": {
-            "description": "Success",
+            "description": "Success.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3190,11 +4110,11 @@
             }
           },
           "204": {
-            "description": "No Content - empty body",
+            "description": "No Content - empty body.",
             "content": {}
           },
           "300": {
-            "description": "Redirection",
+            "description": "Redirection.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3217,11 +4137,11 @@
             }
           },
           "304": {
-            "description": "Not Modified - empty body",
+            "description": "Not Modified - empty body.",
             "content": {}
           },
           "400": {
-            "description": "Client Errors",
+            "description": "Client Errors.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3244,7 +4164,7 @@
             }
           },
           "500": {
-            "description": "Server Errors",
+            "description": "Server Errors.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3272,16 +4192,18 @@
         "tags": [
           "Status codes"
         ],
-        "summary": "Return specified status code or random status code if multiple are given. Supports custom response body via query parameter or request body.",
+        "summary": "Returns the given status code, or a random pick from a list.",
+        "operationId": "patchStatusCodes",
+        "description": "Returns the given status, or a random one from a comma-separated list; supports ?header= injection, a custom body, and trailing path segments, and weighted random picks via 'code:weight'.",
         "parameters": [
           {
             "name": "codes",
             "in": "path",
             "required": true,
-            "description": "HTTP status code(s). Multiple codes can be comma-separated (e.g., '200,201,202') for random selection.",
+            "description": "HTTP status code(s). Multiple codes can be comma-separated (e.g., '200,201,202') for random selection; an optional relative weight per code via 'code:weight' (e.g. '200:3,404:1') biases the random pick.",
             "schema": {
               "type": "string",
-              "pattern": "^[0-9]+(,[0-9]+)*$",
+              "pattern": "^(\\d+(:\\d+(\\.\\d+)?)?)(,\\d+(:\\d+(\\.\\d+)?)?)*$",
               "example": "200"
             }
           },
@@ -3296,7 +4218,7 @@
           {
             "name": "header",
             "in": "query",
-            "description": "Response header to inject, formatted 'Name:Value'. Repeatable to add multiple (e.g. ?header=Retry-After:120).",
+            "description": "Response header to inject, formatted 'Name:Value'. Repeatable to add multiple (e.g. ?header=Retry-After:120)",
             "schema": {
               "type": "string"
             }
@@ -3319,11 +4241,11 @@
         },
         "responses": {
           "100": {
-            "description": "Informational responses - empty body",
+            "description": "Informational responses - empty body.",
             "content": {}
           },
           "200": {
-            "description": "Success",
+            "description": "Success.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3346,11 +4268,11 @@
             }
           },
           "204": {
-            "description": "No Content - empty body",
+            "description": "No Content - empty body.",
             "content": {}
           },
           "300": {
-            "description": "Redirection",
+            "description": "Redirection.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3373,11 +4295,11 @@
             }
           },
           "304": {
-            "description": "Not Modified - empty body",
+            "description": "Not Modified - empty body.",
             "content": {}
           },
           "400": {
-            "description": "Client Errors",
+            "description": "Client Errors.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3400,7 +4322,7 @@
             }
           },
           "500": {
-            "description": "Server Errors",
+            "description": "Server Errors.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3423,6 +4345,180 @@
             }
           }
         }
+      },
+      "trace": {
+        "tags": [
+          "Status codes"
+        ],
+        "summary": "Returns the given status code, or a random pick from a list.",
+        "operationId": "traceStatusCodes",
+        "description": "TRACE variant: same status selection as GET (TRACE carries no body).",
+        "parameters": [
+          {
+            "name": "codes",
+            "in": "path",
+            "required": true,
+            "description": "HTTP status code(s). Multiple codes can be comma-separated (e.g., '200,201,202') for random selection; an optional relative weight per code via 'code:weight' (e.g. '200:3,404:1') biases the random pick.",
+            "schema": {
+              "type": "string",
+              "pattern": "^(\\d+(:\\d+(\\.\\d+)?)?)(,\\d+(:\\d+(\\.\\d+)?)?)*$",
+              "example": "200"
+            }
+          },
+          {
+            "name": "body",
+            "in": "query",
+            "description": "Custom body content to return in the response",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "header",
+            "in": "query",
+            "description": "Response header to inject, formatted 'Name:Value'. Repeatable to add multiple (e.g. ?header=Retry-After:120)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "100": {
+            "description": "Informational responses - empty body.",
+            "content": {}
+          },
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "The HTTP status code"
+                    },
+                    "body": {
+                      "type": "string",
+                      "description": "Custom body content if provided"
+                    }
+                  },
+                  "example": {
+                    "status": 200
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "description": "Custom body content when Accept header is not application/json"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No Content - empty body.",
+            "content": {}
+          },
+          "300": {
+            "description": "Redirection.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified - empty body.",
+            "content": {}
+          },
+          "400": {
+            "description": "Client Errors.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server Errors.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "options": {
+        "tags": [
+          "Status codes"
+        ],
+        "summary": "CORS preflight for /status/{codes}.",
+        "operationId": "optionsStatusCodes",
+        "description": "Returns 200 with Access-Control-Allow-* headers; ?header= overrides apply. The {codes} path segment is accepted but ignored.",
+        "parameters": [
+          {
+            "name": "codes",
+            "in": "path",
+            "required": true,
+            "description": "Ignored by OPTIONS; present to satisfy the path template.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Preflight response with Access-Control-Allow-* headers.",
+            "content": {}
+          }
+        }
       }
     },
     "/stream-bytes/{n}": {
@@ -3430,18 +4526,38 @@
         "tags": [
           "Dynamic data"
         ],
-        "summary": "Streams n random bytes generated with given seed, at given chunk size per packet. Returns 404 when n exceeds the server max-bytes limit.",
+        "summary": "Streams n random bytes chunk by chunk.",
+        "operationId": "getStreamBytesN",
+        "description": "Streams n random bytes chunk by chunk; same limit behavior as /bytes.",
         "parameters": [
           {
             "name": "n",
             "in": "path",
             "required": true,
-            "schema": {}
+            "schema": {},
+            "description": "Number of random bytes to stream"
+          },
+          {
+            "name": "seed",
+            "in": "query",
+            "description": "Optional seed for deterministic random bytes",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "chunk_size",
+            "in": "query",
+            "description": "Bytes per chunk (default: 10240)",
+            "schema": {
+              "type": "integer"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Bytes.",
+            "description": "n random bytes, streamed in chunks (application/octet-stream).",
             "content": {}
           },
           "404": {
@@ -3456,13 +4572,16 @@
         "tags": [
           "Dynamic data"
         ],
-        "summary": "Stream n JSON responses",
+        "summary": "Streams n JSON lines describing the request.",
+        "operationId": "getStreamN",
+        "description": "Each line is a JSON description of the request (url, args, headers, origin), like /get; n is capped at 100.",
         "parameters": [
           {
             "name": "n",
             "in": "path",
             "required": true,
-            "schema": {}
+            "schema": {},
+            "description": "Number of JSON lines to stream (max 100)"
           }
         ],
         "responses": {
@@ -3479,6 +4598,8 @@
           "Observability"
         ],
         "summary": "Liveness probe for orchestrators.",
+        "operationId": "getHealthz",
+        "description": "Liveness probe: returns 200 whenever the server is up.",
         "responses": {
           "200": {
             "description": "Service is healthy.",
@@ -3505,6 +4626,7 @@
           "Observability"
         ],
         "summary": "Returns instance tags derived from HTTPCAN_* environment variables.",
+        "operationId": "getTags",
         "description": "Exposes every HTTPCAN_* environment variable as a JSON object (suffix mapped to value). Useful for identifying which instance handled a request behind a load balancer. Additionally, XHTTPCAN_* env vars are injected as response headers on every response.",
         "responses": {
           "200": {
@@ -3529,12 +4651,14 @@
           "Observability"
         ],
         "summary": "Returns a single instance tag value by name.",
+        "operationId": "getTagsName",
+        "description": "Returns a single HTTPCAN_* environment variable by name.",
         "parameters": [
           {
             "name": "name",
             "in": "path",
             "required": true,
-            "description": "Tag name (the HTTPCAN_ prefix is added automatically).",
+            "description": "Tag name (the HTTPCAN_ prefix is added automatically)",
             "schema": {
               "type": "string"
             }
@@ -3563,7 +4687,9 @@
         "tags": [
           "Request inspection"
         ],
-        "summary": "Return the incoming requests's User-Agent header.",
+        "summary": "Returns the request's User-Agent header.",
+        "operationId": "getUserAgent",
+        "description": "Returns the User-Agent header as {\"user-agent\": \"...\"}.",
         "responses": {
           "200": {
             "description": "The request's User-Agent header.",
@@ -3577,10 +4703,12 @@
         "tags": [
           "Dynamic data"
         ],
-        "summary": "Return a UUID4.",
+        "summary": "Returns a UUIDv4.",
+        "operationId": "getUuid",
+        "description": "Returns a fresh UUIDv4 as {\"uuid\": \"...\"}.",
         "responses": {
           "200": {
-            "description": "A UUID4.",
+            "description": "A UUIDv4.",
             "content": {}
           }
         }
@@ -3591,7 +4719,9 @@
         "tags": [
           "Response formats"
         ],
-        "summary": "Returns a simple XML document.",
+        "summary": "Returns a sample XML document.",
+        "operationId": "getXml",
+        "description": "Returns a sample XML document (application/xml).",
         "responses": {
           "200": {
             "description": "An XML document.",
@@ -3605,7 +4735,9 @@
         "tags": [
           "Streaming"
         ],
-        "summary": "Server-Sent Events endpoint with configurable event count, delay, and format.",
+        "summary": "Streams server-sent events (configurable count/delay/format).",
+        "operationId": "getSse",
+        "description": "Streams server-sent events; supports OpenAI-compatible chunk formats.",
         "parameters": [
           {
             "name": "count",
@@ -3635,7 +4767,11 @@
             "description": "Message format",
             "schema": {
               "type": "string",
-              "enum": ["simple", "openai", "custom"],
+              "enum": [
+                "simple",
+                "openai",
+                "custom"
+              ],
               "default": "simple"
             }
           },
@@ -3659,9 +4795,13 @@
         ],
         "responses": {
           "200": {
-            "description": "Server-sent events stream",
+            "description": "SSE event stream.",
             "content": {
-              "text/event-stream": {}
+              "text/event-stream": {
+                "itemSchema": {
+                  "$ref": "#/components/schemas/SseEventItem"
+                }
+              }
             }
           }
         }
@@ -3672,7 +4812,9 @@
         "tags": [
           "Streaming"
         ],
-        "summary": "Server-Sent Events with specified event count.",
+        "summary": "Streams server-sent events with a fixed count.",
+        "operationId": "getSseCount",
+        "description": "Same as /sse, with a fixed event count.",
         "parameters": [
           {
             "name": "count",
@@ -3702,7 +4844,11 @@
             "description": "Message format",
             "schema": {
               "type": "string",
-              "enum": ["simple", "openai", "custom"],
+              "enum": [
+                "simple",
+                "openai",
+                "custom"
+              ],
               "default": "simple"
             }
           },
@@ -3726,9 +4872,13 @@
         ],
         "responses": {
           "200": {
-            "description": "Server-sent events stream",
+            "description": "SSE event stream.",
             "content": {
-              "text/event-stream": {}
+              "text/event-stream": {
+                "itemSchema": {
+                  "$ref": "#/components/schemas/SseEventItem"
+                }
+              }
             }
           }
         }
@@ -3739,7 +4889,9 @@
         "tags": [
           "Streaming"
         ],
-        "summary": "Server-Sent Events with specified event count and delay.",
+        "summary": "Streams server-sent events with fixed count and delay.",
+        "operationId": "getSseCountDelay",
+        "description": "Same as /sse, with a fixed count and delay between events.",
         "parameters": [
           {
             "name": "count",
@@ -3769,7 +4921,11 @@
             "description": "Message format",
             "schema": {
               "type": "string",
-              "enum": ["simple", "openai", "custom"],
+              "enum": [
+                "simple",
+                "openai",
+                "custom"
+              ],
               "default": "simple"
             }
           },
@@ -3793,9 +4949,13 @@
         ],
         "responses": {
           "200": {
-            "description": "Server-sent events stream",
+            "description": "SSE event stream.",
             "content": {
-              "text/event-stream": {}
+              "text/event-stream": {
+                "itemSchema": {
+                  "$ref": "#/components/schemas/SseEventItem"
+                }
+              }
             }
           }
         }
@@ -3806,7 +4966,9 @@
         "tags": [
           "Streaming"
         ],
-        "summary": "NDJSON streaming endpoint with configurable parameters.",
+        "summary": "Streams newline-delimited JSON with configurable parameters.",
+        "operationId": "getNdjson",
+        "description": "Streams newline-delimited JSON; supports OpenAI/Ollama-compatible chunk formats.",
         "parameters": [
           {
             "name": "count",
@@ -3836,7 +4998,12 @@
             "description": "Message format",
             "schema": {
               "type": "string",
-              "enum": ["simple", "openai", "ollama", "custom"],
+              "enum": [
+                "simple",
+                "openai",
+                "ollama",
+                "custom"
+              ],
               "default": "simple"
             }
           },
@@ -3860,9 +5027,13 @@
         ],
         "responses": {
           "200": {
-            "description": "NDJSON stream",
+            "description": "NDJSON stream.",
             "content": {
-              "application/x-ndjson": {}
+              "application/x-ndjson": {
+                "itemSchema": {
+                  "$ref": "#/components/schemas/NdjsonLineItem"
+                }
+              }
             }
           }
         }
@@ -3873,7 +5044,9 @@
         "tags": [
           "Streaming"
         ],
-        "summary": "NDJSON streaming with specified event count.",
+        "summary": "Streams newline-delimited JSON with a fixed line count.",
+        "operationId": "getNdjsonCount",
+        "description": "Same as /ndjson, with a fixed line count.",
         "parameters": [
           {
             "name": "count",
@@ -3903,7 +5076,12 @@
             "description": "Message format",
             "schema": {
               "type": "string",
-              "enum": ["simple", "openai", "ollama", "custom"],
+              "enum": [
+                "simple",
+                "openai",
+                "ollama",
+                "custom"
+              ],
               "default": "simple"
             }
           },
@@ -3927,9 +5105,13 @@
         ],
         "responses": {
           "200": {
-            "description": "NDJSON stream",
+            "description": "NDJSON stream.",
             "content": {
-              "application/x-ndjson": {}
+              "application/x-ndjson": {
+                "itemSchema": {
+                  "$ref": "#/components/schemas/NdjsonLineItem"
+                }
+              }
             }
           }
         }
@@ -3940,7 +5122,9 @@
         "tags": [
           "Streaming"
         ],
-        "summary": "NDJSON streaming with specified event count and delay.",
+        "summary": "Streams newline-delimited JSON with fixed count and delay.",
+        "operationId": "getNdjsonCountDelay",
+        "description": "Same as /ndjson, with a fixed count and delay between lines.",
         "parameters": [
           {
             "name": "count",
@@ -3970,7 +5154,12 @@
             "description": "Message format",
             "schema": {
               "type": "string",
-              "enum": ["simple", "openai", "ollama", "custom"],
+              "enum": [
+                "simple",
+                "openai",
+                "ollama",
+                "custom"
+              ],
               "default": "simple"
             }
           },
@@ -3994,9 +5183,377 @@
         ],
         "responses": {
           "200": {
-            "description": "NDJSON stream",
+            "description": "NDJSON stream.",
             "content": {
-              "application/x-ndjson": {}
+              "application/x-ndjson": {
+                "itemSchema": {
+                  "$ref": "#/components/schemas/NdjsonLineItem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/body": {
+      "get": {
+        "tags": [
+          "Request inspection"
+        ],
+        "summary": "Returns an empty response for GET requests (no body to return).",
+        "operationId": "GetBody",
+        "description": "Mirrors request headers in the response. GET requests return empty body since there's no request body to echo.",
+        "responses": {
+          "200": {
+            "description": "Empty response with mirrored headers.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": ""
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Request inspection"
+        ],
+        "summary": "Returns the exact request body with mirrored headers.",
+        "operationId": "PostBody",
+        "description": "Echoes the request body exactly as received and mirrors request headers in the response. Content-Type and custom headers are preserved.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "hello": "world"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              },
+              "example": "Hello, world!"
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Echoed request body with mirrored headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "hello": "world"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "Hello, world!"
+              },
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Request inspection"
+        ],
+        "summary": "Returns the exact request body with mirrored headers.",
+        "operationId": "PutBody",
+        "description": "Echoes the request body exactly as received and mirrors request headers in the response. Content-Type and custom headers are preserved.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Echoed request body with mirrored headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Request inspection"
+        ],
+        "summary": "Returns the exact request body with mirrored headers.",
+        "operationId": "PatchBody",
+        "description": "Echoes the request body exactly as received and mirrors request headers in the response. Content-Type and custom headers are preserved.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Echoed request body with mirrored headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Request inspection"
+        ],
+        "summary": "Returns the exact request body with mirrored headers.",
+        "operationId": "DeleteBody",
+        "description": "Echoes the request body exactly as received and mirrors request headers in the response. Content-Type and custom headers are preserved.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Echoed request body with mirrored headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      },
+      "query": {
+        "tags": [
+          "Request inspection"
+        ],
+        "summary": "Returns the exact request body with mirrored headers.",
+        "operationId": "QueryBody",
+        "description": "Echoes the request body exactly as received, via the QUERY HTTP method (RFC 9430): a safe, idempotent method that carries a request body.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "hello": "world"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              },
+              "example": "Hello, world!"
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Echoed request body with mirrored headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "hello": "world"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "Hello, world!"
+              },
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
             }
           }
         }
@@ -4013,11 +5570,11 @@
             "additionalProperties": {
               "type": "string"
             },
-            "description": "Query string parameters"
+            "description": "Query string parameters."
           },
           "data": {
             "type": "string",
-            "description": "Request body content"
+            "description": "Request body content."
           },
           "files": {
             "type": "object",
@@ -4051,33 +5608,33 @@
             "additionalProperties": {
               "type": "string"
             },
-            "description": "Form data fields"
+            "description": "Form data fields."
           },
           "headers": {
             "type": "object",
             "additionalProperties": {
               "type": "string"
             },
-            "description": "Request headers (excluding proxy headers)"
+            "description": "Request headers (excluding proxy headers)."
           },
           "json": {
-            "description": "Parsed JSON content if Content-Type is application/json"
+            "description": "Parsed JSON content if Content-Type is application/json."
           },
           "method": {
             "type": "string",
-            "description": "HTTP method"
+            "description": "HTTP method."
           },
           "origin": {
             "type": "string",
-            "description": "Client IP address"
+            "description": "Client IP address."
           },
           "url": {
             "type": "string",
-            "description": "Full request URL"
+            "description": "Full request URL."
           },
           "user_agent": {
             "type": "string",
-            "description": "User-Agent header value"
+            "description": "User-Agent header value."
           }
         }
       },
@@ -4089,22 +5646,185 @@
             "additionalProperties": {
               "type": "string"
             },
-            "description": "Query string parameters"
+            "description": "Query string parameters."
           },
           "headers": {
             "type": "object",
             "additionalProperties": {
               "type": "string"
             },
-            "description": "Request headers (excluding proxy headers)"
+            "description": "Request headers (excluding proxy headers)."
           },
           "origin": {
             "type": "string",
-            "description": "Client IP address"
+            "description": "Client IP address."
           },
           "url": {
             "type": "string",
-            "description": "Full request URL"
+            "description": "Full request URL."
+          }
+        }
+      },
+      "SseEventItem": {
+        "description": "Payload of one `data:` event in the SSE stream. Shape depends on the `format` parameter: `simple` (default), `openai` (chat.completion.chunk), or `custom` (plain string).",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/SimpleStreamEvent"
+          },
+          {
+            "$ref": "#/components/schemas/OpenAIChatChunk"
+          },
+          {
+            "type": "string",
+            "description": "format=custom: the custom message verbatim"
+          }
+        ]
+      },
+      "NdjsonLineItem": {
+        "description": "One JSON line in the NDJSON stream. Shape depends on the `format` parameter: `simple` (default), `openai`, `ollama`, or `custom` (plain string).",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/SimpleStreamEvent"
+          },
+          {
+            "$ref": "#/components/schemas/OpenAIChatChunk"
+          },
+          {
+            "$ref": "#/components/schemas/OllamaChunk"
+          },
+          {
+            "type": "string",
+            "description": "format=custom: the custom message verbatim"
+          }
+        ]
+      },
+      "SimpleStreamEvent": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "type": "integer",
+            "description": "1-based event index."
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable event text."
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "RFC 3339 timestamp of the event."
+          }
+        }
+      },
+      "OpenAIChatChunk": {
+        "type": "object",
+        "description": "OpenAI-compatible chat.completion.chunk",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique chunk id (chatcmpl-*)."
+          },
+          "object": {
+            "type": "string",
+            "const": "chat.completion.chunk",
+            "description": "Always \"chat.completion.chunk\"."
+          },
+          "created": {
+            "type": "integer",
+            "description": "Unix timestamp (seconds)."
+          },
+          "model": {
+            "type": "string",
+            "description": "Always \"httpcan-sse\"."
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "delta": {
+                  "type": "object",
+                  "properties": {
+                    "content": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "role": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                },
+                "index": {
+                  "type": "integer"
+                },
+                "finish_reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "description": "Single-element array with the delta."
+          }
+        }
+      },
+      "OllamaChunk": {
+        "type": "object",
+        "description": "Ollama-compatible streaming response",
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Model name (from ?model=, default llama2)."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "RFC 3339 timestamp."
+          },
+          "response": {
+            "type": "string",
+            "description": "The text token for this chunk."
+          },
+          "done": {
+            "type": "boolean",
+            "description": "True on the final chunk."
+          },
+          "context": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "Token context, only on the final chunk."
+          },
+          "total_duration": {
+            "type": "integer",
+            "description": "Total time in ns, final chunk only."
+          },
+          "load_duration": {
+            "type": "integer",
+            "description": "Model load time in ns, final chunk only."
+          },
+          "prompt_eval_count": {
+            "type": "integer",
+            "description": "Prompt token count, final chunk only."
+          },
+          "prompt_eval_duration": {
+            "type": "integer",
+            "description": "Prompt eval time in ns, final chunk only."
+          },
+          "eval_count": {
+            "type": "integer",
+            "description": "Generated token count, final chunk only."
+          },
+          "eval_duration": {
+            "type": "integer",
+            "description": "Generation time in ns, final chunk only."
           }
         }
       }

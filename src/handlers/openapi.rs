@@ -17,6 +17,17 @@ static BASE_SPEC: LazyLock<Value> = LazyLock::new(|| {
     serde_json::from_str(EMBEDDED_OPENAPI).expect("embedded openapi.json is valid JSON")
 });
 
+/// Number of paths in the embedded spec — used by the homepage's endpoint
+/// counters so they can never drift from the served `/openapi.json`.
+pub fn spec_path_count() -> usize {
+    BASE_SPEC
+        .as_object()
+        .and_then(|o| o.get("paths"))
+        .and_then(|p| p.as_object())
+        .map(|p| p.len())
+        .unwrap_or(0)
+}
+
 // Generate dynamic OpenAPI specification with current server information
 pub async fn openapi_handler(
     req: HttpRequest,

@@ -322,17 +322,21 @@ async fn method_endpoint_echoes_arbitrary_method() {
         serde_json::from_slice(&test::read_body(resp).await).expect("JSON body");
     assert_eq!(v["method"].as_str(), Some("GET"));
 
-    // Arbitrary method name
-    let custom = actix_web::http::Method::from_bytes(b"BREW").unwrap();
-    let req = test::TestRequest::default()
-        .method(custom)
-        .uri("/method")
-        .to_request();
-    let resp = test::call_service(&app, req).await;
-    assert_eq!(resp.status(), StatusCode::OK);
-    let v: serde_json::Value =
-        serde_json::from_slice(&test::read_body(resp).await).expect("JSON body");
-    assert_eq!(v["method"].as_str(), Some("BREW"));
+    // Arbitrary method names, including the spec's additionalOperations
+    // placeholder key ANY_CUSTOM_METHOD (self-demonstrating: the echoed
+    // response teaches the mechanism).
+    for name in ["BREW", "ANY_CUSTOM_METHOD"] {
+        let custom = actix_web::http::Method::from_bytes(name.as_bytes()).unwrap();
+        let req = test::TestRequest::default()
+            .method(custom)
+            .uri("/method")
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK, "method {name}");
+        let v: serde_json::Value =
+            serde_json::from_slice(&test::read_body(resp).await).expect("JSON body");
+        assert_eq!(v["method"].as_str(), Some(name));
+    }
 }
 
 #[actix_web::test]
@@ -1098,6 +1102,24 @@ async fn echo_put_patch_delete_body_verbatim() {
             payload.as_bytes(),
             "{method:?} /echo must mirror body bytes verbatim"
         );
+    }
+}
+
+/// /body is the facet-named primary for /echo: POST returns the body verbatim,
+/// and /echo remains a permanent compatibility alias with identical behavior.
+#[actix_web::test]
+async fn body_post_verbatim_and_echo_alias_equivalent() {
+    let app = test::init_service(create_app(cfg())).await;
+    for uri in ["/body", "/echo"] {
+        let req = test::TestRequest::post()
+            .uri(uri)
+            .insert_header(("Content-Type", "text/plain"))
+            .set_payload("mirror me")
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK, "POST {uri}");
+        let body = test::read_body(resp).await;
+        assert_eq!(&body[..], b"mirror me", "POST {uri} must mirror body bytes");
     }
 }
 

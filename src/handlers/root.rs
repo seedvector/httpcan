@@ -63,17 +63,15 @@ const CATEGORIES: &[Category] = &[
         title: "HTTP Methods",
         desc: "Testing different HTTP verbs.",
         endpoints: &[
-            Endpoint { methods: "GET", path: "/get", badge: None, desc: "Returns query args, headers, origin IP, and URL.", curl: "curl '{base}/get?greeting=hello'" },
-            Endpoint { methods: "POST", path: "/post", badge: Some(Badge::Enhanced), desc: "Echoes body/form/JSON; same-named multipart fields collect into an array.", curl: "curl -X POST {base}/post -H 'Content-Type: application/json' -d '{\"key\":\"value\"}'" },
+            Endpoint { methods: "GET", path: "/get", badge: None, desc: "Echoes the request's query parameters, headers, origin, and URL (GET and HEAD).", curl: "curl '{base}/get?greeting=hello'" },
+            Endpoint { methods: "POST", path: "/post", badge: Some(Badge::Enhanced), desc: "Echoes the request's parsed body and uploaded files; same-named multipart fields collect into an array.", curl: "curl -X POST {base}/post -H 'Content-Type: application/json' -d '{\"key\":\"value\"}'" },
             Endpoint { methods: "PUT", path: "/put", badge: Some(Badge::Enhanced), desc: "Same as /post, for PUT requests.", curl: "curl -X PUT {base}/put -H 'Content-Type: application/json' -d '{\"key\":\"value\"}'" },
             Endpoint { methods: "PATCH", path: "/patch", badge: Some(Badge::Enhanced), desc: "Same as /post, for PATCH requests.", curl: "curl -X PATCH {base}/patch -H 'Content-Type: application/json' -d '{\"key\":\"value\"}'" },
             Endpoint { methods: "DELETE", path: "/delete", badge: None, desc: "Same as /post, for DELETE requests.", curl: "curl -X DELETE {base}/delete" },
-            Endpoint { methods: "ANY", path: "/method", badge: Some(Badge::New), desc: "Echoes back whichever HTTP method name was used to call it.", curl: "curl -X LINK {base}/method" },
-            Endpoint { methods: "HEAD", path: "/head", badge: Some(Badge::New), desc: "HEAD-only endpoint; mirrors request headers back as X-Echo-* response headers.", curl: "curl -I {base}/head" },
-            Endpoint { methods: "OPTIONS", path: "/options", badge: Some(Badge::New), desc: "OPTIONS-only endpoint; echoes the request with an Allow header (RFC 9110 §9.3.7).", curl: "curl -X OPTIONS {base}/options" },
-            Endpoint { methods: "TRACE", path: "/trace", badge: Some(Badge::New), desc: "TRACE-only endpoint; echoes the request like /anything (RFC 9110 §9.8).", curl: "curl -X TRACE {base}/trace" },
-            Endpoint { methods: "QUERY", path: "/query", badge: Some(Badge::New), desc: "Echoes a QUERY request: URL args plus the parsed body, like /post (RFC 9430).", curl: "curl -X QUERY {base}/query -d 'select=everything'" },
-            Endpoint { methods: "GET/POST/PUT/PATCH/DELETE/QUERY", path: "/echo", badge: Some(Badge::New), desc: "Reflects the request body and headers verbatim, for any method including QUERY (RFC 9430).", curl: "curl -X POST {base}/echo -d 'hello httpcan'" },
+            Endpoint { methods: "HEAD", path: "/head", badge: Some(Badge::New), desc: "HEAD-only: echoes the request headers back as X-Echo-* response headers.", curl: "curl -I {base}/head" },
+            Endpoint { methods: "OPTIONS", path: "/options", badge: Some(Badge::New), desc: "OPTIONS-only: echoes the request and returns an Allow header (RFC 9110 §9.3.7).", curl: "curl -X OPTIONS {base}/options" },
+            Endpoint { methods: "TRACE", path: "/trace", badge: Some(Badge::New), desc: "TRACE-only: echoes the request like /anything (RFC 9110 §9.8).", curl: "curl -X TRACE {base}/trace" },
+            Endpoint { methods: "QUERY", path: "/query", badge: Some(Badge::New), desc: "Echoes the request's URL args and parsed body, like /post (RFC 9430).", curl: "curl -X QUERY {base}/query -d 'select=everything'" },
         ],
     },
     Category {
@@ -82,7 +80,7 @@ const CATEGORIES: &[Category] = &[
         desc: "Returns anything that is passed to the request.",
         endpoints: &[
             Endpoint { methods: "GET/POST/PUT/PATCH/DELETE/OPTIONS/TRACE/QUERY", path: "/anything", badge: Some(Badge::Enhanced), desc: "Accepts any method and echoes the full request; multipart handling matches /post.", curl: "curl -X POST {base}/anything -d 'hello httpcan'" },
-            Endpoint { methods: "GET/POST/PUT/PATCH/DELETE/OPTIONS/TRACE/QUERY", path: "/anything/{path}", badge: Some(Badge::Enhanced), desc: "Same as /anything, with an extra path segment that is ignored.", curl: "curl {base}/anything/foo/bar" },
+            Endpoint { methods: "GET/POST/PUT/PATCH/DELETE/OPTIONS/TRACE/QUERY", path: "/anything/{path}", badge: Some(Badge::Enhanced), desc: "Same as /anything, with extra path segment(s) that are ignored.", curl: "curl {base}/anything/foo/bar" },
         ],
     },
     Category {
@@ -91,9 +89,9 @@ const CATEGORIES: &[Category] = &[
         desc: "Auth methods.",
         endpoints: &[
             Endpoint { methods: "GET/POST", path: "/basic-auth/{user}/{passwd}", badge: None, desc: "Challenges HTTP Basic Auth with the given credentials.", curl: "curl -u user:pass {base}/basic-auth/user/pass" },
-            Endpoint { methods: "GET/POST", path: "/basic-auth/{user}", badge: Some(Badge::New), desc: "Basic Auth with an empty password (username-only check).", curl: "curl -u 'user:' {base}/basic-auth/user" },
+            Endpoint { methods: "GET/POST", path: "/basic-auth/{user}", badge: Some(Badge::New), desc: "Challenges HTTP Basic Auth with an empty password (username-only check).", curl: "curl -u 'user:' {base}/basic-auth/user" },
             Endpoint { methods: "GET/POST", path: "/hidden-basic-auth/{user}/{passwd}", badge: None, desc: "Like /basic-auth, but returns 404 instead of 401 on failure.", curl: "curl -u user:pass {base}/hidden-basic-auth/user/pass" },
-            Endpoint { methods: "GET/POST", path: "/hidden-basic-auth/{user}", badge: Some(Badge::New), desc: "Hidden Basic Auth with an empty password.", curl: "curl -u 'user:' {base}/hidden-basic-auth/user" },
+            Endpoint { methods: "GET/POST", path: "/hidden-basic-auth/{user}", badge: Some(Badge::New), desc: "Like /basic-auth/{user}, but returns 404 instead of 401 on failure.", curl: "curl -u 'user:' {base}/hidden-basic-auth/user" },
             Endpoint { methods: "GET", path: "/bearer", badge: None, desc: "Checks for a Bearer token in the Authorization header.", curl: "curl -H 'Authorization: Bearer mytoken123' {base}/bearer" },
             Endpoint { methods: "GET", path: "/jwt-bearer", badge: Some(Badge::New), desc: "Decodes and inspects a JWT Bearer token, without verifying its signature.", curl: "curl -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.sflKxw' {base}/jwt-bearer" },
             Endpoint { methods: "GET/POST", path: "/digest-auth/{qop}/{user}/{passwd}[/{algorithm}[/{stale_after}]]", badge: Some(Badge::Enhanced), desc: "Challenges HTTP Digest Auth; adds SHA-512-256 and a qop=none legacy (RFC 2069) mode.", curl: "curl --digest -u user:pass {base}/digest-auth/auth/user/pass" },
@@ -115,6 +113,8 @@ const CATEGORIES: &[Category] = &[
             Endpoint { methods: "GET", path: "/headers", badge: None, desc: "Returns the request's HTTP headers.", curl: "curl {base}/headers" },
             Endpoint { methods: "GET", path: "/ip", badge: None, desc: "Returns the requester's IP address.", curl: "curl {base}/ip" },
             Endpoint { methods: "GET", path: "/user-agent", badge: None, desc: "Returns the request's User-Agent header.", curl: "curl {base}/user-agent" },
+            Endpoint { methods: "ANY", path: "/method", badge: Some(Badge::New), desc: "Returns the request's HTTP method name.", curl: "curl -X LINK {base}/method" },
+            Endpoint { methods: "GET/POST/PUT/PATCH/DELETE/QUERY", path: "/body", badge: Some(Badge::New), desc: "Returns the request's body verbatim with mirrored headers, for any method including QUERY (RFC 9430); /echo is a compatibility alias.", curl: "curl -X POST {base}/body -d 'hello httpcan'" },
         ],
     },
     Category {
@@ -125,7 +125,7 @@ const CATEGORIES: &[Category] = &[
             Endpoint { methods: "GET", path: "/cache", badge: None, desc: "Returns 304 if If-Modified-Since or If-None-Match is present, 200 otherwise.", curl: "curl -i -H 'If-None-Match: \"abc123\"' {base}/cache" },
             Endpoint { methods: "GET", path: "/cache/{value}", badge: None, desc: "Sets a Cache-Control header for the given number of seconds.", curl: "curl -i {base}/cache/60" },
             Endpoint { methods: "GET", path: "/etag/{etag}", badge: Some(Badge::Enhanced), desc: "Validates If-Match/If-None-Match against the given ETag; supports weak W/\"...\" validators.", curl: "curl -i -H 'If-None-Match: \"abc123\"' {base}/etag/abc123" },
-            Endpoint { methods: "GET/POST", path: "/response-headers", badge: Some(Badge::Enhanced), desc: "Echoes query params as response headers; ?body= and ?status= override the response body and status code.", curl: "curl -i '{base}/response-headers?Content-Type=text/plain&X-Foo=bar'" },
+            Endpoint { methods: "GET/POST", path: "/response-headers", badge: Some(Badge::Enhanced), desc: "Echoes query parameters as response headers; ?body= and ?status= override the response body and status code.", curl: "curl -i '{base}/response-headers?Content-Type=text/plain&X-Foo=bar'" },
         ],
     },
     Category {
@@ -136,7 +136,6 @@ const CATEGORIES: &[Category] = &[
             Endpoint { methods: "GET", path: "/json", badge: None, desc: "Returns a sample JSON document.", curl: "curl {base}/json" },
             Endpoint { methods: "GET", path: "/xml", badge: None, desc: "Returns a sample XML document.", curl: "curl {base}/xml" },
             Endpoint { methods: "GET", path: "/html", badge: None, desc: "Returns a sample HTML document.", curl: "curl {base}/html" },
-            Endpoint { methods: "GET", path: "/robots.txt", badge: None, desc: "Returns a robots.txt that disallows /deny.", curl: "curl {base}/robots.txt" },
             Endpoint { methods: "GET", path: "/deny", badge: None, desc: "Returns the page that robots.txt disallows.", curl: "curl {base}/deny" },
             Endpoint { methods: "GET", path: "/encoding/utf8", badge: None, desc: "Returns a UTF-8 encoded page.", curl: "curl {base}/encoding/utf8" },
             Endpoint { methods: "GET", path: "/encoding/iso-8859-1", badge: Some(Badge::New), desc: "Returns an ISO-8859-1 encoded page.", curl: "curl {base}/encoding/iso-8859-1" },
@@ -152,7 +151,7 @@ const CATEGORIES: &[Category] = &[
         desc: "Generates random and dynamic data.",
         endpoints: &[
             Endpoint { methods: "GET", path: "/uuid", badge: None, desc: "Returns a UUIDv4.", curl: "curl {base}/uuid" },
-            Endpoint { methods: "GET", path: "/base64/{value}", badge: Some(Badge::Enhanced), desc: "Decodes a URL-safe base64 string; returns raw bytes for non-UTF-8 content instead of erroring.", curl: "curl {base}/base64/SFRUUENhbiBpcyBhd2Vzb21l" },
+            Endpoint { methods: "GET", path: "/base64/{value}", badge: Some(Badge::Enhanced), desc: "Decodes a standard base64 string; returns raw bytes for non-UTF-8 content instead of erroring.", curl: "curl {base}/base64/SFRUUENhbiBpcyBhd2Vzb21l" },
             Endpoint { methods: "POST", path: "/base64", badge: Some(Badge::New), desc: "Decodes the request body as base64.", curl: "curl -X POST {base}/base64 -d 'SFRUUENhbiBpcyBhd2Vzb21l'" },
             Endpoint { methods: "GET", path: "/bytes/{n}", badge: Some(Badge::Enhanced), desc: "Returns n random bytes; over the configured --max-bytes limit returns 404 instead of silently truncating.", curl: "curl {base}/bytes/1024 -o random.bin" },
             Endpoint { methods: "GET", path: "/stream-bytes/{n}", badge: Some(Badge::Enhanced), desc: "Streams n random bytes chunk by chunk; same limit behavior as /bytes.", curl: "curl {base}/stream-bytes/1024 -o random.bin" },
@@ -170,7 +169,7 @@ const CATEGORIES: &[Category] = &[
         desc: "Creates, reads, and deletes cookies.",
         endpoints: &[
             Endpoint { methods: "GET", path: "/cookies", badge: None, desc: "Returns the request's cookies.", curl: "curl -b 'session=abc123' {base}/cookies" },
-            Endpoint { methods: "GET", path: "/cookies/set", badge: Some(Badge::Enhanced), desc: "Sets cookies from query params; supports httponly/secure/samesite/domain/path/max_age attributes.", curl: "curl -i '{base}/cookies/set?session=abc123&httponly=true&samesite=lax'" },
+            Endpoint { methods: "GET", path: "/cookies/set", badge: Some(Badge::Enhanced), desc: "Sets cookies from query parameters and redirects to /cookies; supports httponly/secure/samesite/domain/path/max_age attributes.", curl: "curl -i '{base}/cookies/set?session=abc123&httponly=true&samesite=lax'" },
             Endpoint { methods: "GET", path: "/cookies/set/{name}/{value}", badge: None, desc: "Sets a single cookie and redirects to /cookies.", curl: "curl -i {base}/cookies/set/session/abc123" },
             Endpoint { methods: "GET", path: "/cookies/delete", badge: None, desc: "Deletes the given cookies and redirects to /cookies.", curl: "curl -i '{base}/cookies/delete?session'" },
         ],
@@ -195,7 +194,7 @@ const CATEGORIES: &[Category] = &[
             Endpoint { methods: "GET", path: "/redirect/{n}", badge: None, desc: "Redirects n times before returning 200.", curl: "curl -L {base}/redirect/3" },
             Endpoint { methods: "GET", path: "/relative-redirect/{n}", badge: None, desc: "Same as /redirect/{n}, using relative Location URLs.", curl: "curl -L {base}/relative-redirect/3" },
             Endpoint { methods: "GET", path: "/absolute-redirect/{n}", badge: None, desc: "Same as /redirect/{n}, using absolute Location URLs.", curl: "curl -L {base}/absolute-redirect/3" },
-            Endpoint { methods: "GET/POST/PUT/PATCH/DELETE/TRACE", path: "/redirect-to", badge: Some(Badge::Enhanced), desc: "Redirects to ?url=; POST/PUT/PATCH also accept form/JSON bodies, and browser clients see an anti-phishing interstitial instead of a silent redirect.", curl: "curl -X POST {base}/redirect-to -d 'url=https://example.com'" },
+            Endpoint { methods: "GET/POST/PUT/PATCH/DELETE/TRACE", path: "/redirect-to", badge: Some(Badge::Enhanced), desc: "Redirects to ?url=; POST/PUT/PATCH/DELETE also accept form/JSON bodies, and browser clients see an anti-phishing interstitial instead of a silent redirect.", curl: "curl -X POST {base}/redirect-to -d 'url=https://example.com'" },
         ],
     },
     Category {
@@ -203,10 +202,10 @@ const CATEGORIES: &[Category] = &[
         title: "Streaming",
         desc: "Server-Sent Events and NDJSON streaming endpoints.",
         endpoints: &[
-            Endpoint { methods: "GET", path: "/sse", badge: Some(Badge::New), desc: "Server-Sent Events stream; supports OpenAI/Ollama-compatible chunk formats.", curl: "curl -N '{base}/sse?count=3&format=simple'" },
+            Endpoint { methods: "GET", path: "/sse", badge: Some(Badge::New), desc: "Streams server-sent events; supports OpenAI-compatible chunk formats.", curl: "curl -N '{base}/sse?count=3&format=simple'" },
             Endpoint { methods: "GET", path: "/sse/{count}", badge: Some(Badge::New), desc: "Same as /sse, with a fixed event count.", curl: "curl -N {base}/sse/5" },
             Endpoint { methods: "GET", path: "/sse/{count}/{delay}", badge: Some(Badge::New), desc: "Same as /sse, with a fixed count and delay between events.", curl: "curl -N {base}/sse/5/1000" },
-            Endpoint { methods: "GET", path: "/ndjson", badge: Some(Badge::New), desc: "Newline-delimited JSON stream; supports OpenAI/Ollama-compatible chunk formats.", curl: "curl -N '{base}/ndjson?count=3&format=simple'" },
+            Endpoint { methods: "GET", path: "/ndjson", badge: Some(Badge::New), desc: "Streams newline-delimited JSON; supports OpenAI/Ollama-compatible chunk formats.", curl: "curl -N '{base}/ndjson?count=3&format=simple'" },
             Endpoint { methods: "GET", path: "/ndjson/{count}", badge: Some(Badge::New), desc: "Same as /ndjson, with a fixed line count.", curl: "curl -N {base}/ndjson/5" },
             Endpoint { methods: "GET", path: "/ndjson/{count}/{delay}", badge: Some(Badge::New), desc: "Same as /ndjson, with a fixed count and delay between lines.", curl: "curl -N {base}/ndjson/5/1000" },
         ],
@@ -216,8 +215,8 @@ const CATEGORIES: &[Category] = &[
         title: "Observability",
         desc: "Health checks and instance identification.",
         endpoints: &[
-            Endpoint { methods: "GET", path: "/healthz", badge: Some(Badge::New), desc: "Liveness probe; returns 200 whenever the server is up.", curl: "curl {base}/healthz" },
-            Endpoint { methods: "GET", path: "/tags", badge: Some(Badge::New), desc: "Lists HTTPCAN_* environment variables, for instance identification.", curl: "curl {base}/tags" },
+            Endpoint { methods: "GET", path: "/healthz", badge: Some(Badge::New), desc: "Liveness probe: returns 200 whenever the server is up.", curl: "curl {base}/healthz" },
+            Endpoint { methods: "GET", path: "/tags", badge: Some(Badge::New), desc: "Returns all HTTPCAN_* environment variables, for instance identification.", curl: "curl {base}/tags" },
             Endpoint { methods: "GET", path: "/tags/{name}", badge: Some(Badge::New), desc: "Returns a single HTTPCAN_* environment variable by name.", curl: "curl {base}/tags/VERSION" },
         ],
     },
@@ -294,10 +293,12 @@ fn render_categories(base: &str) -> String {
 fn badge_counts() -> (usize, usize, usize) {
     let mut enhanced = 0;
     let mut new = 0;
-    let mut total = 0;
+    // Total counts spec paths (not catalog entries) so the "N-endpoint
+    // superset" claim stays arithmetically consistent with /openapi.json —
+    // e.g. the compact digest-auth entry covers three spec paths.
+    let total = super::openapi::spec_path_count();
     for cat in CATEGORIES {
         for ep in cat.endpoints {
-            total += 1;
             match ep.badge {
                 Some(Badge::Enhanced) => enhanced += 1,
                 Some(Badge::New) => new += 1,

@@ -1,0 +1,12 @@
+# Redocly CLI configuration — CI gate: `npx @redocly/cli lint static/openapi.json`
+extends: [recommended]
+rules:
+  # httpcan is an unauthenticated echo/testing service by design; auth endpoints
+  # (/basic-auth, /digest-auth, /jwt-bearer, ...) declare their own security.
+  security-defined: off
+  # Redirect endpoints (/redirect-to, /redirect/{n}, ...) return 3xx by design.
+  operation-2xx-response: off
+  # Echo endpoints (/get, /uuid, ...) have no meaningful 4xx to document.
+  # Real 4xx behaviors (base64 400, bytes 404 over-limit, redirect 400, ...)
+  # are documented manually at the operations that have them.
+  operation-4xx-response: off
