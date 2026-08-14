@@ -1,7 +1,5 @@
 # Build artifacts
 target/
-httpcan
-httpcan-*
 
 # Version control
 .git/

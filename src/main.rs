@@ -1,11 +1,16 @@
 use clap::Parser;
+use httpcan::config::Args;
 use httpcan::{HttpCanServer, ServerConfig};
-
-mod config;
-use config::Args;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    // Load a `.env` file from the current directory into the process
+    // environment, if present, before anything reads env vars (CLI flag
+    // defaults below, and env_logger's RUST_LOG). Silently does nothing when
+    // no `.env` file exists, so it's a no-op for Docker/systemd deployments
+    // that already inject real environment variables.
+    dotenvy::dotenv().ok();
+
     env_logger::init();
 
     // Parse command line arguments
@@ -28,7 +33,8 @@ async fn main() -> std::io::Result<()> {
         .port(args.port)
         .add_current_server(!args.no_current_server)
         .exclude_headers(exclude_headers)
-        .max_bytes(args.max_bytes);
+        .max_bytes(args.max_bytes)
+        .scheme_override(args.scheme);
 
     // Create and run the server
     HttpCanServer::with_config(config).run().await

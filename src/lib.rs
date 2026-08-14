@@ -21,6 +21,9 @@ pub struct AppConfig {
     /// Maximum bytes served by `/bytes/{n}` and `/stream-bytes/{n}`. Requests
     /// exceeding this return a 404 instead of silently truncating (httpbin #594).
     pub max_bytes: usize,
+    /// Scheme override for self-referential absolute URLs (see
+    /// [`config::SchemeOverride`]).
+    pub scheme_override: config::SchemeOverride,
 }
 use handlers::*;
 use middleware::RequestLogger;
@@ -46,6 +49,9 @@ pub struct ServerConfig {
     pub static_dir: Option<PathBuf>,
     /// Maximum bytes for `/bytes` and `/stream-bytes` (httpbin #594)
     pub max_bytes: usize,
+    /// Scheme override for self-referential absolute URLs (see
+    /// [`config::SchemeOverride`]).
+    pub scheme_override: config::SchemeOverride,
 }
 
 impl Default for ServerConfig {
@@ -57,6 +63,7 @@ impl Default for ServerConfig {
             exclude_headers: Vec::new(),
             static_dir: None,
             max_bytes: config::DEFAULT_MAX_BYTES,
+            scheme_override: config::SchemeOverride::Auto,
         }
     }
 }
@@ -106,6 +113,13 @@ impl ServerConfig {
     /// Set the maximum bytes for `/bytes` and `/stream-bytes` (httpbin #594)
     pub fn max_bytes(mut self, max_bytes: usize) -> Self {
         self.max_bytes = max_bytes;
+        self
+    }
+
+    /// Set the scheme override for self-referential absolute URLs (see
+    /// [`config::SchemeOverride`]).
+    pub fn scheme_override(mut self, scheme_override: config::SchemeOverride) -> Self {
+        self.scheme_override = scheme_override;
         self
     }
 }
@@ -170,6 +184,13 @@ impl HttpCanServer {
         self
     }
 
+    /// Set the scheme override for self-referential absolute URLs (see
+    /// [`config::SchemeOverride`]).
+    pub fn scheme_override(mut self, scheme_override: config::SchemeOverride) -> Self {
+        self.config.scheme_override = scheme_override;
+        self
+    }
+
     /// Start the HTTPCan server
     pub async fn run(self) -> std::io::Result<()> {
         let bind_address = format!("{}:{}", self.config.host, self.config.port);
@@ -222,6 +243,7 @@ fn create_app(
         add_current_server: server_config.add_current_server,
         exclude_headers: server_config.exclude_headers,
         max_bytes: server_config.max_bytes,
+        scheme_override: server_config.scheme_override,
     };
 
     let mut app = App::new()

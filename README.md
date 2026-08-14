@@ -89,12 +89,26 @@ CLI flags:
 | `--no-current-server`          | Do not add current server to OpenAPI `servers` list                                                               | `false` | `--no-current-server`                                     |
 | `--exclude-headers <HEADERS>`  | Exclude headers in responses; comma‑separated; supports wildcard suffix (e.g. `x-bar-*`)                          | `""`    | `--exclude-headers "x-forwarded-*,cf-*,server"`           |
 | `--max-bytes <BYTES>`          | Max bytes for `/bytes` & `/stream-bytes`; over‑limit returns 404 instead of truncating (httpbin #594)              | `102400` | `--max-bytes 1048576`                                     |
+| `--scheme <auto\|http\|https>` | Scheme for SEO‑facing URLs only (canonical link, sitemap.xml, robots.txt); doesn't affect copy‑curl examples or the OpenAPI current server, which always mirror the actual request. Also settable via `HTTPCAN_SCHEME` | `auto`  | `--scheme https`                                          |
 | `-h, --help`                   | Print help information                                                                                             |         | `--help`                                                  |
 | `-V, --version`                | Print version                                                                                                      |         | `--version`                                               |
 
 Notes:
 - Built‑in filtering includes reverse proxy/CDN providers (Nginx, Cloudflare, AWS, GCP, Azure).
 - When using Docker, ensure `-p host:container` mapping matches your `--port` if you override it.
+
+Any flag backed by an environment variable (e.g. `HTTPCAN_SCHEME`) can also be set via a `.env` file in the working directory — handy for a bare‑binary deployment on a server, where there's no Docker `--env-file`/`env_file:` or systemd `EnvironmentFile=` to inject real environment variables for you:
+
+```bash
+# .env
+HTTPCAN_SCHEME=https
+```
+
+```bash
+./httpcan   # picks up .env from the current directory automatically
+```
+
+`.env` values are loaded before CLI flags are parsed, so an explicit `--scheme` flag still takes precedence over `HTTPCAN_SCHEME` in `.env`.
 
 ## Usage Examples
 

@@ -52,3 +52,5 @@ target/
 httpcan-linux-amd64
 # Internal analysis (not tracked)
 internal/
+# Local/deployment-specific environment overrides
+.env

@@ -291,6 +291,38 @@ pub fn filter_proxy_headers(headers: HashMap<String, String>) -> HashMap<String,
         .collect()
 }
 
+/// Resolve the scheme (`http`/`https`) used for the SEO-facing
+/// self-identification surfaces: the homepage canonical link, `sitemap.xml`,
+/// and the `Sitemap:` directive in `robots.txt`.
+///
+/// Honors [`crate::config::SchemeOverride`] so deployments behind a
+/// TLS-terminating reverse proxy/CDN that doesn't forward
+/// `X-Forwarded-Proto` correctly can pin the scheme, instead of trusting a
+/// per-request header that may be missing, wrong, or spoofable.
+///
+/// Everything else — copy-curl examples on the homepage, the OpenAPI
+/// "current server" entry, `/.well-known/api-catalog`, and endpoints that
+/// intentionally mirror the exact request the client made (e.g. `/get`,
+/// `/anything`, `/absolute-redirect`) — should keep using
+/// `req.connection_info().scheme()` directly, so a visitor always gets back
+/// URLs that actually work for the request they made.
+pub fn resolved_scheme(req: &HttpRequest, config: &crate::AppConfig) -> String {
+    match config.scheme_override.fixed() {
+        Some(scheme) => scheme.to_string(),
+        None => req.connection_info().scheme().to_string(),
+    }
+}
+
+/// Resolve the `scheme://host` origin for self-referential absolute URLs.
+/// See [`resolved_scheme`].
+pub fn resolved_base(req: &HttpRequest, config: &crate::AppConfig) -> String {
+    format!(
+        "{}://{}",
+        resolved_scheme(req, config),
+        req.connection_info().host()
+    )
+}
+
 // Helper function to fix URL field in RequestInfo to include full URL
 pub fn fix_request_info_url(req: &HttpRequest, request_info: &mut RequestInfo) {
     let connection_info = req.connection_info();

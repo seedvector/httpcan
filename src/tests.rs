@@ -1039,6 +1039,25 @@ async fn fmt_robots_txt_advertises_sitemap() {
     );
 }
 
+#[actix_web::test]
+async fn fmt_robots_txt_honors_scheme_override() {
+    let app = test::init_service(create_app(
+        cfg().scheme_override(config::SchemeOverride::Https),
+    ))
+    .await;
+    let req = test::TestRequest::get()
+        .uri("/robots.txt")
+        .insert_header(("Host", "example.com"))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    let body = test::read_body(resp).await;
+    let text = std::str::from_utf8(&body).expect("utf8 body");
+    assert!(
+        text.contains("Sitemap: https://example.com/sitemap.xml"),
+        "scheme_override(Https) must force an https sitemap URL even for a plain-http test request: {text}"
+    );
+}
+
 /// /robots.txt declares AI usage preferences via Content-Signal directives
 /// (https://contentsignals.org/): search allowed, training and AI input denied.
 /// The directive must sit inside the `User-agent: *` group — before the
@@ -1096,6 +1115,25 @@ async fn fmt_sitemap_xml_body_and_content_type() {
     assert!(
         text.contains("<loc>http://example.com/</loc>"),
         "loc is an absolute URL pointing at the homepage: {text}"
+    );
+}
+
+#[actix_web::test]
+async fn fmt_sitemap_xml_honors_scheme_override() {
+    let app = test::init_service(create_app(
+        cfg().scheme_override(config::SchemeOverride::Https),
+    ))
+    .await;
+    let req = test::TestRequest::get()
+        .uri("/sitemap.xml")
+        .insert_header(("Host", "example.com"))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    let body = test::read_body(resp).await;
+    let text = std::str::from_utf8(&body).expect("utf8 body");
+    assert!(
+        text.contains("<loc>https://example.com/</loc>"),
+        "scheme_override(Https) must force an https loc even for a plain-http test request: {text}"
     );
 }
 
@@ -3042,6 +3080,38 @@ async fn root_homepage_lists_endpoints_and_links_to_openapi() {
     assert!(
         body_str.contains("/openapi.json"),
         "homepage should link to the OpenAPI spec"
+    );
+}
+
+/// `scheme_override` must only affect the SEO-facing canonical link, not the
+/// user-facing copy-curl examples: a plain-http visitor should still see
+/// `http://` in the curl examples (so they're actually runnable as-is), even
+/// when the instance is configured to always advertise `https` for
+/// canonical/sitemap/robots purposes.
+#[actix_web::test]
+async fn root_canonical_honors_override_while_examples_mirror_request() {
+    let app = test::init_service(create_app(
+        cfg().scheme_override(config::SchemeOverride::Https),
+    ))
+    .await;
+    let req = test::TestRequest::get()
+        .uri("/")
+        .insert_header(("Host", "example.com"))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    let body = test::read_body(resp).await;
+    let body_str = std::str::from_utf8(&body).expect("utf-8 html body");
+    assert!(
+        body_str.contains(r#"<link rel="canonical" href="https://example.com/">"#),
+        "canonical link must honor scheme_override(Https): {body_str}"
+    );
+    assert!(
+        body_str.contains("http://example.com/get"),
+        "copy-curl examples must mirror the actual (plain-http) request, not the override: {body_str}"
+    );
+    assert!(
+        !body_str.contains("https://example.com/get"),
+        "copy-curl examples must not be forced to https by scheme_override: {body_str}"
     );
 }
 

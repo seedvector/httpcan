@@ -425,6 +425,9 @@ fn render_homepage(canonical_url: &str, base: &str, version: &str) -> String {
 
 <section id="quick-start">
 <h2>Quick Start <a class="hash" href="#quick-start">#</a></h2>
+<p>You're on a live instance &mdash; <code>{base}</code>. Try an endpoint now:</p>
+<pre><code>curl {base}/get</code></pre>
+<p id="self-host">Want your own? Run HTTPCan locally or in production:</p>
 <pre><code># Docker
 docker run -p 8080:8080 ghcr.io/seedvector/httpcan:latest
 
@@ -474,6 +477,7 @@ curl http://localhost:8080/get</code></pre>
         new = new,
         toc = render_toc(),
         categories = render_categories(base),
+        base = escape_html(base),
         version = version,
         script = SCRIPT,
     )
@@ -503,6 +507,11 @@ fn render_markdown(base: &str, version: &str) -> String {
     let _ = writeln!(s, "- [Source on GitHub](https://github.com/seedvector/httpcan)\n");
 
     let _ = writeln!(s, "## Quick Start\n");
+    let _ = writeln!(s, "You're on a live instance — `{base}`. Try an endpoint now:\n");
+    let _ = writeln!(s, "```sh");
+    let _ = writeln!(s, "curl {base}/get");
+    let _ = writeln!(s, "```\n");
+    let _ = writeln!(s, "Want your own? Run HTTPCan locally or in production:\n");
     let _ = writeln!(s, "```sh");
     let _ = writeln!(s, "# Docker");
     let _ = writeln!(s, "docker run -p 8080:8080 ghcr.io/seedvector/httpcan:latest\n");
@@ -609,10 +618,17 @@ fn add_homepage_link_headers(
 /// Every homepage response also carries RFC 8288 / RFC 9727 `Link` headers
 /// (api-catalog, service-desc, service-doc, describedby) so agents can discover
 /// the machine-readable resources without scraping the page.
-pub async fn root_handler(req: HttpRequest) -> Result<HttpResponse> {
+pub async fn root_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Result<HttpResponse> {
+    // `base` mirrors the scheme/host the visitor actually used, so curl
+    // examples and copy-paste links stay usable as-is (an https visitor gets
+    // https examples, a plain-http visitor — e.g. local dev, or a self-hosted
+    // instance without TLS — gets http examples that actually work).
     let connection_info = req.connection_info();
     let base = format!("{}://{}", connection_info.scheme(), connection_info.host());
-    let canonical_url = format!("{base}/");
+    // The canonical link is a pure SEO signal, not something a user copies
+    // to run — it should stay stable regardless of how this particular
+    // request arrived, so it honors `scheme_override` instead of mirroring it.
+    let canonical_url = format!("{}/", resolved_base(&req, &config));
     let version = option_env!("CARGO_PKG_VERSION").unwrap_or("unknown");
 
     if wants_markdown(&req) {

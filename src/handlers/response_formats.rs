@@ -93,9 +93,8 @@ pub async fn html_handler(_req: HttpRequest) -> Result<HttpResponse> {
 /// (RFC 9309 / https://www.sitemaps.org/protocol.html), and declares AI usage
 /// preferences via `Content-Signal` (https://contentsignals.org/): search
 /// indexing, AI training, and model input all allowed.
-pub async fn robots_txt_handler(req: HttpRequest) -> Result<HttpResponse> {
-    let connection_info = req.connection_info();
-    let base = format!("{}://{}", connection_info.scheme(), connection_info.host());
+pub async fn robots_txt_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Result<HttpResponse> {
+    let base = resolved_base(&req, &config);
     let robots_content = format!(
         "User-agent: *\n\
          Disallow: /deny\n\
@@ -115,9 +114,8 @@ pub async fn robots_txt_handler(req: HttpRequest) -> Result<HttpResponse> {
 /// stays in sync with whatever the homepage exposes. The homepage is the only
 /// crawlable content page; the API endpoints (/get, /post, …) echo request
 /// data and are intentionally not advertised to crawlers.
-pub async fn sitemap_handler(req: HttpRequest) -> Result<HttpResponse> {
-    let connection_info = req.connection_info();
-    let base = format!("{}://{}", connection_info.scheme(), connection_info.host());
+pub async fn sitemap_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Result<HttpResponse> {
+    let base = resolved_base(&req, &config);
     let body = format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
          <urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n\

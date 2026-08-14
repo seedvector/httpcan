@@ -70,6 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - **exclude_headers**: List of headers to exclude from responses
 - **static_dir**: Custom static files directory
 - **max_bytes**: Maximum bytes for `/bytes` and `/stream-bytes`; over-limit requests return 404 instead of silently truncating (default: 102400, httpbin #594)
+- **scheme_override**: `SchemeOverride::Auto` (default), `Http`, or `Https`. Forces the scheme used for SEO-facing URLs only (canonical link, sitemap.xml, robots.txt). Copy-curl examples on the homepage and the OpenAPI current server always mirror the visitor's actual request, regardless of this setting.
 
 ## Examples
 
