@@ -11,7 +11,7 @@ async fn main() -> std::io::Result<()> {
     // that already inject real environment variables.
     dotenvy::dotenv().ok();
 
-    env_logger::init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     // Parse command line arguments
     let args = Args::parse();

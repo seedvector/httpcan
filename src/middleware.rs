@@ -125,11 +125,10 @@ where
                 user_agent
             );
 
-            // Log in the specified format
+            // Single log channel: the `log` facade (env_logger, stderr).
+            // The default filter is info (see main.rs), so request logs are
+            // visible out of the box and fully controllable via RUST_LOG.
             log::info!("{}", log_message);
-
-            // Also print to stdout for immediate visibility
-            println!("{}", log_message);
 
             // Observability response headers (httpbin #431/#560/#565).
             let headers = res.headers_mut();
