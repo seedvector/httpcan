@@ -1,3 +1,6 @@
+use actix_files::NamedFile;
+use actix_web::HttpResponse;
+
 use actix_multipart::Multipart;
 use actix_web::web::BytesMut;
 use actix_web::{web, HttpRequest, Result};
@@ -104,6 +107,36 @@ pub fn get_static_path() -> PathBuf {
     }
 
     static_path
+}
+
+/// The user-overridable assets and their canonical URLs. A file with one of
+/// these names placed in the static assets directory replaces the built-in
+/// default at its canonical URL; every other file in the directory is only
+/// reachable at `/static/<name>` (or `/<name>` when it does not collide with
+/// an API route).
+pub const OVERRIDABLE_ASSETS: &[&str] = &[
+    "openapi.json",
+    "favicon.png",
+    "index.html",
+    "robots.txt",
+    "sitemap.xml",
+];
+
+/// User override layer: if `static/<name>` exists, open it as a [`NamedFile`].
+/// Checked per request, so dropping a file into the directory takes effect
+/// without a restart. `Err(io)` other than "not found" is treated as "no
+/// override" — the built-in default is still served.
+pub fn static_override(config: &crate::AppConfig, name: &str) -> Option<NamedFile> {
+    NamedFile::open(config.static_path.join(name)).ok()
+}
+
+pub fn override_response(
+    file: NamedFile,
+    content_type: &'static str,
+    req: &HttpRequest,
+) -> Result<HttpResponse> {
+    let ct: mime::Mime = content_type.parse().expect("valid MIME type literal");
+    Ok(file.set_content_type(ct).into_response(req))
 }
 
 // Helper function to sort HashMap by keys and return IndexMap

@@ -90,6 +90,7 @@ CLI flags:
 | `--exclude-headers <HEADERS>`  | Exclude headers in responses; comma‑separated; supports wildcard suffix (e.g. `x-bar-*`)                          | `""`    | `--exclude-headers "x-forwarded-*,cf-*,server"`           |
 | `--max-bytes <BYTES>`          | Max bytes for `/bytes` & `/stream-bytes`; over‑limit returns 404 instead of truncating (httpbin #594)              | `102400` | `--max-bytes 1048576`                                     |
 | `--scheme <auto\|http\|https>` | Scheme for SEO‑facing URLs only (canonical link, sitemap.xml, robots.txt); doesn't affect copy‑curl examples or the OpenAPI current server, which always mirror the actual request. Also settable via `HTTPCAN_SCHEME` | `auto`  | `--scheme https`                                          |
+| `--static-dir <DIR>`          | Static assets directory: user overrides for `openapi.json`, `favicon.png`, `index.html`, `robots.txt`, `sitemap.xml`, plus extra files served at `/static/<name>` or `/<name>`. Also settable via `HTTPCAN_STATIC_DIR` | *binary-relative `static`, else `./static`* | `--static-dir /etc/httpcan/static` |
 | `-h, --help`                   | Print help information                                                                                             |         | `--help`                                                  |
 | `-V, --version`                | Print version                                                                                                      |         | `--version`                                               |
 
@@ -189,6 +190,7 @@ curl http://localhost:8080/ip
 ## OpenAPI & Homepage
 
 - OpenAPI spec: `GET /openapi.json`
+- API catalog (RFC 9727, automated discovery): `GET /.well-known/api-catalog` — a Linkset pointing agents at the spec, docs, and health probe; URLs mirror the request origin
 - Homepage: visit `/` for a static, crawlable page listing every endpoint by category, each with a compatibility badge (`Enhanced`/`New`) relative to httpbin.org and a one‑click "Copy curl" button (pre‑filled with sample parameters and resolved against the instance you're viewing). It always renders as HTML, regardless of the `Accept` header — no JavaScript required to read the content.
 
 ## API Reference
@@ -244,6 +246,24 @@ Before deploying HTTPCan on the public internet, review these hardening options:
   - **Custom (`--exclude-headers`)**: Add your own patterns to strip additional sensitive headers, with wildcard suffix support: `--exclude-headers "x-internal-*,server,x-secret-token"`.
 - **Resource limits**: `--max-bytes` caps `/bytes` and `/stream-bytes` responses (default 100KB); over‑limit requests return `404` instead of silently truncating (httpbin #594).
 - **Non‑root Docker**: The official image runs as a dedicated unprivileged user (`uid 10001`).
+
+## 🎨 Self-Hosting & Customization
+
+The binary is fully self-contained: the OpenAPI spec and favicon are embedded at compile time, and `/`, `/robots.txt`, and `/sitemap.xml` are generated per request. To customize your instance, drop files into a static assets directory (`--static-dir`, or the default `static/` next to the binary / `./static`; in Docker, mount a volume at `/httpcan/static` — files must be world-readable for `uid 10001`):
+
+| File in static dir | Replaces | Notes |
+|---|---|---|
+| `openapi.json` | embedded spec at `/openapi.json` | The current server is still injected into `servers` (disable with `--no-current-server`) |
+| `favicon.png` | embedded favicon at `/favicon.png` | |
+| `index.html` | generated homepage at `/` | Forfeits origin-resolved curl examples, markdown negotiation, and Link headers |
+| `robots.txt` | generated policy at `/robots.txt` | E.g. `Disallow: *` for private instances |
+| `sitemap.xml` | generated index at `/sitemap.xml` | Absolute URLs in a static file don't follow the request origin or `--scheme` |
+
+Behavior notes:
+
+- Files are checked per request — adding or replacing a file takes effect immediately, no restart. The directory itself must exist at startup.
+- Every other file in the directory is served at `/static/<name>` (and at `/<name>` when the name doesn't collide with an API route).
+- Reserved: files named after API routes (`json`, `get`, `image`, …) never shadow those routes; dot‑prefixed files are rejected with 400.
 
 ## 🦀 Library Usage
 

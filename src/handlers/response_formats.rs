@@ -93,7 +93,15 @@ pub async fn html_handler(_req: HttpRequest) -> Result<HttpResponse> {
 /// (RFC 9309 / https://www.sitemaps.org/protocol.html), and declares AI usage
 /// preferences via `Content-Signal` (https://contentsignals.org/): search
 /// indexing, AI training, and model input all allowed.
-pub async fn robots_txt_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Result<HttpResponse> {
+pub async fn robots_txt_handler(
+    req: HttpRequest,
+    config: web::Data<AppConfig>,
+) -> Result<HttpResponse> {
+    // User override: `static/robots.txt` replaces the generated policy
+    // verbatim (e.g. a private instance can `Disallow: *`).
+    if let Some(file) = static_override(&config, "robots.txt") {
+        return override_response(file, "text/plain", &req);
+    }
     let base = resolved_base(&req, &config);
     let robots_content = format!(
         "User-agent: *\n\
@@ -114,7 +122,16 @@ pub async fn robots_txt_handler(req: HttpRequest, config: web::Data<AppConfig>) 
 /// stays in sync with whatever the homepage exposes. The homepage is the only
 /// crawlable content page; the API endpoints (/get, /post, …) echo request
 /// data and are intentionally not advertised to crawlers.
-pub async fn sitemap_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Result<HttpResponse> {
+pub async fn sitemap_handler(
+    req: HttpRequest,
+    config: web::Data<AppConfig>,
+) -> Result<HttpResponse> {
+    // User override: `static/sitemap.xml` replaces the generated index
+    // verbatim. Note: absolute URLs in a static file do not follow the
+    // request origin or `--scheme` — the operator owns them.
+    if let Some(file) = static_override(&config, "sitemap.xml") {
+        return override_response(file, "application/xml", &req);
+    }
     let base = resolved_base(&req, &config);
     let body = format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\

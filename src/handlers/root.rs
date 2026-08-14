@@ -504,17 +504,26 @@ fn render_markdown(base: &str, version: &str) -> String {
         "# HTTPCan\n\nA modern, high-performance superset of [httpbin.org](https://httpbin.org) for testing HTTP clients, proxies, and AI agents — built with Rust and Actix Web.\n"
     );
     let _ = writeln!(s, "- [OpenAPI spec]({base}/openapi.json)");
-    let _ = writeln!(s, "- [Source on GitHub](https://github.com/seedvector/httpcan)\n");
+    let _ = writeln!(
+        s,
+        "- [Source on GitHub](https://github.com/seedvector/httpcan)\n"
+    );
 
     let _ = writeln!(s, "## Quick Start\n");
-    let _ = writeln!(s, "You're on a live instance — `{base}`. Try an endpoint now:\n");
+    let _ = writeln!(
+        s,
+        "You're on a live instance — `{base}`. Try an endpoint now:\n"
+    );
     let _ = writeln!(s, "```sh");
     let _ = writeln!(s, "curl {base}/get");
     let _ = writeln!(s, "```\n");
     let _ = writeln!(s, "Want your own? Run HTTPCan locally or in production:\n");
     let _ = writeln!(s, "```sh");
     let _ = writeln!(s, "# Docker");
-    let _ = writeln!(s, "docker run -p 8080:8080 ghcr.io/seedvector/httpcan:latest\n");
+    let _ = writeln!(
+        s,
+        "docker run -p 8080:8080 ghcr.io/seedvector/httpcan:latest\n"
+    );
     let _ = writeln!(s, "# Cargo");
     let _ = writeln!(s, "cargo install httpcan && httpcan\n");
     let _ = writeln!(s, "curl http://localhost:8080/get");
@@ -619,6 +628,13 @@ fn add_homepage_link_headers(
 /// (api-catalog, service-desc, service-doc, describedby) so agents can discover
 /// the machine-readable resources without scraping the page.
 pub async fn root_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Result<HttpResponse> {
+    // User override: `static/index.html` replaces the built-in homepage at
+    // `/`. It forfeits the dynamic parts (origin-resolved curl examples,
+    // markdown negotiation, RFC 8288 Link headers, canonical URL) — the
+    // operator's file is served verbatim.
+    if let Some(file) = static_override(&config, "index.html") {
+        return Ok(file.into_response(&req));
+    }
     // `base` mirrors the scheme/host the visitor actually used, so curl
     // examples and copy-paste links stay usable as-is (an https visitor gets
     // https examples, a plain-http visitor — e.g. local dev, or a self-hosted
@@ -644,4 +660,22 @@ pub async fn root_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Res
     Ok(add_homepage_link_headers(HttpResponse::Ok())
         .content_type("text/html; charset=utf-8")
         .body(render_homepage(&canonical_url, &base, version)))
+}
+
+/// `/favicon.png` — embedded in the binary so the default experience is fully
+/// self-contained (the built-in homepage references it in `<head>`). A file
+/// named `favicon.png` in the static assets directory overrides it, e.g. for
+/// custom-branded deployments.
+const EMBEDDED_FAVICON: &[u8] = include_bytes!("../../static/favicon.png");
+
+pub async fn favicon_handler(
+    req: HttpRequest,
+    config: web::Data<AppConfig>,
+) -> Result<HttpResponse> {
+    if let Some(file) = static_override(&config, "favicon.png") {
+        return Ok(file.into_response(&req));
+    }
+    Ok(HttpResponse::Ok()
+        .content_type(mime::IMAGE_PNG)
+        .body(EMBEDDED_FAVICON))
 }

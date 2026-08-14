@@ -29,12 +29,15 @@ async fn main() -> std::io::Result<()> {
         .unwrap_or_default();
 
     // Create server configuration
-    let config = ServerConfig::new()
+    let mut config = ServerConfig::new()
         .port(args.port)
         .add_current_server(!args.no_current_server)
         .exclude_headers(exclude_headers)
         .max_bytes(args.max_bytes)
         .scheme_override(args.scheme);
+    if let Some(dir) = args.static_dir {
+        config = config.static_dir(dir);
+    }
 
     // Create and run the server
     HttpCanServer::with_config(config).run().await

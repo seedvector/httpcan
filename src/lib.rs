@@ -18,12 +18,16 @@ pub mod middleware;
 pub struct AppConfig {
     pub add_current_server: bool,
     pub exclude_headers: Vec<String>,
-    /// Maximum bytes served by `/bytes/{n}` and `/stream-bytes/{n}`. Requests
+    /// Maximum bytes served by `/bytes` and `/stream-bytes`. Requests
     /// exceeding this return a 404 instead of silently truncating (httpbin #594).
     pub max_bytes: usize,
     /// Scheme override for self-referential absolute URLs (see
     /// [`config::SchemeOverride`]).
     pub scheme_override: config::SchemeOverride,
+    /// Resolved static assets directory (`ServerConfig::static_dir`, else the
+    /// `static` dir next to the binary, else `./static`). User override files
+    /// placed here replace built-in defaults (see `handlers::utils`).
+    pub static_path: PathBuf,
 }
 use handlers::*;
 use middleware::RequestLogger;
@@ -202,6 +206,25 @@ impl HttpCanServer {
             println!("OpenAPI will use static servers list only");
         }
 
+        // Visibility: which static assets the operator is overriding.
+        let static_path = self
+            .config
+            .static_dir
+            .clone()
+            .unwrap_or_else(handlers::utils::get_static_path);
+        println!("Static assets dir: {}", static_path.display());
+        for name in [
+            "openapi.json",
+            "favicon.png",
+            "index.html",
+            "robots.txt",
+            "sitemap.xml",
+        ] {
+            if static_path.join(name).exists() {
+                println!("Override active: static/{name} replaces built-in default");
+            }
+        }
+
         let config = self.config.clone();
 
         HttpServer::new(move || create_app(config.clone()))
@@ -244,6 +267,7 @@ fn create_app(
         exclude_headers: server_config.exclude_headers,
         max_bytes: server_config.max_bytes,
         scheme_override: server_config.scheme_override,
+        static_path: static_path.clone(),
     };
 
     let mut app = App::new()
@@ -269,11 +293,14 @@ fn create_app(
         // Dynamic OpenAPI specification endpoint
         .route("/openapi.json", web::get().to(openapi_handler))
         // RFC 9727 API catalog for automated API discovery
-        .route("/.well-known/api-catalog", web::get().to(api_catalog_handler));
+        .route(
+            "/.well-known/api-catalog",
+            web::get().to(api_catalog_handler),
+        );
 
     // Only add static file services if the static directory exists
     if static_path.exists() {
-        app = app.service(fs::Files::new("/static", &static_path).show_files_listing());
+        app = app.service(fs::Files::new("/static", &static_path));
     }
 
     app = app
@@ -505,15 +532,16 @@ fn create_app(
             web::get().to(ndjson_path_with_delay_handler),
         )
         // Root endpoint - always renders the static homepage (see src/handlers/root.rs)
-        .route("/", web::get().to(root_handler));
+        .route("/", web::get().to(root_handler))
+        // Favicon - embedded in the binary, overridable via static/favicon.png
+        .route("/favicon.png", web::get().to(favicon_handler));
 
     // Only add root static file service if the static directory exists
-    // This is added after all routes to serve as fallback for static resources
-    // Use prefer_utf8 and configure for large files
+    // This is added after all routes so explicit routes (API endpoints,
+    // /favicon.png, …) always win over same-named user files.
     if static_path.exists() {
         app = app.service(
             fs::Files::new("/", &static_path)
-                .index_file("index.html")
                 .prefer_utf8(true)
                 .use_last_modified(true)
                 .use_etag(true),

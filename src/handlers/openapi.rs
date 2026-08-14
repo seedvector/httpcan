@@ -1,41 +1,40 @@
-use crate::handlers::utils::get_static_path;
 use crate::AppConfig;
 use actix_web::{web, HttpRequest, HttpResponse, Result};
 use serde_json::{json, Value};
+use std::sync::LazyLock;
+
+/// The OpenAPI specification shipped with this binary. The repository's
+/// `static/openapi.json` is the single source of truth, embedded at compile
+/// time so the served spec can never describe a different binary than the one
+/// serving it. Self-hosters can replace it by placing their own
+/// `openapi.json` in the static assets directory (see `ServerConfig::static_dir`).
+const EMBEDDED_OPENAPI: &str = include_str!("../../static/openapi.json");
+
+/// Parsed once on first use. Immutable by contract: handlers must clone
+/// before mutating (e.g. the `servers` injection below) — mutating the shared
+/// value would leak one request's origin into every other response.
+static BASE_SPEC: LazyLock<Value> = LazyLock::new(|| {
+    serde_json::from_str(EMBEDDED_OPENAPI).expect("embedded openapi.json is valid JSON")
+});
 
 // Generate dynamic OpenAPI specification with current server information
 pub async fn openapi_handler(
     req: HttpRequest,
     config: web::Data<AppConfig>,
 ) -> Result<HttpResponse> {
-    let static_path = get_static_path();
-    let openapi_path = static_path.join("openapi.json");
-
-    // Read the base OpenAPI specification
-    let base_openapi = match std::fs::read_to_string(&openapi_path) {
-        Ok(content) => content,
-        Err(_) => {
-            // Return helpful information when openapi.json is not found
-            return Ok(HttpResponse::NotFound().json(json!({
-                "info": {
-                    "title": "HTTPCan",
-                    "version": option_env!("CARGO_PKG_VERSION").unwrap_or("unknown"),
-                    "description": "A simple, high‑performance HTTP request & response service built with Rust and Actix Web. Fully compatible with [httpbin.org](https://httpbin.org), with modern streaming and AI‑friendly enhancements."
-                },
-                "error": "OpenAPI specification not found",
-                "message": "Please download openapi.json from https://httpcan.org. Then create a static directory in the directory where the httpcan binary file is located, and place the downloaded openapi.json into that directory."
-            })));
-        }
-    };
-
-    // Parse the base OpenAPI JSON
-    let mut openapi: Value = match serde_json::from_str(&base_openapi) {
-        Ok(spec) => spec,
-        Err(_) => {
-            return Ok(HttpResponse::InternalServerError().json(json!({
-                "error": "Failed to parse OpenAPI specification"
-            })));
-        }
+    // Load the base spec: user override file from the static assets dir if
+    // present, otherwise the compile-time embedded copy.
+    let mut openapi: Value = match std::fs::read_to_string(config.static_path.join("openapi.json"))
+    {
+        Ok(content) => match serde_json::from_str(&content) {
+            Ok(spec) => spec,
+            Err(_) => {
+                return Ok(HttpResponse::InternalServerError().json(json!({
+                    "error": "Failed to parse OpenAPI specification"
+                })));
+            }
+        },
+        Err(_) => BASE_SPEC.clone(),
     };
 
     // Handle servers array based on configuration
@@ -109,10 +108,12 @@ pub async fn api_catalog_handler(req: HttpRequest) -> Result<HttpResponse> {
 
     // Serialize manually: `.json()` would force Content-Type: application/json,
     // but the RFC-mandated media type is application/linkset+json (+profile).
-    let body = serde_json::to_string(&catalog)
-        .map_err(actix_web::error::ErrorInternalServerError)?;
+    let body =
+        serde_json::to_string(&catalog).map_err(actix_web::error::ErrorInternalServerError)?;
 
     Ok(HttpResponse::Ok()
-        .content_type(r#"application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727""#)
+        .content_type(
+            r#"application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727""#,
+        )
         .body(body))
 }

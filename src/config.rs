@@ -67,4 +67,8 @@ pub struct Args {
     /// Scheme used for SEO-facing URLs only (canonical link, sitemap.xml, robots.txt). Does not affect copy-curl examples or the OpenAPI current server, which always mirror the visitor's actual request. "auto" detects it from the request, which can be wrong behind a reverse proxy/CDN that doesn't forward X-Forwarded-Proto.
     #[arg(long, value_enum, env = "HTTPCAN_SCHEME", default_value = "auto")]
     pub scheme: SchemeOverride,
+
+    /// Directory for user-overridable assets (openapi.json, favicon.png, index.html, robots.txt, sitemap.xml) and extra files served at `/static/<name>` or `/<name>`. A file here with one of those five names replaces the built-in default at its canonical URL. Default: the `static` directory next to the binary, falling back to `./static`.
+    #[arg(long, value_name = "DIR", env = "HTTPCAN_STATIC_DIR")]
+    pub static_dir: Option<String>,
 }
