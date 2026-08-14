@@ -231,7 +231,7 @@ For full parameter details and schemas, consult the [OpenAPI spec](/openapi.json
 - Streaming+: SSE/NDJSON endpoints with `count`, `delay`, and AI formats (OpenAI/Ollama)
 - File uploads+: Multiple files with the same field return as array across multipart endpoints
 - Observability+: `/healthz` liveness probe; `/tags` exposes `HTTPCAN_*` env vars; every response carries `Server-Timing` and `X-Httpcan-Version` headers
-- Method echo+: `/method` echoes any HTTP method name; `/head` (HEAD‑only) mirrors request headers as `X-Echo-*`
+- Method echo+: `/method` echoes any HTTP method name; `/head` (HEAD‑only) mirrors request headers as `X‑Echo‑*`; GET endpoints also answer `HEAD`
 - Status headers+: `?header=Name:Value` injects response headers on `/status/{codes}` (repeatable; e.g. `Retry-After` for rate‑limit testing)
 - Body encoding+: POST to `/gzip`, `/deflate`, `/brotli`, `/zstd`, or `/base64` returns the request body in the matching encoding
 

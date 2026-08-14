@@ -5,7 +5,9 @@
 
 use actix_cors::Cors;
 use actix_files as fs;
-use actix_web::{http::Method, web, App, HttpServer};
+use actix_web::{
+    guard, http::Method, web, App, FromRequest, Handler, HttpServer, Responder, Route,
+};
 use std::path::PathBuf;
 
 pub mod config;
@@ -36,6 +38,25 @@ use middleware::RequestLogger;
 /// carries a request body — semantically a GET with a body.
 fn query_method() -> Method {
     Method::from_bytes(b"QUERY").expect("\"QUERY\" is a valid HTTP method token")
+}
+
+/// Route factory matching GET **and** HEAD.
+///
+/// Drop-in parity with httpbin: Flask auto-serves HEAD on every GET route,
+/// Go 1.22 `ServeMux` "GET" patterns also match HEAD, and RFC 9110 §9.3.2
+/// defines HEAD as "identical to GET except" the body. Actix performs no
+/// such auto-mapping, so all GET endpoints register through this helper.
+/// The HTTP codec strips the body of HEAD responses while preserving the
+/// Content-Length of the would-be GET body, so handlers stay untouched.
+fn get_or_head<F, Args>(handler: F) -> Route
+where
+    F: Handler<Args>,
+    F::Output: Responder + 'static,
+    Args: FromRequest + 'static,
+{
+    web::route()
+        .guard(guard::Any(guard::Get()).or(guard::Head()))
+        .to(handler)
 }
 
 /// Configuration for the HTTPCan server
@@ -291,12 +312,9 @@ fn create_app(
         )
         .wrap(RequestLogger)
         // Dynamic OpenAPI specification endpoint
-        .route("/openapi.json", web::get().to(openapi_handler))
+        .service(web::resource("/openapi.json").route(get_or_head(openapi_handler)))
         // RFC 9727 API catalog for automated API discovery
-        .route(
-            "/.well-known/api-catalog",
-            web::get().to(api_catalog_handler),
-        );
+        .service(web::resource("/.well-known/api-catalog").route(get_or_head(api_catalog_handler)));
 
     // Only add static file services if the static directory exists
     if static_path.exists() {
@@ -305,236 +323,212 @@ fn create_app(
 
     app = app
         // Echo endpoint - mirrors request body and headers
-        .route("/echo", web::get().to(echo_handler_get))
-        .route("/echo", web::post().to(echo_handler))
-        .route("/echo", web::put().to(echo_handler))
-        .route("/echo", web::patch().to(echo_handler))
-        .route("/echo", web::delete().to(echo_handler))
-        .route("/echo", web::method(query_method()).to(echo_handler))
+        .service(
+            web::resource("/echo")
+                .route(get_or_head(echo_handler_get))
+                .route(web::post().to(echo_handler))
+                .route(web::put().to(echo_handler))
+                .route(web::patch().to(echo_handler))
+                .route(web::delete().to(echo_handler))
+                .route(web::method(query_method()).to(echo_handler)),
+        )
         // HTTP Methods
-        .route("/get", web::get().to(get_handler))
-        .route("/post", web::post().to(post_handler))
-        .route("/put", web::put().to(put_handler))
-        .route("/patch", web::patch().to(patch_handler))
-        .route("/delete", web::delete().to(delete_handler))
+        .service(web::resource("/get").route(get_or_head(get_handler)))
+        .service(web::resource("/post").route(web::post().to(post_handler)))
+        .service(web::resource("/put").route(web::put().to(put_handler)))
+        .service(web::resource("/patch").route(web::patch().to(patch_handler)))
+        .service(web::resource("/delete").route(web::delete().to(delete_handler)))
         // Method echo - accepts ANY HTTP method name (httpbin #522)
-        .route("/method", web::to(method_handler))
+        .service(web::resource("/method").route(web::to(method_handler)))
         // HEAD-only endpoint echoing headers as X-Echo-* (httpbin #630)
-        .route("/head", web::head().to(head_handler))
+        .service(web::resource("/head").route(web::head().to(head_handler)))
         // Anything endpoints - supporting multiple methods
-        .route("/anything", web::get().to(anything_handler_get))
-        .route("/anything", web::post().to(anything_handler))
-        .route("/anything", web::put().to(anything_handler))
-        .route("/anything", web::patch().to(anything_handler))
-        .route("/anything", web::delete().to(anything_handler))
-        .route("/anything", web::trace().to(anything_handler_get))
-        .route(
-            "/anything",
-            web::method(query_method()).to(anything_handler),
+        .service(
+            web::resource("/anything")
+                .route(get_or_head(anything_handler_get))
+                .route(web::post().to(anything_handler))
+                .route(web::put().to(anything_handler))
+                .route(web::patch().to(anything_handler))
+                .route(web::delete().to(anything_handler))
+                .route(web::trace().to(anything_handler_get))
+                .route(web::method(query_method()).to(anything_handler)),
         )
         // Support for any path after /anything (single or multi-segment)
-        .route(
-            "/anything/{path:.*}",
-            web::get().to(anything_with_param_handler_get),
-        )
-        .route(
-            "/anything/{path:.*}",
-            web::post().to(anything_with_param_handler),
-        )
-        .route(
-            "/anything/{path:.*}",
-            web::put().to(anything_with_param_handler),
-        )
-        .route(
-            "/anything/{path:.*}",
-            web::patch().to(anything_with_param_handler),
-        )
-        .route(
-            "/anything/{path:.*}",
-            web::delete().to(anything_with_param_handler),
-        )
-        .route(
-            "/anything/{path:.*}",
-            web::trace().to(anything_with_param_handler_get),
-        )
-        .route(
-            "/anything/{path:.*}",
-            web::method(query_method()).to(anything_with_param_handler),
+        .service(
+            web::resource("/anything/{path:.*}")
+                .route(get_or_head(anything_with_param_handler_get))
+                .route(web::post().to(anything_with_param_handler))
+                .route(web::put().to(anything_with_param_handler))
+                .route(web::patch().to(anything_with_param_handler))
+                .route(web::delete().to(anything_with_param_handler))
+                .route(web::trace().to(anything_with_param_handler_get))
+                .route(web::method(query_method()).to(anything_with_param_handler)),
         )
         // Auth endpoints
-        .route(
-            "/basic-auth/{user}/{passwd}",
-            web::get().to(basic_auth_handler),
+        .service(
+            web::resource("/basic-auth/{user}/{passwd}")
+                .route(get_or_head(basic_auth_handler))
+                .route(web::post().to(basic_auth_handler)),
         )
-        .route(
-            "/basic-auth/{user}",
-            web::get().to(basic_auth_user_only_handler),
+        .service(
+            web::resource("/basic-auth/{user}")
+                .route(get_or_head(basic_auth_user_only_handler))
+                .route(web::post().to(basic_auth_user_only_handler)),
         )
-        .route(
-            "/hidden-basic-auth/{user}/{passwd}",
-            web::get().to(hidden_basic_auth_handler),
+        .service(
+            web::resource("/hidden-basic-auth/{user}/{passwd}")
+                .route(get_or_head(hidden_basic_auth_handler))
+                .route(web::post().to(hidden_basic_auth_handler)),
         )
-        .route(
-            "/hidden-basic-auth/{user}",
-            web::get().to(hidden_basic_auth_user_only_handler),
+        .service(
+            web::resource("/hidden-basic-auth/{user}")
+                .route(get_or_head(hidden_basic_auth_user_only_handler))
+                .route(web::post().to(hidden_basic_auth_user_only_handler)),
         )
-        .route(
-            "/basic-auth/{user}/{passwd}",
-            web::post().to(basic_auth_handler),
-        )
-        .route(
-            "/basic-auth/{user}",
-            web::post().to(basic_auth_user_only_handler),
-        )
-        .route(
-            "/hidden-basic-auth/{user}/{passwd}",
-            web::post().to(hidden_basic_auth_handler),
-        )
-        .route(
-            "/hidden-basic-auth/{user}",
-            web::post().to(hidden_basic_auth_user_only_handler),
-        )
-        .route("/bearer", web::get().to(bearer_auth_handler))
-        .route("/jwt-bearer", web::get().to(jwt_bearer_handler))
+        .service(web::resource("/bearer").route(get_or_head(bearer_auth_handler)))
+        .service(web::resource("/jwt-bearer").route(get_or_head(jwt_bearer_handler)))
         // Digest auth endpoints - support both GET and POST for auth-int with body
-        .route(
-            "/digest-auth/{qop}/{user}/{passwd}",
-            web::get().to(digest_auth_handler),
+        .service(
+            web::resource("/digest-auth/{qop}/{user}/{passwd}")
+                .route(get_or_head(digest_auth_handler))
+                .route(web::post().to(digest_auth_handler)),
         )
-        .route(
-            "/digest-auth/{qop}/{user}/{passwd}",
-            web::post().to(digest_auth_handler),
+        .service(
+            web::resource("/digest-auth/{qop}/{user}/{passwd}/{algorithm}")
+                .route(get_or_head(digest_auth_with_algorithm_handler))
+                .route(web::post().to(digest_auth_with_algorithm_handler)),
         )
-        .route(
-            "/digest-auth/{qop}/{user}/{passwd}/{algorithm}",
-            web::get().to(digest_auth_with_algorithm_handler),
-        )
-        .route(
-            "/digest-auth/{qop}/{user}/{passwd}/{algorithm}",
-            web::post().to(digest_auth_with_algorithm_handler),
-        )
-        .route(
-            "/digest-auth/{qop}/{user}/{passwd}/{algorithm}/{stale_after}",
-            web::get().to(digest_auth_full_handler),
-        )
-        .route(
-            "/digest-auth/{qop}/{user}/{passwd}/{algorithm}/{stale_after}",
-            web::post().to(digest_auth_full_handler),
+        .service(
+            web::resource("/digest-auth/{qop}/{user}/{passwd}/{algorithm}/{stale_after}")
+                .route(get_or_head(digest_auth_full_handler))
+                .route(web::post().to(digest_auth_full_handler)),
         )
         // Response formats
-        .route("/json", web::get().to(json_handler))
-        .route("/xml", web::get().to(xml_handler))
-        .route("/html", web::get().to(html_handler))
-        .route("/robots.txt", web::get().to(robots_txt_handler))
-        .route("/sitemap.xml", web::get().to(sitemap_handler))
-        .route("/deny", web::get().to(deny_handler))
-        .route("/encoding/utf8", web::get().to(utf8_handler))
-        .route("/encoding/iso-8859-1", web::get().to(iso_8859_1_handler))
-        .route("/gzip", web::get().to(gzip_handler))
-        .route("/deflate", web::get().to(deflate_handler))
-        .route("/brotli", web::get().to(brotli_handler))
-        .route("/zstd", web::get().to(zstd_handler))
-        .route("/gzip", web::post().to(compress_post_handler))
-        .route("/deflate", web::post().to(compress_post_handler))
-        .route("/brotli", web::post().to(compress_post_handler))
-        .route("/zstd", web::post().to(compress_post_handler))
+        .service(web::resource("/json").route(get_or_head(json_handler)))
+        .service(web::resource("/xml").route(get_or_head(xml_handler)))
+        .service(web::resource("/html").route(get_or_head(html_handler)))
+        .service(web::resource("/robots.txt").route(get_or_head(robots_txt_handler)))
+        .service(web::resource("/sitemap.xml").route(get_or_head(sitemap_handler)))
+        .service(web::resource("/deny").route(get_or_head(deny_handler)))
+        .service(web::resource("/encoding/utf8").route(get_or_head(utf8_handler)))
+        .service(web::resource("/encoding/iso-8859-1").route(get_or_head(iso_8859_1_handler)))
+        .service(
+            web::resource("/gzip")
+                .route(get_or_head(gzip_handler))
+                .route(web::post().to(compress_post_handler)),
+        )
+        .service(
+            web::resource("/deflate")
+                .route(get_or_head(deflate_handler))
+                .route(web::post().to(compress_post_handler)),
+        )
+        .service(
+            web::resource("/brotli")
+                .route(get_or_head(brotli_handler))
+                .route(web::post().to(compress_post_handler)),
+        )
+        .service(
+            web::resource("/zstd")
+                .route(get_or_head(zstd_handler))
+                .route(web::post().to(compress_post_handler)),
+        )
         // Dynamic data
-        .route("/uuid", web::get().to(uuid_handler))
-        .route("/base64/{value}", web::get().to(base64_handler))
-        .route("/base64", web::post().to(base64_post_handler))
-        .route("/bytes/{n}", web::get().to(bytes_handler))
-        .route("/stream-bytes/{n}", web::get().to(stream_bytes_handler))
-        .route("/stream/{n}", web::get().to(stream_handler))
-        .route("/range/{numbytes}", web::get().to(range_handler))
-        .route("/links/{n}/{offset}", web::get().to(links_handler))
-        .route("/links/{n}", web::get().to(links_redirect_handler))
-        .route("/drip", web::get().to(drip_handler))
+        .service(web::resource("/uuid").route(get_or_head(uuid_handler)))
+        .service(web::resource("/base64/{value}").route(get_or_head(base64_handler)))
+        .service(web::resource("/base64").route(web::post().to(base64_post_handler)))
+        .service(web::resource("/bytes/{n}").route(get_or_head(bytes_handler)))
+        .service(web::resource("/stream-bytes/{n}").route(get_or_head(stream_bytes_handler)))
+        .service(web::resource("/stream/{n}").route(get_or_head(stream_handler)))
+        .service(web::resource("/range/{numbytes}").route(get_or_head(range_handler)))
+        .service(web::resource("/links/{n}/{offset}").route(get_or_head(links_handler)))
+        .service(web::resource("/links/{n}").route(get_or_head(links_redirect_handler)))
+        .service(web::resource("/drip").route(get_or_head(drip_handler)))
         // Delay endpoint - supporting multiple methods
-        .route("/delay/{delay}", web::get().to(delay_handler_get))
-        .route("/delay/{delay}", web::post().to(delay_handler))
-        .route("/delay/{delay}", web::put().to(delay_handler))
-        .route("/delay/{delay}", web::patch().to(delay_handler))
-        .route("/delay/{delay}", web::delete().to(delay_handler))
-        .route("/delay/{delay}", web::trace().to(delay_handler_get))
+        .service(
+            web::resource("/delay/{delay}")
+                .route(get_or_head(delay_handler_get))
+                .route(web::post().to(delay_handler))
+                .route(web::put().to(delay_handler))
+                .route(web::patch().to(delay_handler))
+                .route(web::delete().to(delay_handler))
+                .route(web::trace().to(delay_handler_get)),
+        )
         // Status codes - supporting multiple methods
-        .route("/status/{codes:.*}", web::get().to(status_handler_get))
-        .route("/status/{codes:.*}", web::post().to(status_handler))
-        .route("/status/{codes:.*}", web::put().to(status_handler))
-        .route("/status/{codes:.*}", web::patch().to(status_handler))
-        .route("/status/{codes:.*}", web::delete().to(status_handler))
-        .route("/status/{codes:.*}", web::trace().to(status_handler_get))
-        .route(
-            "/status/{codes:.*}",
-            web::method(actix_web::http::Method::OPTIONS).to(status_options_handler),
+        .service(
+            web::resource("/status/{codes:.*}")
+                .route(get_or_head(status_handler_get))
+                .route(web::post().to(status_handler))
+                .route(web::put().to(status_handler))
+                .route(web::patch().to(status_handler))
+                .route(web::delete().to(status_handler))
+                .route(web::trace().to(status_handler_get))
+                .route(web::method(actix_web::http::Method::OPTIONS).to(status_options_handler)),
         )
         // Redirects
-        .route("/redirect/{n}", web::get().to(redirect_handler))
-        .route(
-            "/relative-redirect/{n}",
-            web::get().to(relative_redirect_handler),
+        .service(web::resource("/redirect/{n}").route(get_or_head(redirect_handler)))
+        .service(
+            web::resource("/relative-redirect/{n}").route(get_or_head(relative_redirect_handler)),
         )
-        .route(
-            "/absolute-redirect/{n}",
-            web::get().to(absolute_redirect_handler),
+        .service(
+            web::resource("/absolute-redirect/{n}").route(get_or_head(absolute_redirect_handler)),
         )
-        .route("/redirect-to", web::get().to(redirect_to_handler_get))
-        .route("/redirect-to", web::post().to(redirect_to_handler))
-        .route("/redirect-to", web::put().to(redirect_to_handler))
-        .route("/redirect-to", web::patch().to(redirect_to_handler))
-        .route("/redirect-to", web::delete().to(redirect_to_handler))
-        .route("/redirect-to", web::trace().to(redirect_to_handler_get))
+        .service(
+            web::resource("/redirect-to")
+                .route(get_or_head(redirect_to_handler_get))
+                .route(web::post().to(redirect_to_handler))
+                .route(web::put().to(redirect_to_handler))
+                .route(web::patch().to(redirect_to_handler))
+                .route(web::delete().to(redirect_to_handler))
+                .route(web::trace().to(redirect_to_handler_get)),
+        )
         // Request inspection
-        .route("/headers", web::get().to(headers_handler))
-        .route("/ip", web::get().to(ip_handler))
-        .route("/user-agent", web::get().to(user_agent_handler))
+        .service(web::resource("/headers").route(get_or_head(headers_handler)))
+        .service(web::resource("/ip").route(get_or_head(ip_handler)))
+        .service(web::resource("/user-agent").route(get_or_head(user_agent_handler)))
         // Response inspection
-        .route("/cache", web::get().to(cache_handler))
-        .route("/cache/{value}", web::get().to(cache_control_handler))
-        .route("/etag/{etag:.*}", web::get().to(etag_handler))
-        .route(
-            "/response-headers",
-            web::get().to(response_headers_get_handler),
-        )
-        .route(
-            "/response-headers",
-            web::post().to(response_headers_post_handler),
+        .service(web::resource("/cache").route(get_or_head(cache_handler)))
+        .service(web::resource("/cache/{value}").route(get_or_head(cache_control_handler)))
+        .service(web::resource("/etag/{etag:.*}").route(get_or_head(etag_handler)))
+        .service(
+            web::resource("/response-headers")
+                .route(get_or_head(response_headers_get_handler))
+                .route(web::post().to(response_headers_post_handler)),
         )
         // Cookies
-        .route("/cookies", web::get().to(cookies_handler))
-        .route("/cookies/set", web::get().to(cookies_set_handler))
-        .route(
-            "/cookies/set/{name}/{value}",
-            web::get().to(cookies_set_named_handler),
+        .service(web::resource("/cookies").route(get_or_head(cookies_handler)))
+        .service(web::resource("/cookies/set").route(get_or_head(cookies_set_handler)))
+        .service(
+            web::resource("/cookies/set/{name}/{value}")
+                .route(get_or_head(cookies_set_named_handler)),
         )
-        .route("/cookies/delete", web::get().to(cookies_delete_handler))
+        .service(web::resource("/cookies/delete").route(get_or_head(cookies_delete_handler)))
         // Observability & instance identification (httpbin #544/#565)
-        .route("/healthz", web::get().to(healthz_handler))
-        .route("/tags", web::get().to(tags_handler))
-        .route("/tags/{name}", web::get().to(tag_value_handler))
+        .service(web::resource("/healthz").route(get_or_head(healthz_handler)))
+        .service(web::resource("/tags").route(get_or_head(tags_handler)))
+        .service(web::resource("/tags/{name}").route(get_or_head(tag_value_handler)))
         // Images
-        .route("/image", web::get().to(image_handler))
-        .route("/image/png", web::get().to(image_png_handler))
-        .route("/image/jpeg", web::get().to(image_jpeg_handler))
-        .route("/image/webp", web::get().to(image_webp_handler))
-        .route("/image/svg", web::get().to(image_svg_handler))
+        .service(web::resource("/image").route(get_or_head(image_handler)))
+        .service(web::resource("/image/png").route(get_or_head(image_png_handler)))
+        .service(web::resource("/image/jpeg").route(get_or_head(image_jpeg_handler)))
+        .service(web::resource("/image/webp").route(get_or_head(image_webp_handler)))
+        .service(web::resource("/image/svg").route(get_or_head(image_svg_handler)))
         // Server-Sent Events (SSE)
-        .route("/sse", web::get().to(sse_handler))
-        .route("/sse/{count}", web::get().to(sse_path_handler))
-        .route(
-            "/sse/{count}/{delay}",
-            web::get().to(sse_path_with_delay_handler),
+        .service(web::resource("/sse").route(get_or_head(sse_handler)))
+        .service(web::resource("/sse/{count}").route(get_or_head(sse_path_handler)))
+        .service(
+            web::resource("/sse/{count}/{delay}").route(get_or_head(sse_path_with_delay_handler)),
         )
         // NDJSON streaming endpoints
-        .route("/ndjson", web::get().to(ndjson_handler))
-        .route("/ndjson/{count}", web::get().to(ndjson_path_handler))
-        .route(
-            "/ndjson/{count}/{delay}",
-            web::get().to(ndjson_path_with_delay_handler),
+        .service(web::resource("/ndjson").route(get_or_head(ndjson_handler)))
+        .service(web::resource("/ndjson/{count}").route(get_or_head(ndjson_path_handler)))
+        .service(
+            web::resource("/ndjson/{count}/{delay}")
+                .route(get_or_head(ndjson_path_with_delay_handler)),
         )
         // Root endpoint - always renders the static homepage (see src/handlers/root.rs)
-        .route("/", web::get().to(root_handler))
+        .service(web::resource("/").route(get_or_head(root_handler)))
         // Favicon - embedded in the binary, overridable via static/favicon.png
-        .route("/favicon.png", web::get().to(favicon_handler));
+        .service(web::resource("/favicon.png").route(get_or_head(favicon_handler)));
 
     // Only add root static file service if the static directory exists
     // This is added after all routes so explicit routes (API endpoints,

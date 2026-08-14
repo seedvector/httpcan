@@ -267,6 +267,115 @@ async fn head_endpoint_echoes_request_headers() {
         "HEAD response must have an empty body"
     );
 }
+
+#[actix_web::test]
+async fn head_requests_match_get_routes() {
+    // Drop-in parity with httpbin (RFC 9110 §9.3.2): Flask auto-serves HEAD
+    // on GET routes, so every GET endpoint must answer HEAD with the GET
+    // status/headers; the HTTP codec drops the body at the wire level.
+    let app = test::init_service(create_app(cfg())).await;
+    for uri in [
+        "/get",
+        "/echo",
+        "/anything",
+        "/headers",
+        "/ip",
+        "/json",
+        "/xml",
+        "/uuid",
+        "/base64/aGVsbG8=",
+        "/encoding/utf8",
+        "/robots.txt",
+        "/sitemap.xml",
+        "/healthz",
+        "/tags",
+        "/sse",
+        "/ndjson",
+    ] {
+        let req = test::TestRequest::default()
+            .method(actix_web::http::Method::HEAD)
+            .uri(uri)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(
+            resp.status(),
+            StatusCode::OK,
+            "HEAD {uri} must serve the GET route"
+        );
+    }
+}
+
+#[actix_web::test]
+async fn head_redirects_and_auth_keep_semantics() {
+    // HEAD preserves non-200 semantics: redirects keep Location, auth
+    // challenges keep WWW-Authenticate, hidden auth stays 404.
+    let app = test::init_service(create_app(cfg())).await;
+
+    let req = test::TestRequest::default()
+        .method(actix_web::http::Method::HEAD)
+        .uri("/redirect/2")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), StatusCode::FOUND);
+    assert_eq!(
+        resp.headers().get("location").and_then(|v| v.to_str().ok()),
+        Some("/relative-redirect/1")
+    );
+
+    let req = test::TestRequest::default()
+        .method(actix_web::http::Method::HEAD)
+        .uri("/bearer")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    assert!(resp.headers().contains_key("www-authenticate"));
+}
+
+#[actix_web::test]
+async fn head_on_non_get_endpoints_is_405() {
+    // Flask does not auto-map HEAD onto POST-only routes: httpbin answers
+    // 405 there (never 404). Method endpoints must keep that behavior.
+    let app = test::init_service(create_app(cfg())).await;
+    for uri in ["/post", "/put", "/patch", "/delete", "/base64"] {
+        let req = test::TestRequest::default()
+            .method(actix_web::http::Method::HEAD)
+            .uri(uri)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(
+            resp.status(),
+            StatusCode::METHOD_NOT_ALLOWED,
+            "HEAD {uri} must be 405, not 404"
+        );
+    }
+
+    // 405 carries an Allow header listing the served methods (httpbin/Flask parity).
+    let req = test::TestRequest::default()
+        .method(actix_web::http::Method::HEAD)
+        .uri("/post")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    let allow = resp
+        .headers()
+        .get("allow")
+        .and_then(|v| v.to_str().ok())
+        .expect("Allow header on 405");
+    assert!(allow.contains("POST"), "Allow: {allow}");
+
+    // Method mismatch on a GET endpoint is 405 with GET/HEAD allowed.
+    let req = test::TestRequest::post().uri("/get").to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+    let allow = resp
+        .headers()
+        .get("allow")
+        .and_then(|v| v.to_str().ok())
+        .expect("Allow header on 405");
+    assert!(
+        allow.contains("GET") && allow.contains("HEAD"),
+        "Allow: {allow}"
+    );
+}
 #[actix_web::test]
 async fn base64_post_decodes_body() {
     // httpbin #616: POST /base64 decodes the request body.
