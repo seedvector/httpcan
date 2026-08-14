@@ -24,6 +24,7 @@ README.md
 LIBRARY_USAGE.md
 LICENSE
 internal/
+references/
 
 # Integration tests & examples — never compiled by `cargo build --release`
 tests/
