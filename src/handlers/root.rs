@@ -409,8 +409,8 @@ fn render_homepage(canonical_url: &str, base: &str, version: &str) -> String {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>HTTPCan &mdash; An Open-Source httpbin Alternative</title>
-<meta name="description" content="HTTPCan is a {total}-endpoint superset of httpbin.org built in Rust: fully compatible, plus SSE/NDJSON streaming and cloud-native observability.">
+<title>HTTPCan &mdash; Open-Source httpbin Alternative for HTTP Testing</title>
+<meta name="description" content="A {total}-endpoint superset of httpbin.org built in Rust: fully httpbin-compatible, for testing HTTP clients, proxies, and AI agents, plus SSE/NDJSON streaming.">
 <link rel="canonical" href="{canonical_url}">
 <link rel="icon" type="image/png" href="/favicon.png">
 <style>{style}</style>
