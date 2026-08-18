@@ -10,9 +10,10 @@ Quick Links: [Quick Start](#quick-start) · [Installation](#installation) · [Co
 
 ## ✨ Features
 
-- **73-endpoint superset of httpbin.org**: every httpbin.org endpoint covered and drop‑in compatible, plus 22 endpoints httpbin.org doesn't have and 18 it has but httpcan fixes or extends — see the [homepage](#openapi--homepage) for the full badge‑tagged list
+- **78-endpoint superset of httpbin.org**: every httpbin.org endpoint covered and drop‑in compatible, plus 27 endpoints httpbin.org doesn't have and 18 it has but httpcan fixes or extends — see the [homepage](#openapi--homepage) for the full badge‑tagged list
 - **Anti‑phishing redirects**: browser clients hitting `/redirect-to` see a confirmation page instead of a silent 302, closing an open‑redirect abuse vector
 - **AI‑friendly streaming**: native `/sse` and `/ndjson` endpoints with OpenAI/Ollama‑compatible chunk formats
+- **LLM API mock**: OpenAI- and Anthropic-compatible `/llm` endpoints — point any SDK `base_url` at it (streaming included) and test AI clients without a paid provider
 - **Cloud‑native observability**: `/healthz` liveness probe, `/tags` instance identification, and `Server-Timing`/`X-Httpcan-Version` headers on every response
 - **Correct header handling**: duplicate and non‑ASCII request headers are preserved instead of being dropped or crashing the server
 - **Safer by default**: built‑in filtering strips ~100 reverse‑proxy/CDN headers from echoed responses, with `--exclude-headers` for more
@@ -179,6 +180,36 @@ curl http://localhost:8080/ndjson?count=3&format=simple
 curl http://localhost:8080/ndjson/5?format=ollama&model=llama3&delay=1500
 ```
 
+### LLM API Mock
+
+```bash
+# OpenAI-compatible chat completions (streaming supported)
+curl -X POST http://localhost:8080/llm/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-5.6","messages":[{"role":"user","content":"Hello"}]}'
+
+# Anthropic-compatible messages
+curl -X POST http://localhost:8080/llm/v1/messages \
+  -H "Content-Type: application/json" \
+  -d '{"model":"claude-sonnet-5","max_tokens":64,"messages":[{"role":"user","content":"Hello"}]}'
+```
+
+Point an SDK at it — no API key needed (any value is accepted), and responses are deterministic:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://localhost:8080/llm/v1", api_key="not-needed")
+reply = client.chat.completions.create(
+    model="gpt-5.6",
+    messages=[{"role": "user", "content": "Hello"}],
+    extra_body={"httpcan": {"content": "Custom reply text"}},
+)
+print(reply.choices[0].message.content)  # Custom reply text
+```
+
+The Anthropic SDK works with `base_url="http://localhost:8080/llm"` (it appends `/v1/messages` itself). `GET /llm` returns a self-describing index, and `GET /llm/v1/models` returns the model list in whichever family's shape the request looks like (an `anthropic-version` header switches it).
+
 ### Cookies & Inspection
 
 ```bash
@@ -211,6 +242,7 @@ Endpoints are grouped into the same categories shown on the homepage (`/`) — v
 | Images | `/image` `/image/png` `/image/jpeg` `/image/webp` `/image/svg` |
 | Redirects | `/redirect` `/relative-redirect` `/absolute-redirect` `/redirect-to` |
 | Streaming | `/sse` `/ndjson` |
+| AI mock | `/llm/v1/chat/completions` `/llm/v1/messages` `/llm/v1/models` |
 | Observability | `/healthz` `/tags` |
 
 Every endpoint carries a compatibility badge relative to httpbin.org:

@@ -550,6 +550,29 @@ fn create_app(
             web::resource("/ndjson/{count}/{delay}")
                 .route(get_or_head(ndjson_path_with_delay_handler)),
         )
+        // LLM provider API mocks (OpenAI/Anthropic-compatible); design:
+        // internal/llm-endpoints-design.md
+        .service(web::resource("/llm").route(get_or_head(llm_index_handler)))
+        .service(
+            web::resource("/llm/v1/chat/completions")
+                .route(web::post().to(chat_completions_handler))
+                // Any other method -> 405 + Allow: POST + OpenAI error shape
+                .route(web::route().to(openai_method_not_allowed)),
+        )
+        // Silent alias: the OpenAI SDK appends only "/chat/completions" to
+        // base_url, so base_url=<origin>/llm must resolve. Not documented.
+        .service(
+            web::resource("/llm/chat/completions")
+                .route(web::post().to(chat_completions_handler))
+                .route(web::route().to(openai_method_not_allowed)),
+        )
+        .service(
+            web::resource("/llm/v1/messages")
+                .route(web::post().to(anthropic_messages_handler))
+                .route(web::route().to(anthropic_method_not_allowed)),
+        )
+        .service(web::resource("/llm/v1/models").route(get_or_head(models_handler)))
+        .service(web::resource("/llm/v1/models/{model}").route(get_or_head(model_detail_handler)))
         // Root endpoint - always renders the static homepage (see src/handlers/root.rs)
         .service(web::resource("/").route(get_or_head(root_handler)))
         // Favicon - embedded in the binary, overridable via static/favicon.png

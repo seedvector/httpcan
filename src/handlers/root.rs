@@ -211,6 +211,18 @@ const CATEGORIES: &[Category] = &[
         ],
     },
     Category {
+        id: "llm",
+        title: "AI API Mock",
+        desc: "Mock OpenAI- and Anthropic-compatible LLM APIs: point an SDK base_url at /llm and test without a paid provider.",
+        endpoints: &[
+            Endpoint { methods: "GET", path: "/llm", badge: Some(Badge::New), desc: "Self-describing index: endpoints, base_url guidance for both SDK families, and the httpcan response-override contract.", curl: "curl {base}/llm" },
+            Endpoint { methods: "POST", path: "/llm/v1/chat/completions", badge: Some(Badge::New), desc: "Mock OpenAI Chat Completions API: canonical chat.completion shape, SSE streaming with [DONE], and an httpcan.content override. /llm/chat/completions works as a silent alias.", curl: "curl -X POST {base}/llm/v1/chat/completions -H 'Content-Type: application/json' -d '{\"model\":\"gpt-5.6\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}]}'" },
+            Endpoint { methods: "POST", path: "/llm/v1/messages", badge: Some(Badge::New), desc: "Mock Anthropic Messages API: content blocks, stop_reason, and the full streaming event protocol (message_start through message_stop).", curl: "curl -X POST {base}/llm/v1/messages -H 'Content-Type: application/json' -d '{\"model\":\"claude-sonnet-5\",\"max_tokens\":64,\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}]}'" },
+            Endpoint { methods: "GET", path: "/llm/v1/models", badge: Some(Badge::New), desc: "Model list in the OpenAI shape, or the Anthropic shape when an anthropic-version header is present (both SDKs hit this same path).", curl: "curl {base}/llm/v1/models" },
+            Endpoint { methods: "GET", path: "/llm/v1/models/{model}", badge: Some(Badge::New), desc: "Single-model lookup that always returns 200 and echoes the requested id — any model name is valid.", curl: "curl {base}/llm/v1/models/gpt-5.6" },
+        ],
+    },
+    Category {
         id: "observability",
         title: "Observability",
         desc: "Health checks and instance identification.",
@@ -454,6 +466,7 @@ curl http://localhost:8080/get</code></pre>
 <ul>
 <li><strong>Anti-phishing redirects</strong> &mdash; browser clients hitting <code>/redirect-to</code> see a confirmation page instead of a silent 302, closing an open-redirect abuse vector.</li>
 <li><strong>AI-friendly streaming</strong> &mdash; native <code>/sse</code> and <code>/ndjson</code> endpoints with OpenAI/Ollama-compatible chunk formats.</li>
+<li><strong>LLM API mock</strong> &mdash; OpenAI- and Anthropic-compatible <code>/llm</code> endpoints: point any SDK <code>base_url</code> at it (streaming included) and test AI clients without a paid provider.</li>
 <li><strong>Cloud-native observability</strong> &mdash; <code>/healthz</code> liveness probe, <code>/tags</code> instance identification, and <code>Server-Timing</code>/<code>X-Httpcan-Version</code> on every response.</li>
 <li><strong>Correct header handling</strong> &mdash; duplicate and non-ASCII request headers are preserved instead of being dropped or crashing the server.</li>
 <li><strong>Safer by default</strong> &mdash; built-in filtering strips ~100 reverse-proxy/CDN headers from echoed responses, with <code>--exclude-headers</code> for more.</li>
@@ -546,6 +559,7 @@ fn render_markdown(base: &str, version: &str) -> String {
     );
     let _ = writeln!(s, "- **Anti-phishing redirects** — browser clients hitting `/redirect-to` see a confirmation page instead of a silent 302, closing an open-redirect abuse vector.");
     let _ = writeln!(s, "- **AI-friendly streaming** — native `/sse` and `/ndjson` endpoints with OpenAI/Ollama-compatible chunk formats.");
+    let _ = writeln!(s, "- **LLM API mock** — OpenAI- and Anthropic-compatible `/llm` endpoints: point any SDK `base_url` at it (streaming included) and test AI clients without a paid provider.");
     let _ = writeln!(s, "- **Cloud-native observability** — `/healthz` liveness probe, `/tags` instance identification, and `Server-Timing`/`X-Httpcan-Version` on every response.");
     let _ = writeln!(s, "- **Correct header handling** — duplicate and non-ASCII request headers are preserved instead of being dropped or crashing the server.");
     let _ = writeln!(

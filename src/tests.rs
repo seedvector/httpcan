@@ -4127,3 +4127,567 @@ async fn drip_honors_custom_max_bytes() {
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), StatusCode::OK);
 }
+
+// === LLM provider API mocks ===
+
+/// Sorted key set of a JSON object, for exact-shape assertions.
+fn llm_sorted_keys(v: &serde_json::Value) -> Vec<String> {
+    let mut keys: Vec<String> = v.as_object().unwrap().keys().cloned().collect();
+    keys.sort();
+    keys
+}
+
+/// Split an SSE body into its non-empty frames.
+fn llm_sse_frames(text: &str) -> Vec<&str> {
+    text.split("\n\n").filter(|f| !f.is_empty()).collect()
+}
+
+/// Parse the `data:` payload of one SSE frame.
+fn llm_frame_data(frame: &str) -> serde_json::Value {
+    serde_json::from_str(frame.strip_prefix("data: ").unwrap_or(frame)).unwrap()
+}
+
+#[actix_web::test]
+async fn llm_chat_completions_canonical_shape() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::post()
+        .uri("/llm/v1/chat/completions")
+        .insert_header(("content-type", "application/json"))
+        .set_payload(r#"{"model":"gpt-5-nano","messages":[{"role":"user","content":"Hello"}]}"#)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let v: serde_json::Value = serde_json::from_slice(&test::read_body(resp).await).unwrap();
+    // Spec-required top-level fields, exactly (optional service_tier /
+    // system_fingerprint deliberately omitted).
+    assert_eq!(
+        llm_sorted_keys(&v),
+        vec!["choices", "created", "id", "model", "object", "usage"]
+    );
+    assert!(v["id"].as_str().unwrap().starts_with("chatcmpl-"));
+    assert_eq!(v["object"], "chat.completion");
+    assert_eq!(v["model"], "gpt-5-nano");
+    assert!(v["created"].as_i64().unwrap() > 0);
+
+    let choice = &v["choices"][0];
+    assert_eq!(
+        llm_sorted_keys(choice),
+        vec!["finish_reason", "index", "logprobs", "message"]
+    );
+    assert_eq!(choice["finish_reason"], "stop");
+    assert!(choice["logprobs"].is_null());
+    let message = &choice["message"];
+    assert_eq!(llm_sorted_keys(message), vec!["content", "refusal", "role"]);
+    assert_eq!(message["role"], "assistant");
+    assert!(message["refusal"].is_null());
+    let content = message["content"].as_str().unwrap();
+    assert!(!content.is_empty());
+
+    let usage = &v["usage"];
+    assert_eq!(
+        llm_sorted_keys(usage),
+        vec![
+            "completion_tokens",
+            "completion_tokens_details",
+            "prompt_tokens",
+            "prompt_tokens_details",
+            "total_tokens"
+        ]
+    );
+    // "user: Hello\n" is 12 chars -> ceil(12/4) = 3 prompt tokens, matching
+    // the established heuristic.
+    assert_eq!(usage["prompt_tokens"], 3);
+    assert_eq!(
+        usage["completion_tokens"],
+        crate::handlers::llm::estimate_tokens(content)
+    );
+    assert_eq!(
+        usage["total_tokens"],
+        usage["prompt_tokens"].as_u64().unwrap() + usage["completion_tokens"].as_u64().unwrap()
+    );
+    assert!(usage["prompt_tokens_details"].is_null());
+}
+
+#[actix_web::test]
+async fn llm_chat_completions_custom_content_via_httpcan_block() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::post()
+        .uri("/llm/v1/chat/completions")
+        .insert_header(("content-type", "application/json"))
+        .set_payload(
+            r#"{"messages":[{"role":"user","content":"hi"}],"httpcan":{"content":"Custom reply!"}}"#,
+        )
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let v: serde_json::Value = serde_json::from_slice(&test::read_body(resp).await).unwrap();
+    assert_eq!(v["choices"][0]["message"]["content"], "Custom reply!");
+    assert_eq!(
+        v["usage"]["completion_tokens"],
+        crate::handlers::llm::estimate_tokens("Custom reply!")
+    );
+}
+
+#[actix_web::test]
+async fn llm_chat_completions_n_choices() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::post()
+        .uri("/llm/v1/chat/completions")
+        .insert_header(("content-type", "application/json"))
+        .set_payload(r#"{"messages":[{"role":"user","content":"hi"}],"n":2}"#)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let v: serde_json::Value = serde_json::from_slice(&test::read_body(resp).await).unwrap();
+    let choices = v["choices"].as_array().unwrap();
+    assert_eq!(choices.len(), 2);
+    assert_eq!(choices[0]["index"], 0);
+    assert_eq!(choices[1]["index"], 1);
+}
+
+#[actix_web::test]
+async fn llm_chat_completions_silent_alias_path() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::post()
+        .uri("/llm/chat/completions")
+        .insert_header(("content-type", "application/json"))
+        .set_payload(r#"{"messages":[{"role":"user","content":"Hello"}]}"#)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let v: serde_json::Value = serde_json::from_slice(&test::read_body(resp).await).unwrap();
+    assert_eq!(v["object"], "chat.completion");
+    assert!(v["id"].as_str().unwrap().starts_with("chatcmpl-"));
+}
+
+#[actix_web::test]
+async fn llm_chat_completions_invalid_json_openai_error_shape() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::post()
+        .uri("/llm/v1/chat/completions")
+        .insert_header(("content-type", "application/json"))
+        .set_payload("not json")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    let v: serde_json::Value = serde_json::from_slice(&test::read_body(resp).await).unwrap();
+    assert_eq!(llm_sorted_keys(&v), vec!["error"]);
+    assert_eq!(v["error"]["type"], "invalid_request_error");
+    assert!(v["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("Invalid JSON"));
+}
+
+#[actix_web::test]
+async fn llm_chat_completions_missing_messages_is_400() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::post()
+        .uri("/llm/v1/chat/completions")
+        .insert_header(("content-type", "application/json"))
+        .set_payload(r#"{"model":"gpt-4o"}"#)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    let v: serde_json::Value = serde_json::from_slice(&test::read_body(resp).await).unwrap();
+    assert_eq!(v["error"]["type"], "invalid_request_error");
+    assert!(v["error"]["message"].as_str().unwrap().contains("messages"));
+}
+
+#[actix_web::test]
+async fn llm_chat_completions_get_is_405_with_allow_post() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::get()
+        .uri("/llm/v1/chat/completions")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+
+    assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+    assert_eq!(
+        resp.headers().get("Allow").unwrap().to_str().unwrap(),
+        "POST"
+    );
+    let v: serde_json::Value = serde_json::from_slice(&test::read_body(resp).await).unwrap();
+    assert_eq!(v["error"]["type"], "invalid_request_error");
+}
+
+#[actix_web::test]
+async fn llm_chat_completions_stream_protocol() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::post()
+        .uri("/llm/v1/chat/completions")
+        .insert_header(("content-type", "application/json"))
+        .set_payload(
+            r#"{"messages":[{"role":"user","content":"Hello"}],"stream":true,"httpcan":{"content":"word one two three"}}"#,
+        )
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        resp.headers()
+            .get("content-type")
+            .unwrap()
+            .to_str()
+            .unwrap(),
+        "text/event-stream"
+    );
+    let text = String::from_utf8(test::read_body(resp).await.to_vec()).unwrap();
+    // OpenAI-family SSE carries no `event:` lines.
+    assert!(!text.contains("event:"));
+
+    let frames = llm_sse_frames(&text);
+    assert_eq!(frames.last().unwrap(), &"data: [DONE]");
+    let chunks: Vec<serde_json::Value> = frames[..frames.len() - 1]
+        .iter()
+        .map(|f| llm_frame_data(f))
+        .collect();
+
+    let id = chunks[0]["id"].as_str().unwrap().to_string();
+    assert!(id.starts_with("chatcmpl-"));
+    for chunk in &chunks {
+        assert_eq!(chunk["object"], "chat.completion.chunk");
+        assert_eq!(chunk["id"], id.as_str());
+        assert!(
+            chunk.get("usage").is_none(),
+            "usage only appears with include_usage"
+        );
+    }
+
+    // First chunk: role delta, null finish_reason.
+    assert_eq!(chunks[0]["choices"][0]["delta"]["role"], "assistant");
+    assert!(chunks[0]["choices"][0]["finish_reason"].is_null());
+
+    // Word chunks reconstruct the content exactly (leading-space scheme).
+    let mut reconstructed = String::new();
+    for chunk in &chunks[1..chunks.len() - 1] {
+        reconstructed.push_str(chunk["choices"][0]["delta"]["content"].as_str().unwrap());
+    }
+    assert_eq!(reconstructed, "word one two three");
+
+    // Final chunk: empty delta, finish_reason stop.
+    let last = chunks.last().unwrap();
+    assert_eq!(last["choices"][0]["delta"].as_object().unwrap().len(), 0);
+    assert_eq!(last["choices"][0]["finish_reason"], "stop");
+}
+
+#[actix_web::test]
+async fn llm_chat_completions_stream_include_usage() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::post()
+        .uri("/llm/v1/chat/completions")
+        .insert_header(("content-type", "application/json"))
+        .set_payload(
+            r#"{"messages":[{"role":"user","content":"Hello"}],"stream":true,"stream_options":{"include_usage":true}}"#,
+        )
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let text = String::from_utf8(test::read_body(resp).await.to_vec()).unwrap();
+    let frames = llm_sse_frames(&text);
+    assert_eq!(frames.last().unwrap(), &"data: [DONE]");
+
+    // Frame order: ... stop chunk, usage chunk (empty choices), [DONE].
+    let usage_frame = llm_frame_data(frames[frames.len() - 2]);
+    assert_eq!(usage_frame["choices"].as_array().unwrap().len(), 0);
+    assert!(usage_frame["usage"].is_object());
+    assert_eq!(usage_frame["usage"]["prompt_tokens"], 3);
+    assert_eq!(
+        usage_frame["usage"]["total_tokens"],
+        usage_frame["usage"]["prompt_tokens"].as_u64().unwrap()
+            + usage_frame["usage"]["completion_tokens"].as_u64().unwrap()
+    );
+    let stop_frame = llm_frame_data(frames[frames.len() - 3]);
+    assert_eq!(stop_frame["choices"][0]["finish_reason"], "stop");
+}
+
+#[actix_web::test]
+async fn llm_messages_canonical_shape() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::post()
+        .uri("/llm/v1/messages")
+        .insert_header(("content-type", "application/json"))
+        .set_payload(
+            r#"{"model":"claude-sonnet-4-5","max_tokens":1024,"messages":[{"role":"user","content":"Hello"}]}"#,
+        )
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let v: serde_json::Value = serde_json::from_slice(&test::read_body(resp).await).unwrap();
+    assert_eq!(
+        llm_sorted_keys(&v),
+        vec![
+            "content",
+            "id",
+            "model",
+            "role",
+            "stop_reason",
+            "stop_sequence",
+            "type",
+            "usage"
+        ]
+    );
+    assert!(v["id"].as_str().unwrap().starts_with("msg_"));
+    assert_eq!(v["type"], "message");
+    assert_eq!(v["role"], "assistant");
+    assert_eq!(v["model"], "claude-sonnet-4-5");
+    assert_eq!(v["stop_reason"], "end_turn");
+    assert!(v["stop_sequence"].is_null());
+
+    let block = &v["content"][0];
+    assert_eq!(llm_sorted_keys(block), vec!["citations", "text", "type"]);
+    assert_eq!(block["type"], "text");
+    let text = block["text"].as_str().unwrap();
+    assert!(!text.is_empty());
+
+    let usage = &v["usage"];
+    assert_eq!(
+        llm_sorted_keys(usage),
+        vec!["input_tokens", "output_tokens"]
+    );
+    assert_eq!(usage["input_tokens"], 3);
+    assert_eq!(
+        usage["output_tokens"],
+        crate::handlers::llm::estimate_tokens(text)
+    );
+}
+
+#[actix_web::test]
+async fn llm_messages_custom_content_and_system_tokens() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::post()
+        .uri("/llm/v1/messages")
+        .insert_header(("content-type", "application/json"))
+        .set_payload(
+            r#"{"max_tokens":100,"system":"You are terse.","messages":[{"role":"user","content":[{"type":"text","text":"Hello"}]}],"httpcan":{"content":"Hi."}}"#,
+        )
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let v: serde_json::Value = serde_json::from_slice(&test::read_body(resp).await).unwrap();
+    assert_eq!(v["content"][0]["text"], "Hi.");
+    // system line + user line both counted: "system: You are terse.\n" (23)
+    // + "user: Hello\n" (12) = 35 chars -> ceil(35/4) = 9.
+    assert_eq!(v["usage"]["input_tokens"], 9);
+    // No model in request -> default model echoed.
+    assert!(v["model"].as_str().unwrap().starts_with("claude-"));
+}
+
+#[actix_web::test]
+async fn llm_messages_invalid_json_anthropic_error_shape() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::post()
+        .uri("/llm/v1/messages")
+        .insert_header(("content-type", "application/json"))
+        .set_payload("not json")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    let v: serde_json::Value = serde_json::from_slice(&test::read_body(resp).await).unwrap();
+    assert_eq!(v["type"], "error");
+    assert_eq!(v["error"]["type"], "invalid_request_error");
+    assert!(v["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("Invalid JSON"));
+}
+
+#[actix_web::test]
+async fn llm_messages_stream_protocol() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::post()
+        .uri("/llm/v1/messages")
+        .insert_header(("content-type", "application/json"))
+        .set_payload(
+            r#"{"max_tokens":64,"stream":true,"messages":[{"role":"user","content":"Hello"}],"httpcan":{"content":"alpha beta"}}"#,
+        )
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        resp.headers()
+            .get("content-type")
+            .unwrap()
+            .to_str()
+            .unwrap(),
+        "text/event-stream"
+    );
+    let text = String::from_utf8(test::read_body(resp).await.to_vec()).unwrap();
+    assert!(
+        !text.contains("[DONE]"),
+        "Anthropic SSE has no [DONE] sentinel"
+    );
+
+    // Each frame is "event: <type>\ndata: {json}".
+    let mut events: Vec<(String, serde_json::Value)> = Vec::new();
+    for frame in llm_sse_frames(&text) {
+        let (event, data) = frame.split_once('\n').unwrap();
+        let event = event.strip_prefix("event: ").unwrap().to_string();
+        let data = serde_json::from_str(data.strip_prefix("data: ").unwrap()).unwrap();
+        events.push((event, data));
+    }
+
+    let types: Vec<&str> = events.iter().map(|(e, _)| e.as_str()).collect();
+    assert_eq!(
+        &types[..],
+        &[
+            "message_start",
+            "content_block_start",
+            "content_block_delta",
+            "content_block_delta",
+            "content_block_stop",
+            "message_delta",
+            "message_stop"
+        ]
+    );
+
+    let start = &events[0].1;
+    assert!(start["message"]["id"].as_str().unwrap().starts_with("msg_"));
+    assert_eq!(start["message"]["usage"]["input_tokens"], 3);
+    assert_eq!(start["message"]["usage"]["output_tokens"], 0);
+
+    let mut reconstructed = String::new();
+    for (event, data) in &events {
+        if event == "content_block_delta" {
+            assert_eq!(data["delta"]["type"], "text_delta");
+            reconstructed.push_str(data["delta"]["text"].as_str().unwrap());
+        }
+    }
+    assert_eq!(reconstructed, "alpha beta");
+
+    let delta = &events[events.len() - 2].1;
+    assert_eq!(delta["delta"]["stop_reason"], "end_turn");
+    assert_eq!(
+        delta["usage"]["output_tokens"],
+        crate::handlers::llm::estimate_tokens("alpha beta")
+    );
+}
+
+#[actix_web::test]
+async fn llm_messages_get_is_405_anthropic_error_shape() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::get()
+        .uri("/llm/v1/messages")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+
+    assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+    assert_eq!(
+        resp.headers().get("Allow").unwrap().to_str().unwrap(),
+        "POST"
+    );
+    let v: serde_json::Value = serde_json::from_slice(&test::read_body(resp).await).unwrap();
+    assert_eq!(v["type"], "error");
+}
+
+#[actix_web::test]
+async fn llm_models_openai_shape_by_default() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::get().uri("/llm/v1/models").to_request();
+    let resp = test::call_service(&app, req).await;
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let v: serde_json::Value = serde_json::from_slice(&test::read_body(resp).await).unwrap();
+    assert_eq!(llm_sorted_keys(&v), vec!["data", "object"]);
+    assert_eq!(v["object"], "list");
+    let data = v["data"].as_array().unwrap();
+    assert!(!data.is_empty());
+    for m in data {
+        assert_eq!(
+            llm_sorted_keys(m),
+            vec!["created", "id", "object", "owned_by"]
+        );
+        assert_eq!(m["object"], "model");
+    }
+}
+
+#[actix_web::test]
+async fn llm_models_anthropic_shape_via_version_header() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::get()
+        .uri("/llm/v1/models")
+        .insert_header(("anthropic-version", "2023-06-01"))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let v: serde_json::Value = serde_json::from_slice(&test::read_body(resp).await).unwrap();
+    assert_eq!(
+        llm_sorted_keys(&v),
+        vec!["data", "first_id", "has_more", "last_id"]
+    );
+    assert_eq!(v["has_more"], false);
+    let data = v["data"].as_array().unwrap();
+    assert!(!data.is_empty());
+    for m in data {
+        assert_eq!(
+            llm_sorted_keys(m),
+            vec![
+                "capabilities",
+                "created_at",
+                "display_name",
+                "id",
+                "max_input_tokens",
+                "max_tokens",
+                "type"
+            ]
+        );
+        assert_eq!(m["type"], "model");
+    }
+    assert_eq!(v["first_id"], data[0]["id"]);
+    assert_eq!(v["last_id"], data[data.len() - 1]["id"]);
+}
+
+#[actix_web::test]
+async fn llm_model_detail_echoes_any_id() {
+    let app = test::init_service(create_app(cfg())).await;
+
+    let req = test::TestRequest::get()
+        .uri("/llm/v1/models/my-fine-tune-42")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let v: serde_json::Value = serde_json::from_slice(&test::read_body(resp).await).unwrap();
+    assert_eq!(v["id"], "my-fine-tune-42");
+    assert_eq!(v["object"], "model");
+
+    let req = test::TestRequest::get()
+        .uri("/llm/v1/models/claude-opus-9-2099")
+        .insert_header(("anthropic-version", "2023-06-01"))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let v: serde_json::Value = serde_json::from_slice(&test::read_body(resp).await).unwrap();
+    assert_eq!(v["id"], "claude-opus-9-2099");
+    assert_eq!(v["type"], "model");
+    assert_eq!(v["display_name"], "claude-opus-9-2099");
+}
+
+#[actix_web::test]
+async fn llm_index_endpoint_lists_contract() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::get().uri("/llm").to_request();
+    let resp = test::call_service(&app, req).await;
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let v: serde_json::Value = serde_json::from_slice(&test::read_body(resp).await).unwrap();
+    assert!(v["endpoints"]["chat_completions"]["path"]
+        .as_str()
+        .unwrap()
+        .starts_with("/llm"));
+    assert!(v["base_url"]["anthropic_sdk"]
+        .as_str()
+        .unwrap()
+        .ends_with("/llm"));
+}

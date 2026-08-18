@@ -71,6 +71,10 @@
     {
       "name": "Observability",
       "description": "Health checks and instance identification."
+    },
+    {
+      "name": "AI Mock",
+      "description": "Mock OpenAI- and Anthropic-compatible LLM APIs"
     }
   ],
   "paths": {
@@ -5555,6 +5559,237 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/llm": {
+      "get": {
+        "tags": [
+          "AI Mock"
+        ],
+        "summary": "Self-describing index of the LLM mock endpoints",
+        "operationId": "getLlmIndex",
+        "description": "Endpoints, base_url guidance for OpenAI/Anthropic SDKs, and the httpcan response-override contract.",
+        "responses": {
+          "200": {
+            "description": "LLM mock index",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/llm/v1/chat/completions": {
+      "post": {
+        "tags": [
+          "AI Mock"
+        ],
+        "summary": "Mock OpenAI Chat Completions API",
+        "operationId": "createChatCompletionMock",
+        "description": "Returns a canonical chat.completion response. Supports stream:true (chat.completion.chunk SSE with [DONE], include_usage via stream_options) and an httpcan.content body override. /llm/chat/completions is an undocumented silent alias.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "messages"
+                ],
+                "properties": {
+                  "model": {
+                    "type": "string"
+                  },
+                  "messages": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "role": {
+                          "type": "string"
+                        },
+                        "content": {
+                          "oneOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "array"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "n": {
+                    "type": "integer",
+                    "default": 1
+                  },
+                  "stream": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "stream_options": {
+                    "type": "object",
+                    "properties": {
+                      "include_usage": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "httpcan": {
+                    "type": "object",
+                    "properties": {
+                      "content": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "chat.completion object or SSE stream"
+          },
+          "400": {
+            "description": "OpenAI-shaped error"
+          },
+          "405": {
+            "description": "Method not allowed (POST only)"
+          }
+        }
+      }
+    },
+    "/llm/v1/messages": {
+      "post": {
+        "tags": [
+          "AI Mock"
+        ],
+        "summary": "Mock Anthropic Messages API",
+        "operationId": "createMessageMock",
+        "description": "Returns an Anthropic message with text content blocks and stop_reason. Supports stream:true (full event protocol: message_start through message_stop) and an httpcan.content body override.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "messages"
+                ],
+                "properties": {
+                  "model": {
+                    "type": "string"
+                  },
+                  "messages": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "role": {
+                          "type": "string"
+                        },
+                        "content": {
+                          "oneOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "array"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "max_tokens": {
+                    "type": "integer"
+                  },
+                  "system": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "array"
+                      }
+                    ]
+                  },
+                  "stream": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "httpcan": {
+                    "type": "object",
+                    "properties": {
+                      "content": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Anthropic message object or SSE event stream"
+          },
+          "400": {
+            "description": "Anthropic-shaped error"
+          },
+          "405": {
+            "description": "Method not allowed (POST only)"
+          }
+        }
+      }
+    },
+    "/llm/v1/models": {
+      "get": {
+        "tags": [
+          "AI Mock"
+        ],
+        "summary": "List mock models",
+        "operationId": "listMockModels",
+        "description": "OpenAI list shape by default; Anthropic shape when an anthropic-version request header is present (both SDK families construct this same path).",
+        "responses": {
+          "200": {
+            "description": "Model list"
+          }
+        }
+      }
+    },
+    "/llm/v1/models/{model}": {
+      "get": {
+        "tags": [
+          "AI Mock"
+        ],
+        "summary": "Retrieve a mock model",
+        "operationId": "retrieveMockModel",
+        "description": "Always returns 200 and echoes the requested model id — any model name is valid, consistent with the lenient chat endpoints.",
+        "parameters": [
+          {
+            "name": "model",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Model object"
           }
         }
       }
