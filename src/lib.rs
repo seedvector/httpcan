@@ -571,6 +571,18 @@ fn create_app(
                 .route(web::post().to(anthropic_messages_handler))
                 .route(web::route().to(anthropic_method_not_allowed)),
         )
+        .service(
+            web::resource("/llm/v1/responses")
+                .route(web::post().to(responses_handler))
+                .route(web::route().to(openai_method_not_allowed)),
+        )
+        // Silent alias of /llm/v1/responses (same base_url ergonomics as the
+        // chat-completions alias).
+        .service(
+            web::resource("/llm/responses")
+                .route(web::post().to(responses_handler))
+                .route(web::route().to(openai_method_not_allowed)),
+        )
         .service(web::resource("/llm/v1/models").route(get_or_head(models_handler)))
         .service(web::resource("/llm/v1/models/{model}").route(get_or_head(model_detail_handler)))
         // Root endpoint - always renders the static homepage (see src/handlers/root.rs)

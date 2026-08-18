@@ -25,10 +25,25 @@ use uuid::Uuid;
 pub mod anthropic;
 pub mod models;
 pub mod openai;
+pub mod responses;
 
 pub use anthropic::*;
 pub use models::*;
 pub use openai::*;
+pub use responses::*;
+
+/// Default model echoed for OpenAI-family requests that omit `model`
+/// (current flagship per models.dev).
+pub(crate) const OPENAI_DEFAULT_MODEL: &str = "gpt-5.6";
+
+/// One named SSE event frame, as the Anthropic and Responses-API stream
+/// protocols transport them (`event: <type>` + `data:` payload).
+pub(crate) fn event_frame(event: &str, data: &serde_json::Value) -> web::Bytes {
+    web::Bytes::from(format!(
+        "event: {event}\ndata: {}\n\n",
+        serde_json::to_string(data).expect("event serializes")
+    ))
+}
 
 /// Delay between streamed chunks, matching the cadence real providers use
 /// for a mock of this size (50ms).

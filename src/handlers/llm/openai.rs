@@ -16,7 +16,8 @@ use serde::Deserialize;
 use serde_json::json;
 use std::time::Duration;
 use tokio::time::sleep;
-const DEFAULT_MODEL: &str = "gpt-5.6";
+
+const DEFAULT_MODEL: &str = OPENAI_DEFAULT_MODEL;
 const DEFAULT_CONTENT: &str = "This is a mock chat completion from httpcan. Point any OpenAI-compatible SDK at this base_url, and every request gets this deterministic placeholder response.";
 
 #[derive(Deserialize)]
@@ -40,7 +41,7 @@ struct StreamOptions {
     include_usage: Option<bool>,
 }
 
-fn openai_bad_request(message: String) -> HttpResponse {
+pub(crate) fn openai_bad_request(message: String) -> HttpResponse {
     HttpResponse::BadRequest().json(json!({
         "error": {
             "message": message,

@@ -5793,6 +5793,67 @@
           }
         }
       }
+    },
+    "/llm/v1/responses": {
+      "post": {
+        "tags": [
+          "AI Mock"
+        ],
+        "summary": "Mock OpenAI Responses API",
+        "operationId": "createResponseMock",
+        "description": "Returns a canonical Response object (spec-required fields incl. temperature/top_p/metadata/tool_choice, output_text convenience, ResponseUsage with detail sub-objects). Streaming emits named SSE events (response.created through response.completed) with incrementing sequence_number and no [DONE] sentinel. /llm/responses is an undocumented silent alias. instructions is echoed back.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "model": {
+                    "type": "string"
+                  },
+                  "input": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "array"
+                      }
+                    ]
+                  },
+                  "instructions": {
+                    "type": "string"
+                  },
+                  "stream": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "httpcan": {
+                    "type": "object",
+                    "properties": {
+                      "content": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Response object or named SSE event stream"
+          },
+          "400": {
+            "description": "OpenAI-shaped error"
+          },
+          "405": {
+            "description": "Method not allowed (POST only)"
+          }
+        }
+      }
     }
   },
   "components": {

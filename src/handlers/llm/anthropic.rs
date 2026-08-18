@@ -120,13 +120,6 @@ pub async fn anthropic_messages_handler(body: web::Bytes) -> Result<HttpResponse
     })))
 }
 
-fn event_frame(event: &str, data: &serde_json::Value) -> web::Bytes {
-    web::Bytes::from(format!(
-        "event: {event}\ndata: {}\n\n",
-        serde_json::to_string(data).expect("event serializes")
-    ))
-}
-
 fn stream_messages(
     id: &str,
     model: &str,
