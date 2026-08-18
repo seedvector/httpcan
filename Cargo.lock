@@ -1128,6 +1128,7 @@ dependencies = [
  "log",
  "md5",
  "mime",
+ "parking_lot",
  "rand",
  "reqwest",
  "serde",

@@ -71,6 +71,7 @@ urlencoding = "2.1"
 # Optional dependencies for examples
 reqwest = { version = "0.13", optional = true }
 dotenvy = "0.15.7"
+parking_lot = "0.12"
 
 [features]
 default = []

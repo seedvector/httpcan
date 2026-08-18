@@ -30,6 +30,10 @@ pub struct AppConfig {
     /// `static` dir next to the binary, else `./static`). User override files
     /// placed here replace built-in defaults (see `handlers::utils`).
     pub static_path: PathBuf,
+    /// OAuth2 client registry for the `/oauth2` mock: `client_id → secret`.
+    /// `None` = mock mode (any non-empty secret passes); `Some` = real
+    /// validation so the `invalid_client` path is reachable.
+    pub oauth2_clients: Option<std::collections::HashMap<String, String>>,
 }
 use handlers::*;
 use middleware::RequestLogger;
@@ -77,6 +81,8 @@ pub struct ServerConfig {
     /// Canonical scheme for SEO-facing URLs (see
     /// [`config::SchemeOverride`]).
     pub canonical_scheme: config::SchemeOverride,
+    /// OAuth2 client registry for `/oauth2` (see `AppConfig::oauth2_clients`).
+    pub oauth2_clients: Option<std::collections::HashMap<String, String>>,
 }
 
 impl Default for ServerConfig {
@@ -89,6 +95,7 @@ impl Default for ServerConfig {
             static_dir: None,
             max_bytes: config::DEFAULT_MAX_BYTES,
             canonical_scheme: config::SchemeOverride::Auto,
+            oauth2_clients: None,
         }
     }
 }
@@ -145,6 +152,15 @@ impl ServerConfig {
     /// [`config::SchemeOverride`]).
     pub fn canonical_scheme(mut self, canonical_scheme: config::SchemeOverride) -> Self {
         self.canonical_scheme = canonical_scheme;
+        self
+    }
+    /// Set the OAuth2 client registry for `/oauth2` (`None` = accept any
+    /// non-empty secret).
+    pub fn oauth2_clients(
+        mut self,
+        clients: Option<std::collections::HashMap<String, String>>,
+    ) -> Self {
+        self.oauth2_clients = clients;
         self
     }
 }
@@ -289,6 +305,7 @@ fn create_app(
         max_bytes: server_config.max_bytes,
         canonical_scheme: server_config.canonical_scheme,
         static_path: static_path.clone(),
+        oauth2_clients: server_config.oauth2_clients.clone(),
     };
 
     let mut app = App::new()
@@ -596,6 +613,24 @@ fn create_app(
         )
         .service(web::resource("/llm/v1/models").route(get_or_head(models_handler)))
         .service(web::resource("/llm/v1/models/{model}").route(get_or_head(model_detail_handler)))
+        // OAuth 2.0 mock authorization server (RFC 6749 four grants + PKCE);
+        // design: internal/oauth2-endpoints-design.md
+        .service(web::resource("/oauth2").route(get_or_head(oauth2_index_handler)))
+        .service(
+            web::resource("/oauth2/authorize")
+                .route(get_or_head(oauth2_authorize_get_handler))
+                .route(web::post().to(oauth2_authorize_post_handler)),
+        )
+        .service(web::resource("/oauth2/token").route(web::post().to(oauth2_token_handler)))
+        .service(
+            web::resource("/oauth2/userinfo")
+                .route(get_or_head(oauth2_userinfo_handler))
+                .route(web::post().to(oauth2_userinfo_handler)),
+        )
+        .service(
+            web::resource("/.well-known/oauth-authorization-server")
+                .route(get_or_head(oauth2_metadata_handler)),
+        )
         // Root endpoint - always renders the static homepage (see src/handlers/root.rs)
         .service(web::resource("/").route(get_or_head(root_handler)))
         // Favicon - embedded in the binary, overridable via static/favicon.png

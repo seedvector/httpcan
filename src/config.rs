@@ -81,6 +81,14 @@ pub struct Args {
     /// Directory for user-overridable assets (openapi.json, favicon.png, index.html, robots.txt, sitemap.xml) and extra files served at `/static/<name>` or `/<name>`. A file here with one of those five names replaces the built-in default at its canonical URL. Default: the `static` directory next to the binary, falling back to `./static`.
     #[arg(long, value_name = "DIR", env = "HTTPCAN_STATIC_DIR")]
     pub static_dir: Option<String>,
+
+    /// OAuth2 client credentials for the /oauth2 mock, as client_id:client_secret pairs separated by commas. Empty (default): mock mode — any non-empty client_secret passes. Set: real validation, wrong secret returns invalid_client.
+    #[arg(
+        long,
+        env = "HTTPCAN_OAUTH2_CLIENTS",
+        value_name = "ID:SECRET[,ID:SECRET...]"
+    )]
+    pub oauth2_clients: Option<String>,
 }
 
 /// How `/openapi.json` builds its `servers` array.

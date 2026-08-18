@@ -75,6 +75,10 @@
     {
       "name": "AI Mock",
       "description": "Mock OpenAI- and Anthropic-compatible LLM APIs"
+    },
+    {
+      "name": "OAuth 2.0 Mock",
+      "description": "Mock OAuth 2.0 authorization server: RFC 6749 four grants with PKCE, RFC 8414 discovery"
     }
   ],
   "paths": {
@@ -5928,6 +5932,320 @@
           },
           "405": {
             "description": "Method not allowed (POST only)"
+          }
+        }
+      }
+    },
+    "/oauth2": {
+      "get": {
+        "tags": [
+          "OAuth 2.0 Mock"
+        ],
+        "summary": "Self-describing index of the OAuth 2.0 mock",
+        "operationId": "getOauth2Index",
+        "description": "Endpoints, supported grants, PKCE methods, and the mock's state semantics (any credentials accepted unless --oauth2-clients is configured; restarting invalidates issued codes and tokens).",
+        "responses": {
+          "200": {
+            "description": "OAuth 2.0 mock index",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/oauth2/authorize": {
+      "get": {
+        "tags": [
+          "OAuth 2.0 Mock"
+        ],
+        "summary": "Authorization endpoint (renders the consent page)",
+        "operationId": "getOauth2Authorize",
+        "description": "Validates the authorization request (RFC 6749 §4.1.1: response_type, client_id, redirect_uri, scope, state, code_challenge) and renders a mock consent page. response_type=code issues a one-time authorization code on approval; response_type=token (implicit, legacy) returns the access token in the redirect fragment. Invalid redirect_uri or client_id is never redirected (§3.1.2.4); other errors are returned to the client via error redirects (§4.1.2.1).",
+        "parameters": [
+          {
+            "name": "response_type",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "code",
+                "token"
+              ]
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "redirect_uri",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "code_challenge",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "code_challenge_method",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "S256",
+                "plain"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consent page (text/html)"
+          },
+          "400": {
+            "description": "Invalid redirect_uri or missing client_id (not redirected)"
+          },
+          "302": {
+            "description": "Error redirect for other invalid requests (unsupported_response_type, invalid_request)"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "OAuth 2.0 Mock"
+        ],
+        "summary": "Process the consent decision",
+        "operationId": "submitOauth2Consent",
+        "description": "Consumes the consent form (hidden authorize parameters plus email and decision). Approve: 302 with code+state in the query (code flow) or access_token in the fragment (implicit flow, never a refresh token). Decline: 302 with error=access_denied.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "response_type",
+                  "client_id",
+                  "redirect_uri",
+                  "email",
+                  "decision"
+                ],
+                "properties": {
+                  "response_type": {
+                    "type": "string"
+                  },
+                  "client_id": {
+                    "type": "string"
+                  },
+                  "redirect_uri": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "type": "string"
+                  },
+                  "scope": {
+                    "type": "string"
+                  },
+                  "code_challenge": {
+                    "type": "string"
+                  },
+                  "code_challenge_method": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "approve",
+                      "decline"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "302": {
+            "description": "Redirect to redirect_uri with code/token or error parameters"
+          },
+          "400": {
+            "description": "Invalid redirect_uri or missing email (not redirected)"
+          }
+        }
+      }
+    },
+    "/oauth2/token": {
+      "post": {
+        "tags": [
+          "OAuth 2.0 Mock"
+        ],
+        "summary": "Token endpoint (four grants)",
+        "operationId": "createOauth2Token",
+        "description": "RFC 6749 token endpoint supporting authorization_code (+PKCE), password (legacy), refresh_token (rotating), and client_credentials. Client authentication via Authorization: Basic or form-body client_secret; both at once is rejected. Responses carry Cache-Control: no-store and Pragma: no-cache (§5.1). Without --oauth2-clients any non-empty secret passes.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "grant_type"
+                ],
+                "properties": {
+                  "grant_type": {
+                    "type": "string",
+                    "enum": [
+                      "authorization_code",
+                      "password",
+                      "refresh_token",
+                      "client_credentials"
+                    ]
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "redirect_uri": {
+                    "type": "string"
+                  },
+                  "code_verifier": {
+                    "type": "string"
+                  },
+                  "username": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string"
+                  },
+                  "refresh_token": {
+                    "type": "string"
+                  },
+                  "scope": {
+                    "type": "string"
+                  },
+                  "client_id": {
+                    "type": "string"
+                  },
+                  "client_secret": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token response: access_token, token_type, expires_in, optional refresh_token and scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request / invalid_grant / unsupported_grant_type (RFC 6749 §5.2 JSON)"
+          },
+          "401": {
+            "description": "invalid_client (when --oauth2-clients is configured)"
+          }
+        }
+      }
+    },
+    "/oauth2/userinfo": {
+      "get": {
+        "tags": [
+          "OAuth 2.0 Mock"
+        ],
+        "summary": "Bearer-protected resource returning the mock identity",
+        "operationId": "getOauth2Userinfo",
+        "description": "Verifies the Bearer access token and returns sub/email/client_id/scope. 401 challenges carry error=\"invalid_token\" attributes per RFC 6750 §3.",
+        "responses": {
+          "200": {
+            "description": "Identity claims",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid Bearer token (WWW-Authenticate challenge)"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "OAuth 2.0 Mock"
+        ],
+        "summary": "Bearer-protected resource returning the mock identity",
+        "operationId": "postOauth2Userinfo",
+        "description": "Same contract as GET.",
+        "responses": {
+          "200": {
+            "description": "Identity claims"
+          },
+          "401": {
+            "description": "Missing or invalid Bearer token"
+          }
+        }
+      }
+    },
+    "/.well-known/oauth-authorization-server": {
+      "get": {
+        "tags": [
+          "OAuth 2.0 Mock"
+        ],
+        "summary": "RFC 8414 authorization server metadata",
+        "operationId": "getOauth2AuthorizationServerMetadata",
+        "description": "Issuer and endpoint URLs resolved against the request origin so discovery clients configure themselves against whichever host serves them.",
+        "responses": {
+          "200": {
+            "description": "Authorization server metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         }
       }

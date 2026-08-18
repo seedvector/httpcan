@@ -10,10 +10,11 @@ Quick Links: [Quick Start](#quick-start) · [Installation](#installation) · [Co
 
 ## ✨ Features
 
-- **80-endpoint superset of httpbin.org**: every httpbin.org endpoint covered and drop‑in compatible, plus 29 endpoints httpbin.org doesn't have and 18 it has but httpcan fixes or extends — see the [homepage](#openapi--homepage) for the full badge‑tagged list
+- **85-endpoint superset of httpbin.org**: every httpbin.org endpoint covered and drop‑in compatible, plus 34 endpoints httpbin.org doesn't have and 18 it has but httpcan fixes or extends — see the [homepage](#openapi--homepage) for the full badge‑tagged list
 - **Anti‑phishing redirects**: browser clients hitting `/redirect-to` see a confirmation page instead of a silent 302, closing an open‑redirect abuse vector
 - **AI‑friendly streaming**: native `/sse` and `/ndjson` endpoints with OpenAI/Ollama‑compatible chunk formats
 - **LLM API mock**: OpenAI- and Anthropic-compatible `/llm` endpoints — point any SDK `base_url` at it (streaming included) and test AI clients without a paid provider
+- **OAuth 2.0 mock**: a full authorization server at `/oauth2` — four RFC 6749 grants (authorization code + PKCE, implicit, password, rotating refresh, client credentials), Bearer-protected userinfo, and RFC 8414 discovery
 - **Cloud‑native observability**: `/healthz` liveness probe, `/tags` instance identification, and `Server-Timing`/`X-Httpcan-Version` headers on every response
 - **Correct header handling**: duplicate and non‑ASCII request headers are preserved instead of being dropped or crashing the server
 - **Safer by default**: built‑in filtering strips ~100 reverse‑proxy/CDN headers from echoed responses, with `--exclude-headers` for more
@@ -92,6 +93,7 @@ CLI flags:
 | `--max-bytes <BYTES>`          | Max bytes for `/bytes`, `/stream-bytes`, `/range`, and `/drip`; over‑limit returns 404 instead of truncating (httpbin #594). Also settable via `HTTPCAN_MAX_BYTES` | `102400` | `--max-bytes 1048576`                                     |
 | `--canonical-scheme <auto\|http\|https>` | Scheme for SEO‑facing URLs only (canonical link, sitemap.xml, robots.txt); doesn't affect copy‑curl examples or the OpenAPI current server, which always mirror the actual request. Also settable via `HTTPCAN_CANONICAL_SCHEME` | `auto`  | `--canonical-scheme https` |
 | `--static-dir <DIR>`          | Static assets directory: user overrides for `openapi.json`, `favicon.png`, `index.html`, `robots.txt`, `sitemap.xml`, plus extra files served at `/static/<name>` or `/<name>`. Also settable via `HTTPCAN_STATIC_DIR` | *binary-relative `static`, else `./static`* | `--static-dir /etc/httpcan/static` |
+| `--oauth2-clients <ID:SECRET,…>` | OAuth 2.0 client registry for `/oauth2`: when set, client secrets are validated (`invalid_client` on mismatch); when empty, any non‑empty secret passes (mock mode). Also settable via `HTTPCAN_OAUTH2_CLIENTS` | *(empty)* | `--oauth2-clients "webapp:s3cr3t,cli:an0ther"` |
 | `-h, --help`                   | Print help information                                                                                             |         | `--help`                                                  |
 | `-V, --version`                | Print version                                                                                                      |         | `--version`                                               |
 
@@ -220,6 +222,23 @@ print(reply.choices[0].message.content)  # Custom reply text
 
 The Anthropic SDK works with `base_url="http://localhost:8080/llm"` (it appends `/v1/messages` itself). `GET /llm` returns a self-describing index, and `GET /llm/v1/models` returns the model list in whichever family's shape the request looks like (an `anthropic-version` header switches it).
 
+### OAuth 2.0 Mock
+
+```bash
+# 1) Send the resource owner to the authorization endpoint (consent page)
+open "http://localhost:8080/oauth2/authorize?response_type=code&client_id=webapp&redirect_uri=https%3A%2F%2Fexample.com%2Fcb&state=xyz&scope=read"
+
+# 2) Exchange the one-time code (Basic or form-body client auth; PKCE supported)
+curl -X POST http://localhost:8080/oauth2/token \
+  -u webapp:s3cr3t \
+  -d "grant_type=authorization_code&code=<code>&redirect_uri=https://example.com/cb"
+
+# 3) Call the Bearer-protected resource
+curl http://localhost:8080/oauth2/userinfo -H "Authorization: Bearer <token>"
+```
+
+All four RFC 6749 grants work: `authorization_code` (with PKCE `S256`/`plain`), `password`, `refresh_token` (rotating — a presented refresh token is single-use), and `client_credentials`. `response_type=token` (implicit flow, legacy) hands out the access token in the redirect fragment. Codes are one-time, tokens are HMAC-signed per process, and the consent email is the only identity. `GET /oauth2` is a self-describing index; `GET /.well-known/oauth-authorization-server` serves RFC 8414 metadata for discovery-based clients.
+
 ### Cookies & Inspection
 
 ```bash
@@ -253,6 +272,7 @@ Endpoints are grouped into the same categories shown on the homepage (`/`) — v
 | Redirects | `/redirect` `/relative-redirect` `/absolute-redirect` `/redirect-to` |
 | Streaming | `/sse` `/ndjson` |
 | AI mock | `/llm/v1/chat/completions` `/llm/v1/messages` `/llm/v1/responses` `/llm/v1/completions` `/llm/v1/models` |
+| OAuth 2.0 mock | `/oauth2/authorize` `/oauth2/token` `/oauth2/userinfo` |
 | Observability | `/healthz` `/tags` |
 
 Every endpoint carries a compatibility badge relative to httpbin.org:
