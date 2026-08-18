@@ -5854,6 +5854,83 @@
           }
         }
       }
+    },
+    "/llm/v1/completions": {
+      "post": {
+        "tags": [
+          "AI Mock"
+        ],
+        "summary": "Mock OpenAI legacy Completions API",
+        "operationId": "createCompletionMock",
+        "description": "Text-in/text-out legacy completions: canonical text_completion shape with spec-required choices fields (logprobs as null). Supports prompt as string or arrays, echo:true (prepends the prompt), n choices, SSE streaming (no role first-chunk, stop chunk, [DONE], include_usage via stream_options) and the httpcan.content override. /llm/completions is an undocumented silent alias.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "prompt"
+                ],
+                "properties": {
+                  "model": {
+                    "type": "string"
+                  },
+                  "prompt": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "array"
+                      }
+                    ]
+                  },
+                  "n": {
+                    "type": "integer",
+                    "default": 1
+                  },
+                  "echo": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "stream": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "stream_options": {
+                    "type": "object",
+                    "properties": {
+                      "include_usage": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "httpcan": {
+                    "type": "object",
+                    "properties": {
+                      "content": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "text_completion object or SSE stream"
+          },
+          "400": {
+            "description": "OpenAI-shaped error"
+          },
+          "405": {
+            "description": "Method not allowed (POST only)"
+          }
+        }
+      }
     }
   },
   "components": {

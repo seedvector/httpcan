@@ -583,6 +583,17 @@ fn create_app(
                 .route(web::post().to(responses_handler))
                 .route(web::route().to(openai_method_not_allowed)),
         )
+        .service(
+            web::resource("/llm/v1/completions")
+                .route(web::post().to(completions_handler))
+                .route(web::route().to(openai_method_not_allowed)),
+        )
+        // Silent alias of /llm/v1/completions.
+        .service(
+            web::resource("/llm/completions")
+                .route(web::post().to(completions_handler))
+                .route(web::route().to(openai_method_not_allowed)),
+        )
         .service(web::resource("/llm/v1/models").route(get_or_head(models_handler)))
         .service(web::resource("/llm/v1/models/{model}").route(get_or_head(model_detail_handler)))
         // Root endpoint - always renders the static homepage (see src/handlers/root.rs)

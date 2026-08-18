@@ -23,11 +23,13 @@ use serde_json::json;
 use uuid::Uuid;
 
 pub mod anthropic;
+pub mod completions;
 pub mod models;
 pub mod openai;
 pub mod responses;
 
 pub use anthropic::*;
+pub use completions::*;
 pub use models::*;
 pub use openai::*;
 pub use responses::*;
@@ -137,6 +139,18 @@ pub async fn llm_index_handler(
                 "method": "POST",
                 "path": "/llm/v1/messages",
                 "stream": "stream: true (SSE, Anthropic event protocol)"
+            },
+            "responses": {
+                "method": "POST",
+                "path": "/llm/v1/responses",
+                "alias": "/llm/responses",
+                "stream": "stream: true (named SSE events response.created..response.completed, sequence_number, no [DONE])"
+            },
+            "legacy_completions": {
+                "method": "POST",
+                "path": "/llm/v1/completions",
+                "alias": "/llm/completions",
+                "stream": "stream: true (SSE, text_completion frames, [DONE] sentinel)"
             },
             "models": {
                 "method": "GET",

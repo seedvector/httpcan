@@ -10,7 +10,7 @@ Quick Links: [Quick Start](#quick-start) · [Installation](#installation) · [Co
 
 ## ✨ Features
 
-- **79-endpoint superset of httpbin.org**: every httpbin.org endpoint covered and drop‑in compatible, plus 28 endpoints httpbin.org doesn't have and 18 it has but httpcan fixes or extends — see the [homepage](#openapi--homepage) for the full badge‑tagged list
+- **80-endpoint superset of httpbin.org**: every httpbin.org endpoint covered and drop‑in compatible, plus 29 endpoints httpbin.org doesn't have and 18 it has but httpcan fixes or extends — see the [homepage](#openapi--homepage) for the full badge‑tagged list
 - **Anti‑phishing redirects**: browser clients hitting `/redirect-to` see a confirmation page instead of a silent 302, closing an open‑redirect abuse vector
 - **AI‑friendly streaming**: native `/sse` and `/ndjson` endpoints with OpenAI/Ollama‑compatible chunk formats
 - **LLM API mock**: OpenAI- and Anthropic-compatible `/llm` endpoints — point any SDK `base_url` at it (streaming included) and test AI clients without a paid provider
@@ -197,6 +197,11 @@ curl -X POST http://localhost:8080/llm/v1/messages \
 curl -X POST http://localhost:8080/llm/v1/responses \
   -H "Content-Type: application/json" \
   -d '{"model":"gpt-5.6","input":"Hello"}'
+
+# OpenAI-compatible legacy completions (text-in/text-out)
+curl -X POST http://localhost:8080/llm/v1/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-5.6","prompt":"Once upon a time"}'
 ```
 
 Point an SDK at it — no API key needed (any value is accepted), and responses are deterministic:
@@ -247,7 +252,7 @@ Endpoints are grouped into the same categories shown on the homepage (`/`) — v
 | Images | `/image` `/image/png` `/image/jpeg` `/image/webp` `/image/svg` |
 | Redirects | `/redirect` `/relative-redirect` `/absolute-redirect` `/redirect-to` |
 | Streaming | `/sse` `/ndjson` |
-| AI mock | `/llm/v1/chat/completions` `/llm/v1/messages` `/llm/v1/responses` `/llm/v1/models` |
+| AI mock | `/llm/v1/chat/completions` `/llm/v1/messages` `/llm/v1/responses` `/llm/v1/completions` `/llm/v1/models` |
 | Observability | `/healthz` `/tags` |
 
 Every endpoint carries a compatibility badge relative to httpbin.org:

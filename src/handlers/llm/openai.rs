@@ -54,7 +54,7 @@ pub(crate) fn openai_bad_request(message: String) -> HttpResponse {
 
 /// The `usage` object, shared by the non-streaming response and the
 /// include_usage stream chunk.
-fn usage_json(prompt_tokens: usize, completion_tokens: usize) -> serde_json::Value {
+pub(crate) fn usage_json(prompt_tokens: usize, completion_tokens: usize) -> serde_json::Value {
     json!({
         "prompt_tokens": prompt_tokens,
         "completion_tokens": completion_tokens,
@@ -169,7 +169,7 @@ pub async fn chat_completions_handler(body: web::Bytes) -> Result<HttpResponse> 
     })))
 }
 
-fn sse_frame(chunk: &serde_json::Value) -> web::Bytes {
+pub(crate) fn sse_frame(chunk: &serde_json::Value) -> web::Bytes {
     web::Bytes::from(format!(
         "data: {}\n\n",
         serde_json::to_string(chunk).expect("chunk serializes")
