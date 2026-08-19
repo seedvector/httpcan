@@ -2,6 +2,8 @@
 
 A modern, high‑performance superset of [httpbin.org](https://httpbin.org) for testing HTTP clients, proxies, and AI agents — with mock OpenAI/Anthropic LLM APIs and a full OAuth 2.0 server. Built with Rust and Actix Web.
 
+**Hosted at <https://httpcan.org>** — every endpoint is live there, zero install.
+
 [![Crates.io](https://img.shields.io/crates/v/httpcan.svg)](https://crates.io/crates/httpcan)
 [![ghcr.io](https://img.shields.io/badge/ghcr.io-seedvector%2Fhttpcan-1f6feb?logo=github)](https://github.com/orgs/seedvector/packages/container/package/httpcan)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -24,7 +26,13 @@ Quick Links: [Quick Start](#quick-start) · [Installation](#installation) · [Co
 
 ## Quick Start
 
-Choose one way to run:
+No install needed — the full API is hosted at **<https://httpcan.org>**:
+
+```bash
+curl https://httpcan.org/get
+```
+
+Or run your own:
 
 ```bash
 # Docker (recommended)
@@ -119,10 +127,10 @@ HTTPCAN_CANONICAL_SCHEME=https
 
 ```bash
 # Basic GET
-curl http://localhost:8080/get
+curl https://httpcan.org/get
 
 # POST with JSON
-curl -X POST http://localhost:8080/post \
+curl -X POST https://httpcan.org/post \
   -H "Content-Type: application/json" \
   -d '{"key":"value"}'
 ```
@@ -131,26 +139,26 @@ curl -X POST http://localhost:8080/post \
 
 ```bash
 # Basic auth
-curl -u username:password http://localhost:8080/basic-auth/username/password
+curl -u username:password https://httpcan.org/basic-auth/username/password
 
 # Username only (empty password) — enhanced
-curl -u username: http://localhost:8080/basic-auth/username
+curl -u username: https://httpcan.org/basic-auth/username
 ```
 
 ### Status & Redirects
 
 ```bash
 # Specific status
-curl http://localhost:8080/status/418
+curl https://httpcan.org/status/418
 
 # Random from list
-curl http://localhost:8080/status/200,404,500
+curl https://httpcan.org/status/200,404,500
 
 # Inject response headers (rate-limit / Retry-After testing)
-curl -H "Accept: application/json" "http://localhost:8080/status/429?header=Retry-After:120&header=X-RateLimit-Remaining:0"
+curl -H "Accept: application/json" "https://httpcan.org/status/429?header=Retry-After:120&header=X-RateLimit-Remaining:0"
 
 # Redirect to a URL (supports form/json)
-curl -X POST http://localhost:8080/redirect-to -d "url=https://example.com"
+curl -X POST https://httpcan.org/redirect-to -d "url=https://example.com"
 ```
 
 > **🔒 Open‑redirect protection on `/redirect‑to`**
@@ -166,43 +174,43 @@ curl -X POST http://localhost:8080/redirect-to -d "url=https://example.com"
 ### Compression & Formats
 
 ```bash
-curl -H "Accept-Encoding: gzip" http://localhost:8080/gzip
-curl http://localhost:8080/json
-curl http://localhost:8080/xml
+curl -H "Accept-Encoding: gzip" https://httpcan.org/gzip
+curl https://httpcan.org/json
+curl https://httpcan.org/xml
 ```
 
 ### Streaming (SSE/NDJSON)
 
 ```bash
 # SSE
-curl http://localhost:8080/sse?count=3&format=simple
-curl http://localhost:8080/sse/5?format=openai&delay=2000
+curl https://httpcan.org/sse?count=3&format=simple
+curl https://httpcan.org/sse/5?format=openai&delay=2000
 
 # NDJSON
-curl http://localhost:8080/ndjson?count=3&format=simple
-curl http://localhost:8080/ndjson/5?format=ollama&model=llama3&delay=1500
+curl https://httpcan.org/ndjson?count=3&format=simple
+curl https://httpcan.org/ndjson/5?format=ollama&model=llama3&delay=1500
 ```
 
 ### AI API Mock
 
 ```bash
 # OpenAI-compatible chat completions (streaming supported)
-curl -X POST http://localhost:8080/llm/v1/chat/completions \
+curl -X POST https://httpcan.org/llm/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model":"gpt-5.6","messages":[{"role":"user","content":"Hello"}]}'
 
 # Anthropic-compatible messages
-curl -X POST http://localhost:8080/llm/v1/messages \
+curl -X POST https://httpcan.org/llm/v1/messages \
   -H "Content-Type: application/json" \
   -d '{"model":"claude-sonnet-5","max_tokens":64,"messages":[{"role":"user","content":"Hello"}]}'
 
 # OpenAI-compatible Responses API
-curl -X POST http://localhost:8080/llm/v1/responses \
+curl -X POST https://httpcan.org/llm/v1/responses \
   -H "Content-Type: application/json" \
   -d '{"model":"gpt-5.6","input":"Hello"}'
 
 # OpenAI-compatible legacy completions (text-in/text-out)
-curl -X POST http://localhost:8080/llm/v1/completions \
+curl -X POST https://httpcan.org/llm/v1/completions \
   -H "Content-Type: application/json" \
   -d '{"model":"gpt-5.6","prompt":"Once upon a time"}'
 ```
@@ -212,7 +220,7 @@ Point an SDK at it — no API key needed (any value is accepted), and responses 
 ```python
 from openai import OpenAI
 
-client = OpenAI(base_url="http://localhost:8080/llm/v1", api_key="not-needed")
+client = OpenAI(base_url="https://httpcan.org/llm/v1", api_key="not-needed")
 reply = client.chat.completions.create(
     model="gpt-5.6",
     messages=[{"role": "user", "content": "Hello"}],
@@ -221,21 +229,21 @@ reply = client.chat.completions.create(
 print(reply.choices[0].message.content)  # Custom reply text
 ```
 
-The Anthropic SDK works with `base_url="http://localhost:8080/llm"` (it appends `/v1/messages` itself). `GET /llm` returns a self-describing index, and `GET /llm/v1/models` returns the model list in whichever family's shape the request looks like (an `anthropic-version` header switches it).
+The Anthropic SDK works with `base_url="https://httpcan.org/llm"` (it appends `/v1/messages` itself). `GET /llm` returns a self-describing index, and `GET /llm/v1/models` returns the model list in whichever family's shape the request looks like (an `anthropic-version` header switches it).
 
 ### OAuth 2.0 Mock
 
 ```bash
 # 1) Send the resource owner to the authorization endpoint (consent page)
-open "http://localhost:8080/oauth2/authorize?response_type=code&client_id=webapp&redirect_uri=https%3A%2F%2Fexample.com%2Fcb&state=xyz&scope=read"
+open "https://httpcan.org/oauth2/authorize?response_type=code&client_id=webapp&redirect_uri=https%3A%2F%2Fexample.com%2Fcb&state=xyz&scope=read"
 
 # 2) Exchange the one-time code (Basic or form-body client auth; PKCE supported)
-curl -X POST http://localhost:8080/oauth2/token \
+curl -X POST https://httpcan.org/oauth2/token \
   -u webapp:s3cr3t \
   -d "grant_type=authorization_code&code=<code>&redirect_uri=https://example.com/cb"
 
 # 3) Call the Bearer-protected resource
-curl http://localhost:8080/oauth2/userinfo -H "Authorization: Bearer <token>"
+curl https://httpcan.org/oauth2/userinfo -H "Authorization: Bearer <token>"
 ```
 
 All four RFC 6749 grants work: `authorization_code` (with PKCE `S256`/`plain`), `password`, `refresh_token` (rotating — a presented refresh token is single-use), and `client_credentials`. `response_type=token` (implicit flow, legacy) hands out the access token in the redirect fragment. Codes are one-time, tokens are HMAC-signed per process, and the consent email is the only identity. `GET /oauth2` is a self-describing index; `GET /.well-known/oauth-authorization-server` serves RFC 8414 metadata for discovery-based clients.
@@ -243,9 +251,9 @@ All four RFC 6749 grants work: `authorization_code` (with PKCE `S256`/`plain`), 
 ### Cookies & Inspection
 
 ```bash
-curl http://localhost:8080/cookies
-curl http://localhost:8080/headers
-curl http://localhost:8080/ip
+curl https://httpcan.org/cookies
+curl https://httpcan.org/headers
+curl https://httpcan.org/ip
 ```
 
 ## OpenAPI & Homepage
