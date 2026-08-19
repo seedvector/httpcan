@@ -4795,7 +4795,7 @@ async fn llm_responses_canonical_shape() {
     let req = test::TestRequest::post()
         .uri("/llm/v1/responses")
         .insert_header(("content-type", "application/json"))
-        .set_payload(r#"{"model":"gpt-5.6","input":"Hello"}"#)
+        .set_payload(r#"{"model":"gpt-5.6-sol","input":"Hello"}"#)
         .to_request();
     let resp = test::call_service(&app, req).await;
 
@@ -4828,7 +4828,7 @@ async fn llm_responses_canonical_shape() {
     assert!(v["id"].as_str().unwrap().starts_with("resp_"));
     assert_eq!(v["object"], "response");
     assert_eq!(v["status"], "completed");
-    assert_eq!(v["model"], "gpt-5.6");
+    assert_eq!(v["model"], "gpt-5.6-sol");
     assert!(v["error"].is_null());
     assert!(v["incomplete_details"].is_null());
     assert_eq!(v["temperature"], 1.0);
@@ -4937,7 +4937,7 @@ async fn llm_responses_silent_alias_path() {
     assert_eq!(resp.status(), StatusCode::OK);
     let v: serde_json::Value = serde_json::from_slice(&test::read_body(resp).await).unwrap();
     assert_eq!(v["object"], "response");
-    assert_eq!(v["model"], "gpt-5.6");
+    assert_eq!(v["model"], "gpt-5.6-sol");
 }
 
 #[actix_web::test]
@@ -5032,7 +5032,7 @@ async fn llm_completions_canonical_shape() {
     let req = test::TestRequest::post()
         .uri("/llm/v1/completions")
         .insert_header(("content-type", "application/json"))
-        .set_payload(r#"{"model":"gpt-5.6","prompt":"Hello"}"#)
+        .set_payload(r#"{"model":"gpt-5.6-sol","prompt":"Hello"}"#)
         .to_request();
     let resp = test::call_service(&app, req).await;
 
@@ -5044,7 +5044,7 @@ async fn llm_completions_canonical_shape() {
     );
     assert!(v["id"].as_str().unwrap().starts_with("cmpl-"));
     assert_eq!(v["object"], "text_completion");
-    assert_eq!(v["model"], "gpt-5.6");
+    assert_eq!(v["model"], "gpt-5.6-sol");
 
     let choice = &v["choices"][0];
     assert_eq!(
@@ -5094,7 +5094,7 @@ async fn llm_completions_prompt_array_echo_and_custom_content() {
         crate::handlers::llm::estimate_tokens("Say hi Say hiDone.")
     );
     // No model in request -> default echoed.
-    assert_eq!(v["model"], "gpt-5.6");
+    assert_eq!(v["model"], "gpt-5.6-sol");
 }
 
 #[actix_web::test]

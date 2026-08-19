@@ -36,7 +36,7 @@ pub use responses::*;
 
 /// Default model echoed for OpenAI-family requests that omit `model`
 /// (current flagship per models.dev).
-pub(crate) const OPENAI_DEFAULT_MODEL: &str = "gpt-5.6";
+pub(crate) const OPENAI_DEFAULT_MODEL: &str = "gpt-5.6-sol";
 
 /// One named SSE event frame, as the Anthropic and Responses-API stream
 /// protocols transport them (`event: <type>` + `data:` payload).

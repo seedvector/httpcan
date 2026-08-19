@@ -18,9 +18,11 @@ use serde_json::json;
 
 /// Static catalog per protocol family. A mock has no deployments, so the
 /// lists are illustrative cross-sections of each family's current lineup
-/// (per models.dev, refreshed 2026-08-18).
+/// (per models.dev, refreshed 2026-08-20).
 const OPENAI_MODELS: &[&str] = &[
-    "gpt-5.6",
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
     "gpt-5.5",
     "gpt-5.5-pro",
     "gpt-5.4",
@@ -36,7 +38,7 @@ const ANTHROPIC_MODELS: &[&str] = &[
 
 /// Fixed `created`/`created_at` stamps — a mock's model list never changes,
 /// so stable values keep responses deterministic. Each is the release date
-/// of the newest listed model (gpt-5.6: 2026-07-09; claude-opus-5:
+/// of the newest listed model (gpt-5.6 family: 2026-07-09; claude-opus-5:
 /// 2026-07-24), with the 5-series context/output limits from models.dev.
 const OPENAI_MODEL_CREATED: i64 = 1_783_555_200;
 const ANTHROPIC_MODEL_CREATED_AT: &str = "2026-07-24T00:00:00Z";

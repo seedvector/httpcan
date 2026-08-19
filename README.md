@@ -197,7 +197,7 @@ curl https://httpcan.org/ndjson/5?format=ollama&model=llama3&delay=1500
 # OpenAI-compatible chat completions (streaming supported)
 curl -X POST https://httpcan.org/llm/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"model":"gpt-5.6","messages":[{"role":"user","content":"Hello"}]}'
+  -d '{"model":"gpt-5.6-sol","messages":[{"role":"user","content":"Hello"}]}'
 
 # Anthropic-compatible messages
 curl -X POST https://httpcan.org/llm/v1/messages \
@@ -207,12 +207,12 @@ curl -X POST https://httpcan.org/llm/v1/messages \
 # OpenAI-compatible Responses API
 curl -X POST https://httpcan.org/llm/v1/responses \
   -H "Content-Type: application/json" \
-  -d '{"model":"gpt-5.6","input":"Hello"}'
+  -d '{"model":"gpt-5.6-sol","input":"Hello"}'
 
 # OpenAI-compatible legacy completions (text-in/text-out)
 curl -X POST https://httpcan.org/llm/v1/completions \
   -H "Content-Type: application/json" \
-  -d '{"model":"gpt-5.6","prompt":"Once upon a time"}'
+  -d '{"model":"gpt-5.6-sol","prompt":"Once upon a time"}'
 ```
 
 Point an SDK at it — no API key needed (any value is accepted), and responses are deterministic:
@@ -222,7 +222,7 @@ from openai import OpenAI
 
 client = OpenAI(base_url="https://httpcan.org/llm/v1", api_key="not-needed")
 reply = client.chat.completions.create(
-    model="gpt-5.6",
+    model="gpt-5.6-sol",
     messages=[{"role": "user", "content": "Hello"}],
     extra_body={"httpcan": {"content": "Custom reply text"}},
 )
