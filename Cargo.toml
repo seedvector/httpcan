@@ -73,6 +73,13 @@ reqwest = { version = "0.13", optional = true }
 dotenvy = "0.15.7"
 parking_lot = "0.12"
 
+# musl's default allocator (mallocng) serializes multi-threaded allocation
+# churn: 6x throughput loss on the /get hot path vs glibc. jemalloc on
+# musl targets only; glibc and
+# macOS keep their (fine) platform defaults.
+[target.'cfg(target_env = "musl")'.dependencies]
+tikv-jemallocator = "0.6"
+
 [features]
 default = []
 examples = ["reqwest"]

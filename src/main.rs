@@ -1,3 +1,10 @@
+// musl's default allocator (mallocng) collapses under multi-threaded
+// allocation churn, capping throughput at ~1/6 of the same glibc build.
+// Swap in jemalloc for musl builds only.
+#[cfg(target_env = "musl")]
+#[global_allocator]
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
 use clap::Parser;
 use httpcan::config::Args;
 use httpcan::{HttpCanServer, ServerConfig};

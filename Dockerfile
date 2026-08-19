@@ -1,6 +1,6 @@
 # Build stage
 FROM rust:alpine3.24 AS build
-RUN apk add --no-cache musl-dev
+RUN apk add --no-cache musl-dev gcc make
 WORKDIR /httpcan
 COPY . .
 RUN cargo build --release
