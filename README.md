@@ -1,6 +1,6 @@
 # HTTPCan
 
-A modern, high‑performance superset of [httpbin.org](https://httpbin.org) for testing HTTP clients, proxies, and AI agents — built with Rust and Actix Web.
+A modern, high‑performance superset of [httpbin.org](https://httpbin.org) for testing HTTP clients, proxies, and AI agents — with mock OpenAI/Anthropic LLM APIs and a full OAuth 2.0 server. Built with Rust and Actix Web.
 
 [![Crates.io](https://img.shields.io/crates/v/httpcan.svg)](https://crates.io/crates/httpcan)
 [![ghcr.io](https://img.shields.io/badge/ghcr.io-seedvector%2Fhttpcan-1f6feb?logo=github)](https://github.com/orgs/seedvector/packages/container/package/httpcan)
@@ -10,14 +10,15 @@ Quick Links: [Quick Start](#quick-start) · [Installation](#installation) · [Co
 
 ## ✨ Features
 
-- **85-endpoint superset of httpbin.org**: every httpbin.org endpoint covered and drop‑in compatible, plus 34 endpoints httpbin.org doesn't have and 18 it has but httpcan fixes or extends — see the [homepage](#openapi--homepage) for the full badge‑tagged list
-- **Anti‑phishing redirects**: browser clients hitting `/redirect-to` see a confirmation page instead of a silent 302, closing an open‑redirect abuse vector
-- **AI‑friendly streaming**: native `/sse` and `/ndjson` endpoints with OpenAI/Ollama‑compatible chunk formats
-- **LLM API mock**: OpenAI- and Anthropic-compatible `/llm` endpoints — point any SDK `base_url` at it (streaming included) and test AI clients without a paid provider
+- **84-endpoint superset of httpbin.org**: every httpbin.org endpoint covered and drop‑in compatible, plus 33 endpoints httpbin.org doesn't have and 18 it has but httpcan fixes or extends — see the [homepage](#openapi--homepage) for the full badge‑tagged list
+- **AI API mock**: OpenAI- and Anthropic-compatible `/llm` endpoints — point any SDK `base_url` at it (streaming included) and test AI clients without a paid provider
 - **OAuth 2.0 mock**: a full authorization server at `/oauth2` — four RFC 6749 grants (authorization code + PKCE, implicit, password, rotating refresh, client credentials), Bearer-protected userinfo, and RFC 8414 discovery
-- **Cloud‑native observability**: `/healthz` liveness probe, `/tags` instance identification, and `Server-Timing`/`X-Httpcan-Version` headers on every response
+- **AI‑friendly streaming**: native `/sse` and `/ndjson` endpoints with OpenAI/Ollama‑compatible chunk formats
+- **Measured performance**: in our benchmarks against comparable HTTP testing servers, HTTPCan led on both throughput and tail latency
+- **Anti‑phishing redirects**: browser clients hitting `/redirect-to` see a confirmation page instead of a silent 302, closing an open‑redirect abuse vector
 - **Correct header handling**: duplicate and non‑ASCII request headers are preserved instead of being dropped or crashing the server
 - **Safer by default**: built‑in filtering strips ~100 reverse‑proxy/CDN headers from echoed responses, with `--exclude-headers` for more
+- **Cloud‑native observability**: `/healthz` liveness probe, `/tags` instance identification, and `Server-Timing`/`X-Httpcan-Version` headers on every response
 - **Self‑documenting homepage**: `/` lists every endpoint by category with compatibility badges and one‑click "Copy curl" buttons — fully static HTML, crawlable by search engines and AI agents
 - **Tiny & fast**: <10MB Docker image, minimal memory footprint, high throughput via Actix Web + Tokio
 
@@ -182,7 +183,7 @@ curl http://localhost:8080/ndjson?count=3&format=simple
 curl http://localhost:8080/ndjson/5?format=ollama&model=llama3&delay=1500
 ```
 
-### LLM API Mock
+### AI API Mock
 
 ```bash
 # OpenAI-compatible chat completions (streaming supported)
@@ -271,8 +272,8 @@ Endpoints are grouped into the same categories shown on the homepage (`/`) — v
 | Images | `/image` `/image/png` `/image/jpeg` `/image/webp` `/image/svg` |
 | Redirects | `/redirect` `/relative-redirect` `/absolute-redirect` `/redirect-to` |
 | Streaming | `/sse` `/ndjson` |
-| AI mock | `/llm/v1/chat/completions` `/llm/v1/messages` `/llm/v1/responses` `/llm/v1/completions` `/llm/v1/models` |
-| OAuth 2.0 mock | `/oauth2/authorize` `/oauth2/token` `/oauth2/userinfo` |
+| AI API Mock | `/llm/v1/chat/completions` `/llm/v1/messages` `/llm/v1/responses` `/llm/v1/completions` `/llm/v1/models` |
+| OAuth 2.0 Mock | `/oauth2/authorize` `/oauth2/token` `/oauth2/userinfo` |
 | Observability | `/healthz` `/tags` |
 
 Every endpoint carries a compatibility badge relative to httpbin.org:

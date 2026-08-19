@@ -3413,6 +3413,101 @@ async fn openapi_json_returns_valid_spec() {
     );
 }
 
+/// The spec's category tags for the `/llm` and `/oauth2` surfaces match the
+/// homepage category titles exactly ("AI API Mock", "OAuth 2.0 Mock"), every
+/// documented mock path references its tag, and the Bearer-enforced userinfo
+/// operations declare the `bearerAuth` security scheme. Guards the homepage ↔
+/// spec ↔ README naming alignment. Silent aliases and `/.well-known/*`
+/// discovery documents exist as routes but are not interfaces, so they stay
+/// out of the spec and the homepage endpoint list.
+#[actix_web::test]
+async fn openapi_tags_match_homepage_categories_for_mock_surfaces() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::get().uri("/openapi.json").to_request();
+    let resp = test::call_service(&app, req).await;
+    let v: serde_json::Value =
+        serde_json::from_slice(&test::read_body(resp).await).expect("JSON body");
+
+    let tag_names: Vec<&str> = v["tags"]
+        .as_array()
+        .expect("tags array")
+        .iter()
+        .map(|t| t["name"].as_str().expect("tag name"))
+        .collect();
+    assert!(
+        tag_names.contains(&"AI API Mock"),
+        "tags must contain 'AI API Mock' (homepage category title), got {tag_names:?}"
+    );
+    assert!(
+        tag_names.contains(&"OAuth 2.0 Mock"),
+        "tags must contain 'OAuth 2.0 Mock' (homepage category title), got {tag_names:?}"
+    );
+
+    let expected: &[(&str, &str)] = &[
+        ("/llm", "AI API Mock"),
+        ("/llm/v1/chat/completions", "AI API Mock"),
+        ("/llm/v1/messages", "AI API Mock"),
+        ("/llm/v1/responses", "AI API Mock"),
+        ("/llm/v1/completions", "AI API Mock"),
+        ("/llm/v1/models", "AI API Mock"),
+        ("/llm/v1/models/{model}", "AI API Mock"),
+        ("/oauth2", "OAuth 2.0 Mock"),
+        ("/oauth2/authorize", "OAuth 2.0 Mock"),
+        ("/oauth2/token", "OAuth 2.0 Mock"),
+        ("/oauth2/userinfo", "OAuth 2.0 Mock"),
+    ];
+    for (path, tag) in expected {
+        let ops = v["paths"][path]
+            .as_object()
+            .unwrap_or_else(|| panic!("path {path} missing from spec"));
+        for (method, op) in ops {
+            assert_eq!(
+                op["tags"][0].as_str(),
+                Some(*tag),
+                "{method} {path} must be tagged {tag}"
+            );
+        }
+    }
+    // Silent aliases and RFC well-known discovery documents exist as routes
+    // but are not interfaces: neither may appear in the spec.
+    for absent in [
+        "/llm/chat/completions",
+        "/llm/responses",
+        "/llm/completions",
+        "/.well-known/api-catalog",
+        "/.well-known/oauth-authorization-server",
+    ] {
+        assert!(
+            v["paths"].get(absent).is_none(),
+            "{absent} is not an interface and must not appear in the spec"
+        );
+    }
+
+    for method in ["get", "post"] {
+        assert_eq!(
+            v["paths"]["/oauth2/userinfo"][method]["security"],
+            serde_json::json!([{"bearerAuth": []}]),
+            "userinfo {method} enforces Bearer auth and must declare it"
+        );
+    }
+
+    // The homepage renders the same category titles as the spec tags.
+    let req = test::TestRequest::get().uri("/").to_request();
+    let resp = test::call_service(&app, req).await;
+    let body = String::from_utf8(test::read_body(resp).await.to_vec()).unwrap();
+    assert!(
+        body.contains("AI API Mock") && body.contains("OAuth 2.0 Mock"),
+        "homepage must render the canonical category titles"
+    );
+
+    // Same rule for the homepage endpoint list (prose mentions are fine).
+    assert!(
+        !body.contains("/.well-known/api-catalog")
+            && !body.contains("/.well-known/oauth-authorization-server"),
+        "homepage endpoint list must not present well-known discovery documents as endpoints"
+    );
+}
+
 /// GET /.well-known/api-catalog returns 200 with the RFC 9727 Linkset media
 /// type (application/linkset+json, profile=rfc9727). The single entry's anchor
 /// is the API root, with service-desc (OpenAPI spec), service-doc (homepage),

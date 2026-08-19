@@ -230,10 +230,9 @@ const CATEGORIES: &[Category] = &[
         desc: "Mock authorization server: RFC 6749 four grants with PKCE, one-time codes, rotating refresh tokens, and RFC 8414 discovery.",
         endpoints: &[
             Endpoint { methods: "GET", path: "/oauth2", badge: Some(Badge::New), desc: "Self-describing index: endpoints, supported grants, PKCE methods, and the mock's state semantics.", curl: "curl {base}/oauth2" },
-            Endpoint { methods: "GET, POST", path: "/oauth2/authorize", badge: Some(Badge::New), desc: "Authorization endpoint with a consent page. response_type=code issues a one-time authorization code (PKCE supported); response_type=token (implicit, legacy) returns the access token in the redirect fragment.", curl: "curl '{base}/oauth2/authorize?response_type=code&client_id=cli&redirect_uri=https%3A%2F%2Fexample.com%2Fcb&state=xyz'" },
+            Endpoint { methods: "GET/POST", path: "/oauth2/authorize", badge: Some(Badge::New), desc: "Authorization endpoint with a consent page. response_type=code issues a one-time authorization code (PKCE supported); response_type=token (implicit, legacy) returns the access token in the redirect fragment.", curl: "curl '{base}/oauth2/authorize?response_type=code&client_id=cli&redirect_uri=https%3A%2F%2Fexample.com%2Fcb&state=xyz'" },
             Endpoint { methods: "POST", path: "/oauth2/token", badge: Some(Badge::New), desc: "Token endpoint: authorization_code (+PKCE), password, refresh_token (rotating), and client_credentials grants; Basic and form-body client authentication.", curl: "curl -X POST {base}/oauth2/token -d 'grant_type=client_credentials&client_id=cli&client_secret=s3cr3t'" },
-            Endpoint { methods: "GET, POST", path: "/oauth2/userinfo", badge: Some(Badge::New), desc: "Bearer-protected resource: verifies the access token and returns the mock identity (sub/email/client_id/scope).", curl: "curl {base}/oauth2/userinfo -H 'Authorization: Bearer <token>'" },
-            Endpoint { methods: "GET", path: "/.well-known/oauth-authorization-server", badge: Some(Badge::New), desc: "RFC 8414 authorization server metadata with issuer resolved against the request origin, for discovery-based OAuth clients.", curl: "curl {base}/.well-known/oauth-authorization-server" },
+            Endpoint { methods: "GET/POST", path: "/oauth2/userinfo", badge: Some(Badge::New), desc: "Bearer-protected resource: verifies the access token and returns the mock identity (sub/email/client_id/scope).", curl: "curl {base}/oauth2/userinfo -H 'Authorization: Bearer <token>'" },
         ],
     },
     Category {
@@ -441,8 +440,8 @@ fn render_homepage(canonical_url: &str, base: &str, version: &str) -> String {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>HTTPCan &mdash; Open-Source httpbin Alternative for HTTP Testing</title>
-<meta name="description" content="A {total}-endpoint superset of httpbin.org built in Rust: fully httpbin-compatible, for testing HTTP clients, proxies, and AI agents, plus SSE/NDJSON streaming.">
+<title>HTTPCan &mdash; httpbin Alternative with AI &amp; OAuth2 Mocks</title>
+<meta name="description" content="A Rust superset of httpbin.org: {total} drop-in endpoints, mock OpenAI/Anthropic LLM APIs, and a full OAuth 2.0 server — for testing HTTP clients and AI agents.">
 <link rel="canonical" href="{canonical_url}">
 <link rel="icon" type="image/png" href="/favicon.png">
 <style>{style}</style>
@@ -450,7 +449,7 @@ fn render_homepage(canonical_url: &str, base: &str, version: &str) -> String {
 <body>
 <header class="hero">
 <h1>HTTPCan</h1>
-<p class="tagline">A modern, high-performance superset of <a href="https://httpbin.org">httpbin.org</a> for testing HTTP clients, proxies, and AI agents &mdash; built with Rust and Actix Web.</p>
+<p class="tagline">A modern, high-performance superset of <a href="https://httpbin.org">httpbin.org</a> for testing HTTP clients, proxies, and AI agents &mdash; with mock OpenAI/Anthropic LLM APIs and a full OAuth 2.0 server. Built with Rust and Actix Web.</p>
 <nav class="top-links">
 <a href="#quick-start">Quick Start</a>
 <a href="#why-httpcan">Why HTTPCan</a>
@@ -478,13 +477,14 @@ curl http://localhost:8080/get</code></pre>
 <div class="highlights">
 <p>HTTPCan is a <strong>{total}-endpoint superset of httpbin.org</strong>: every httpbin.org endpoint is covered and drop-in compatible, plus {new} endpoints httpbin.org doesn't have and {enhanced} it has but httpcan fixes or extends (see the badges below). On top of that:</p>
 <ul>
-<li><strong>Anti-phishing redirects</strong> &mdash; browser clients hitting <code>/redirect-to</code> see a confirmation page instead of a silent 302, closing an open-redirect abuse vector.</li>
-<li><strong>AI-friendly streaming</strong> &mdash; native <code>/sse</code> and <code>/ndjson</code> endpoints with OpenAI/Ollama-compatible chunk formats.</li>
-<li><strong>LLM API mock</strong> &mdash; OpenAI- and Anthropic-compatible <code>/llm</code> endpoints: point any SDK <code>base_url</code> at it (streaming included) and test AI clients without a paid provider.</li>
+<li><strong>AI API mock</strong> &mdash; OpenAI- and Anthropic-compatible <code>/llm</code> endpoints: point any SDK <code>base_url</code> at it (streaming included) and test AI clients without a paid provider.</li>
 <li><strong>OAuth 2.0 mock</strong> &mdash; a full authorization server at <code>/oauth2</code>: four RFC 6749 grants with PKCE, one-time codes, rotating refresh tokens, Bearer-protected userinfo, and RFC 8414 discovery.</li>
-<li><strong>Cloud-native observability</strong> &mdash; <code>/healthz</code> liveness probe, <code>/tags</code> instance identification, and <code>Server-Timing</code>/<code>X-Httpcan-Version</code> on every response.</li>
+<li><strong>AI-friendly streaming</strong> &mdash; native <code>/sse</code> and <code>/ndjson</code> endpoints with OpenAI/Ollama-compatible chunk formats.</li>
+<li><strong>Measured performance</strong> &mdash; in our benchmarks against comparable HTTP testing servers, HTTPCan led on both throughput and tail latency.</li>
+<li><strong>Anti-phishing redirects</strong> &mdash; browser clients hitting <code>/redirect-to</code> see a confirmation page instead of a silent 302, closing an open-redirect abuse vector.</li>
 <li><strong>Correct header handling</strong> &mdash; duplicate and non-ASCII request headers are preserved instead of being dropped or crashing the server.</li>
 <li><strong>Safer by default</strong> &mdash; built-in filtering strips ~100 reverse-proxy/CDN headers from echoed responses, with <code>--exclude-headers</code> for more.</li>
+<li><strong>Cloud-native observability</strong> &mdash; <code>/healthz</code> liveness probe, <code>/tags</code> instance identification, and <code>Server-Timing</code>/<code>X-Httpcan-Version</code> on every response.</li>
 </ul>
 <p class="legend">
 <span><span class="badge badge-enhanced">Enhanced</span> &nbsp;{enhanced} endpoints httpbin has, but httpcan fixes or extends</span>
@@ -539,7 +539,7 @@ fn render_markdown(base: &str, version: &str) -> String {
 
     let _ = writeln!(
         s,
-        "# HTTPCan\n\nA modern, high-performance superset of [httpbin.org](https://httpbin.org) for testing HTTP clients, proxies, and AI agents — built with Rust and Actix Web.\n"
+        "# HTTPCan\n\nA modern, high-performance superset of [httpbin.org](https://httpbin.org) for testing HTTP clients, proxies, and AI agents — with mock OpenAI/Anthropic LLM APIs and a full OAuth 2.0 server. Built with Rust and Actix Web.\n"
     );
     let _ = writeln!(s, "- [OpenAPI spec]({base}/openapi.json)");
     let _ = writeln!(
@@ -572,15 +572,16 @@ fn render_markdown(base: &str, version: &str) -> String {
         s,
         "HTTPCan is a **{total}-endpoint superset of httpbin.org**: every httpbin.org endpoint is covered and drop-in compatible, plus {new} endpoints httpbin.org doesn't have and {enhanced} it has but httpcan fixes or extends.\n"
     );
-    let _ = writeln!(s, "- **Anti-phishing redirects** — browser clients hitting `/redirect-to` see a confirmation page instead of a silent 302, closing an open-redirect abuse vector.");
-    let _ = writeln!(s, "- **AI-friendly streaming** — native `/sse` and `/ndjson` endpoints with OpenAI/Ollama-compatible chunk formats.");
-    let _ = writeln!(s, "- **LLM API mock** — OpenAI- and Anthropic-compatible `/llm` endpoints: point any SDK `base_url` at it (streaming included) and test AI clients without a paid provider.");
+    let _ = writeln!(s, "- **AI API mock** — OpenAI- and Anthropic-compatible `/llm` endpoints: point any SDK `base_url` at it (streaming included) and test AI clients without a paid provider.");
     let _ = writeln!(s, "- **OAuth 2.0 mock** — a full authorization server at `/oauth2`: four RFC 6749 grants with PKCE, one-time codes, rotating refresh tokens, Bearer-protected userinfo, and RFC 8414 discovery.");
-    let _ = writeln!(s, "- **Cloud-native observability** — `/healthz` liveness probe, `/tags` instance identification, and `Server-Timing`/`X-Httpcan-Version` on every response.");
+    let _ = writeln!(s, "- **AI-friendly streaming** — native `/sse` and `/ndjson` endpoints with OpenAI/Ollama-compatible chunk formats.");
+    let _ = writeln!(s, "- **Measured performance** — in our benchmarks against comparable HTTP testing servers, HTTPCan led on both throughput and tail latency.");
+    let _ = writeln!(s, "- **Anti-phishing redirects** — browser clients hitting `/redirect-to` see a confirmation page instead of a silent 302, closing an open-redirect abuse vector.");
     let _ = writeln!(s, "- **Correct header handling** — duplicate and non-ASCII request headers are preserved instead of being dropped or crashing the server.");
+    let _ = writeln!(s, "- **Safer by default** — built-in filtering strips ~100 reverse-proxy/CDN headers from echoed responses, with `--exclude-headers` for more.");
     let _ = writeln!(
         s,
-        "- **Safer by default** — built-in filtering strips ~100 reverse-proxy/CDN headers from echoed responses, with `--exclude-headers` for more.\n"
+        "- **Cloud-native observability** — `/healthz` liveness probe, `/tags` instance identification, and `Server-Timing`/`X-Httpcan-Version` on every response.\n"
     );
     let _ = writeln!(
         s,

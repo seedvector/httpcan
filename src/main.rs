@@ -11,6 +11,14 @@ async fn main() -> std::io::Result<()> {
     // that already inject real environment variables.
     dotenvy::dotenv().ok();
 
+    // Default instance tag: every response already carries the crate version
+    // in `X-Httpcan-Version`; mirroring it as HTTPCAN_VERSION makes `/tags`
+    // and the homepage's `/tags/VERSION` example work out of the box. An
+    // explicit deployment value (or a .env entry, loaded above) wins.
+    if std::env::var("HTTPCAN_VERSION").is_err() {
+        std::env::set_var("HTTPCAN_VERSION", env!("CARGO_PKG_VERSION"));
+    }
+
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     // Parse command line arguments
