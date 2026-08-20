@@ -13,7 +13,7 @@ use httpcan::{HttpCanServer, ServerConfig};
 async fn main() -> std::io::Result<()> {
     // Load a `.env` file from the current directory into the process
     // environment, if present, before anything reads env vars (CLI flag
-    // defaults below, and env_logger's RUST_LOG). Silently does nothing when
+    // defaults below, and the logger's RUST_LOG). Silently does nothing when
     // no `.env` file exists, so it's a no-op for Docker/systemd deployments
     // that already inject real environment variables.
     dotenvy::dotenv().ok();
@@ -26,7 +26,11 @@ async fn main() -> std::io::Result<()> {
         std::env::set_var("HTTPCAN_VERSION", env!("CARGO_PKG_VERSION"));
     }
 
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    // Non-blocking stderr logger: same RUST_LOG semantics and line format
+    // as env_logger, but request workers never block on stderr.
+    // Default level info keeps access
+    // logs visible out of the box.
+    httpcan::logging::init();
 
     // Parse command line arguments
     let args = Args::parse();

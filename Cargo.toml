@@ -57,7 +57,7 @@ actix-files = "0.6"
 actix-multipart = "0.8"
 actix-cors = "0.7"
 mime = "0.3"
-env_logger = "0.11"
+env_filter = "2.0"
 log = "0.4"
 url = "2.5"
 clap = { version = "4.6", features = ["derive", "env"] }

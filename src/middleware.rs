@@ -134,9 +134,10 @@ where
                 user_agent
             );
 
-            // Single log channel: the `log` facade (env_logger, stderr).
-            // The default filter is info (see main.rs), so request logs are
-            // visible out of the box and fully controllable via RUST_LOG.
+            // Single log channel: the `log` facade (async stderr writer,
+            // `crate::logging`; never blocks workers). The default filter
+            // is info (see main.rs), so request logs are visible out of
+            // the box and fully controllable via RUST_LOG.
             log::info!("{}", log_message);
 
             // Observability response headers (httpbin #431/#560/#565).

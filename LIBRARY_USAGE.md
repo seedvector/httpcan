@@ -20,7 +20,7 @@ use httpcan::HttpCanServer;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    env_logger::init();
+    httpcan::logging::init();
 
     // Start server with default configuration (port 8080)
     HttpCanServer::new()
@@ -38,7 +38,7 @@ use httpcan::{HttpCanServer, ServerConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    env_logger::init();
+    httpcan::logging::init();
 
     // Method 1: Using builder pattern
     HttpCanServer::new()

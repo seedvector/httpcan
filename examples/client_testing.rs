@@ -164,7 +164,7 @@ async fn run_integration_tests() -> Result<(), Box<dyn std::error::Error>> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    env_logger::init();
+    httpcan::logging::init();
 
     println!("Starting HTTPCan test server on http://127.0.0.1:8080");
     println!("This example demonstrates testing HTTP clients against HTTPCan");

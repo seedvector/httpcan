@@ -4,8 +4,8 @@ use httpcan::{HttpCanServer, ServerConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize logging
-    env_logger::init();
+    // Initialize logging (non-blocking stderr logger; RUST_LOG applies)
+    httpcan::logging::init();
 
     // Method 1: Using default configuration
     println!("Starting HTTPCan server with default configuration...");

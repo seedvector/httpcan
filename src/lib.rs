@@ -12,6 +12,7 @@ use std::path::PathBuf;
 
 pub mod config;
 pub mod handlers;
+pub mod logging;
 pub mod middleware;
 
 /// Runtime application configuration shared with request handlers via
