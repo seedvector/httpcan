@@ -1,4 +1,5 @@
 use actix_web::{
+    body::{BodySize, MessageBody},
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
     http::header::{HeaderName, HeaderValue},
     Error,
@@ -36,13 +37,24 @@ fn static_response_headers() -> &'static [(HeaderName, HeaderValue)] {
     });
     &HEADERS
 }
+
+/// Response body size in bytes for the access log; streaming and
+/// unknown-size bodies report 0. The Content-Length header cannot be used:
+/// actix-http's encoder sets it only while writing to the socket, so a
+/// header read at middleware time always returned 0.
+pub(crate) fn response_size_bytes<B: MessageBody>(res: &ServiceResponse<B>) -> u64 {
+    match res.response().body().size() {
+        BodySize::Sized(n) => n as u64,
+        _ => 0,
+    }
+}
 pub struct RequestLogger;
 
 impl<S, B> Transform<S, ServiceRequest> for RequestLogger
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,
-    B: 'static,
+    B: 'static + actix_web::body::MessageBody,
 {
     type Response = ServiceResponse<B>;
     type Error = Error;
@@ -60,12 +72,11 @@ where
 pub struct RequestLoggerMiddleware<S> {
     service: Rc<S>,
 }
-
 impl<S, B> Service<ServiceRequest> for RequestLoggerMiddleware<S>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,
-    B: 'static,
+    B: MessageBody + 'static,
 {
     type Response = ServiceResponse<B>;
     type Error = Error;
@@ -100,13 +111,11 @@ where
             let duration_ms = duration.as_secs_f64() * 1000.0;
             let status = res.status().as_u16();
 
-            // Get response size from Content-Length header if available
-            let size_bytes = res
-                .headers()
-                .get("content-length")
-                .and_then(|h| h.to_str().ok())
-                .and_then(|s| s.parse::<u64>().ok())
-                .unwrap_or(0);
+            // Response size from the body's known size. The Content-Length
+            // header cannot be used here: actix-http's encoder computes it
+            // only while writing to the socket, so the header read always
+            // returned 0.
+            let size_bytes = response_size_bytes(&res);
 
             // Format timestamp in ISO 8601 format
             let timestamp: DateTime<Utc> = Utc::now();
@@ -114,7 +123,7 @@ where
 
             // Format the log message in the specified format
             let log_message = format!(
-                "time={} level=info method={} uri={} status={} duration_ms={:.2} size_bytes={} client_ip={} user_agent=\"{}\"",
+                "time={} level=info method={} uri={} status={} duration_ms={:.3} size_bytes={} client_ip={} user_agent=\"{}\"",
                 timestamp_str,
                 method,
                 uri,
@@ -135,7 +144,7 @@ where
             for (name, value) in static_response_headers() {
                 headers.insert(name.clone(), value.clone());
             }
-            if let Ok(dur) = HeaderValue::from_str(&format!("app;dur={duration_ms:.2}")) {
+            if let Ok(dur) = HeaderValue::from_str(&format!("app;dur={duration_ms:.3}")) {
                 headers.insert(HeaderName::from_static("server-timing"), dur);
             }
 
