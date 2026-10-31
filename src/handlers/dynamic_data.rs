@@ -5,6 +5,25 @@ use rand::{RngExt, SeedableRng};
 use std::time::Duration;
 use tokio::time::sleep;
 
+/// Upper bound, in seconds, for any client-requested wait (`/delay`,
+/// `/drip` `delay`/`duration`, `/range` `duration`).
+const MAX_WAIT_SECS: f64 = 10.0;
+
+/// Validate a client-supplied seconds value and clamp it to
+/// [`MAX_WAIT_SECS`]. Returns `None` for negative or non-finite input:
+/// `Duration::from_secs_f64` panics on those, and with `panic = "abort"` in
+/// the release profile a single such request would kill the whole server.
+fn bounded_secs(secs: f64) -> Option<f64> {
+    (secs.is_finite() && secs >= 0.0).then(|| secs.min(MAX_WAIT_SECS))
+}
+
+/// 400 response for a rejected seconds parameter.
+fn invalid_secs(name: &str) -> HttpResponse {
+    HttpResponse::BadRequest().json(json!({
+        "error": format!("{name} must be a finite, non-negative number of seconds")
+    }))
+}
+
 #[derive(Deserialize)]
 pub struct DripQuery {
     duration: Option<f64>,
@@ -276,7 +295,9 @@ pub async fn range_handler(
     }
 
     let chunk_size = query.chunk_size.unwrap_or(10 * 1024).max(1);
-    let duration = query.duration.unwrap_or(0.0);
+    let Some(duration) = bounded_secs(query.duration.unwrap_or(0.0)) else {
+        return Ok(invalid_secs("duration"));
+    };
 
     // Extract range information from headers using httpbin-compatible logic
     let (first_byte_pos, last_byte_pos) = get_request_range(&req, numbytes);
@@ -376,10 +397,14 @@ pub async fn drip_handler(
     query: web::Query<DripQuery>,
     config: web::Data<AppConfig>,
 ) -> Result<HttpResponse> {
-    let duration = query.duration.unwrap_or(2.0);
+    let Some(duration) = bounded_secs(query.duration.unwrap_or(2.0)) else {
+        return Ok(invalid_secs("duration"));
+    };
     let numbytes = query.numbytes.unwrap_or(10);
     let code = query.code.unwrap_or(200);
-    let delay = query.delay.unwrap_or(0.0);
+    let Some(delay) = bounded_secs(query.delay.unwrap_or(0.0)) else {
+        return Ok(invalid_secs("delay"));
+    };
 
     // Validate parameters
     if numbytes == 0 {
@@ -441,7 +466,9 @@ pub async fn delay_handler_get(
     path: web::Path<f64>,
     config: web::Data<AppConfig>,
 ) -> Result<HttpResponse> {
-    let delay_seconds = path.into_inner().min(10.0); // Max 10 seconds
+    let Some(delay_seconds) = bounded_secs(path.into_inner()) else {
+        return Ok(invalid_secs("delay"));
+    };
 
     sleep(Duration::from_secs_f64(delay_seconds)).await;
 
@@ -456,7 +483,9 @@ pub async fn delay_handler(
     body: String,
     config: web::Data<AppConfig>,
 ) -> Result<HttpResponse> {
-    let delay_seconds = path.into_inner().min(10.0); // Max 10 seconds
+    let Some(delay_seconds) = bounded_secs(path.into_inner()) else {
+        return Ok(invalid_secs("delay"));
+    };
 
     sleep(Duration::from_secs_f64(delay_seconds)).await;
 

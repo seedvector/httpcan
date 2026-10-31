@@ -2729,6 +2729,33 @@ async fn dyn_delay_post_echoes_body() {
     );
 }
 
+/// Negative / non-finite wait parameters are rejected with 400 (finite
+/// values above 10s are clamped, like /delay always did).
+/// Previously they reached `Duration::from_secs_f64`, which panics — and
+/// with `panic = "abort"` in release, one such request killed the server.
+#[actix_web::test]
+async fn invalid_wait_seconds_rejected_with_400() {
+    let app = test::init_service(create_app(cfg())).await;
+    for uri in [
+        "/delay/-1",
+        "/delay/NaN",
+        "/delay/inf",
+        "/drip?duration=-1&numbytes=5",
+        "/drip?duration=NaN&numbytes=5",
+        "/drip?delay=-1&numbytes=5",
+        "/range/10?duration=-1",
+        "/range/10?duration=NaN",
+    ] {
+        let req = test::TestRequest::get().uri(uri).to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "{uri}");
+    }
+
+    let req = test::TestRequest::post().uri("/delay/-1").to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "POST /delay/-1");
+}
+
 // ============================================================
 // Images (/image /image/{fmt})
 // ============================================================
