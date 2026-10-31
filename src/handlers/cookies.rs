@@ -132,7 +132,7 @@ pub async fn cookies_delete_handler(
 ) -> Result<HttpResponse> {
     let mut response = HttpResponse::Found();
 
-    for (name, _value) in query.iter() {
+    for name in query.keys() {
         let cookie = Cookie::build(name, "")
             .path("/")
             .max_age(actix_web::cookie::time::Duration::seconds(0))
