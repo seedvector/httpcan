@@ -4,7 +4,6 @@ use actix_web::{
     http::header::{HeaderName, HeaderValue},
     Error,
 };
-use chrono::{DateTime, Utc};
 use futures_util::future::LocalBoxFuture;
 use std::{
     future::{ready, Ready},
@@ -44,10 +43,21 @@ fn static_response_headers() -> &'static [(HeaderName, HeaderValue)] {
 /// header read at middleware time always returned 0.
 pub(crate) fn response_size_bytes<B: MessageBody>(res: &ServiceResponse<B>) -> u64 {
     match res.response().body().size() {
-        BodySize::Sized(n) => n as u64,
+        BodySize::Sized(n) => n,
         _ => 0,
     }
 }
+/// Escape `\` and `"` so a header value can't break out of its quoted
+/// `key="..."` field in the access log line. (Header values can't contain
+/// CR/LF, so line injection is already impossible.)
+fn escape_quoted(value: &str) -> std::borrow::Cow<'_, str> {
+    if value.contains(['"', '\\']) {
+        value.replace('\\', "\\\\").replace('"', "\\\"").into()
+    } else {
+        value.into()
+    }
+}
+
 pub struct RequestLogger;
 
 impl<S, B> Transform<S, ServiceRequest> for RequestLogger
@@ -92,8 +102,9 @@ where
             .headers()
             .get("user-agent")
             .and_then(|h| h.to_str().ok())
-            .unwrap_or("-")
-            .to_string();
+            .map(escape_quoted)
+            .unwrap_or("-".into())
+            .into_owned();
 
         // Get client IP from connection info or X-Forwarded-For header
         let client_ip = req
@@ -117,14 +128,10 @@ where
             // returned 0.
             let size_bytes = response_size_bytes(&res);
 
-            // Format timestamp in ISO 8601 format
-            let timestamp: DateTime<Utc> = Utc::now();
-            let timestamp_str = timestamp.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string();
-
-            // Format the log message in the specified format
+            // The logger's line prefix already carries a millisecond
+            // timestamp and the level (see `crate::logging::format_line`).
             let log_message = format!(
-                "time={} level=info method={} uri={} status={} duration_ms={:.3} size_bytes={} client_ip={} user_agent=\"{}\"",
-                timestamp_str,
+                "method={} uri={} status={} duration_ms={:.3} size_bytes={} client_ip={} user_agent=\"{}\"",
                 method,
                 uri,
                 status,
@@ -151,5 +158,19 @@ where
 
             Ok(res)
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::escape_quoted;
+
+    #[test]
+    fn escape_quoted_neutralizes_quotes_and_backslashes() {
+        assert_eq!(escape_quoted("curl/8.0"), "curl/8.0");
+        assert_eq!(
+            escape_quoted(r#"x" status=200 y="\"#),
+            r#"x\" status=200 y=\"\\"#
+        );
     }
 }

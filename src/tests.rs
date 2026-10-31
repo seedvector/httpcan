@@ -300,7 +300,12 @@ async fn response_carries_version_and_server_timing_headers() {
     let req = test::TestRequest::get().uri("/get").to_request();
     let resp = test::call_service(&app, req).await;
     assert!(resp.headers().contains_key("x-httpcan-version"));
-    let timing = resp.headers().get("server-timing").unwrap().to_str().unwrap();
+    let timing = resp
+        .headers()
+        .get("server-timing")
+        .unwrap()
+        .to_str()
+        .unwrap();
     assert!(
         timing.starts_with("app;dur="),
         "Server-Timing must start with app;dur="
@@ -335,10 +340,7 @@ async fn response_size_bytes_reads_body_size_not_content_length() {
         .body(body);
     assert!(resp.headers().get("content-length").is_none());
     let res = actix_web::dev::ServiceResponse::new(req.clone(), resp);
-    assert_eq!(
-        middleware::response_size_bytes(&res),
-        body.len() as u64
-    );
+    assert_eq!(middleware::response_size_bytes(&res), body.len() as u64);
 
     // Empty (None-sized) body: 0, never a panic or phantom length.
     let resp = actix_web::HttpResponse::Ok().finish();

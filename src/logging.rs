@@ -14,13 +14,14 @@
 //!
 //! Trade-off: log lines surface within ~[`POLL_INTERVAL`] (1 ms) and on
 //! process exit at most one writer-buffer's worth of trailing lines may
-//! be lost. Acceptable for access logs.
+//! be lost. Acceptable for access logs. After [`IDLE_POLLS`] empty polls
+//! the writer parks on the channel, so an idle server costs no CPU.
 
 use std::fmt::Write as _;
 use std::io::{BufWriter, IsTerminal, Write};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender, TrySendError};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
@@ -31,13 +32,17 @@ use log::{Level, LevelFilter, Log, Metadata, Record};
 /// How often the writer thread wakes to drain the queue. Also the upper
 /// bound on log-line latency.
 const POLL_INTERVAL: Duration = Duration::from_millis(1);
+/// Consecutive empty polls (~100 ms) before the writer stops polling and
+/// parks on the channel until the next line arrives.
+const IDLE_POLLS: u32 = 100;
 /// Queue depth: burst absorption before lines start dropping.
 const QUEUE_CAPACITY: usize = 16 * 1024;
 
 /// `log` facade backend: filter plus bounded hand-off to the writer thread.
 pub struct AsyncStderrLogger {
     filter: Filter,
-    tx: Mutex<SyncSender<String>>,
+    // `SyncSender` is `Sync`: concurrent `try_send` needs no extra lock.
+    tx: SyncSender<String>,
     dropped: Arc<AtomicU64>,
     color: bool,
 }
@@ -52,7 +57,7 @@ impl AsyncStderrLogger {
         (
             Self {
                 filter,
-                tx: Mutex::new(tx),
+                tx,
                 dropped: Arc::clone(&dropped),
                 color: std::io::stderr().is_terminal(),
             },
@@ -73,11 +78,7 @@ impl Log for AsyncStderrLogger {
         }
         let mut line = String::with_capacity(160);
         format_line(&mut line, record, self.color);
-        let tx = self
-            .tx
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if let Err(TrySendError::Full(_)) = tx.try_send(line) {
+        if let Err(TrySendError::Full(_)) = self.tx.try_send(line) {
             // Writer thread is behind: drop instead of blocking the worker.
             self.dropped.fetch_add(1, Ordering::Relaxed);
         }
@@ -85,16 +86,17 @@ impl Log for AsyncStderrLogger {
 
     fn flush(&self) {
         // Flushing is the writer thread's job (at least every
-        // FLUSH_INTERVAL); nothing to do on the producer side.
+        // POLL_INTERVAL while busy); nothing to do on the producer side.
     }
 }
 
 /// Append one line in env_logger's default format:
-/// `[2026-08-20T00:44:47Z INFO  httpcan::middleware] message`.
+/// `[2026-08-20T00:44:47.123Z INFO  httpcan::middleware] message`
+/// (millisecond timestamps; the access log line carries no second one).
 /// The level is colorized when stderr is a terminal.
 fn format_line(out: &mut String, record: &Record, color: bool) {
     out.push('[');
-    let _ = write!(out, "{}", Utc::now().format("%Y-%m-%dT%H:%M:%SZ"));
+    let _ = write!(out, "{}", Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ"));
     out.push(' ');
     let level = record.level().as_str();
     if color {
@@ -133,13 +135,29 @@ fn level_ansi(level: Level) -> &'static str {
 /// keep-alive connection dropped t1c1 from 85k to 14k RPS before this
 /// change). Polling keeps the producer path pure userspace; lines surface
 /// within [`POLL_INTERVAL`] and flush with the next batch.
+///
+/// Once the queue has been empty for [`IDLE_POLLS`] polls the writer parks
+/// in a blocking `recv`. The first line after a quiet spell pays one
+/// wakeup; the writer then returns to polling for the burst. Drops can't
+/// go unreported while parked: they only happen when the queue is full,
+/// which wakes the writer.
 fn run_writer(rx: Receiver<String>, dropped: Arc<AtomicU64>) {
     let stderr = std::io::stderr();
     let mut out = BufWriter::with_capacity(128 * 1024, stderr.lock());
     let mut reported: u64 = 0;
+    let mut idle_polls: u32 = 0;
     loop {
-        thread::sleep(POLL_INTERVAL);
         let mut wrote = false;
+        if idle_polls >= IDLE_POLLS {
+            // Every logger handle is gone: nothing more can arrive.
+            let Ok(line) = rx.recv() else { return };
+            let _ = out.write_all(line.as_bytes());
+            let _ = out.write_all(b"\n");
+            wrote = true;
+            idle_polls = 0;
+        } else {
+            thread::sleep(POLL_INTERVAL);
+        }
         while let Ok(line) = rx.try_recv() {
             let _ = out.write_all(line.as_bytes());
             let _ = out.write_all(b"\n");
@@ -150,7 +168,7 @@ fn run_writer(rx: Receiver<String>, dropped: Arc<AtomicU64>) {
             let _ = writeln!(
                 out,
                 "[{} WARN  httpcan::logging] {} log lines dropped (stderr writer behind)",
-                Utc::now().format("%Y-%m-%dT%H:%M:%SZ"),
+                Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ"),
                 current - reported
             );
             wrote = true;
@@ -158,6 +176,9 @@ fn run_writer(rx: Receiver<String>, dropped: Arc<AtomicU64>) {
         }
         if wrote {
             let _ = out.flush();
+            idle_polls = 0;
+        } else {
+            idle_polls += 1;
         }
     }
 }
@@ -199,10 +220,10 @@ mod tests {
             .build();
         let mut line = String::new();
         format_line(&mut line, &record, false);
-        // [2026-08-20T00:44:47Z INFO  httpcan::middleware] time=x level=info
+        // [2026-08-20T00:44:47.123Z INFO  httpcan::middleware] time=x level=info
         assert!(line.starts_with('['), "{line}");
         let (ts, rest) = line[1..].split_once(' ').expect("space after timestamp");
-        assert_eq!(ts.len(), 20, "RFC3339 seconds timestamp, got {ts}");
+        assert_eq!(ts.len(), 24, "RFC3339 millisecond timestamp, got {ts}");
         assert_eq!(
             rest, "INFO  httpcan::middleware] time=x level=info",
             "level padded to 5, single space before target"
@@ -265,7 +286,11 @@ mod tests {
                 .build();
             logger.log(&record);
         }
-        assert_eq!(dropped.load(Ordering::Relaxed), 0, "queue absorbs a full batch");
+        assert_eq!(
+            dropped.load(Ordering::Relaxed),
+            0,
+            "queue absorbs a full batch"
+        );
         for _ in 0..2 {
             let record = Record::builder()
                 .args(format_args!("filler"))
@@ -274,6 +299,10 @@ mod tests {
                 .build();
             logger.log(&record);
         }
-        assert_eq!(dropped.load(Ordering::Relaxed), 2, "overflow is dropped, not blocked");
+        assert_eq!(
+            dropped.load(Ordering::Relaxed),
+            2,
+            "overflow is dropped, not blocked"
+        );
     }
 }

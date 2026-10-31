@@ -233,6 +233,16 @@ impl HttpCanServer {
         self
     }
 
+    /// Set the OAuth2 client registry for `/oauth2` (`None` = accept any
+    /// non-empty secret).
+    pub fn oauth2_clients(
+        mut self,
+        clients: Option<std::collections::HashMap<String, String>>,
+    ) -> Self {
+        self.config.oauth2_clients = clients;
+        self
+    }
+
     /// Start the HTTPCan server
     pub async fn run(self) -> std::io::Result<()> {
         let bind_address = format!("{}:{}", self.config.host, self.config.port);
