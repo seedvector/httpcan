@@ -259,7 +259,7 @@ fn badge_html(badge: Option<Badge>) -> String {
     match badge {
         None => String::new(),
         Some(b) => format!(
-            r#" <span class="{}" title="{}">{}</span>"#,
+            r#"<span class="{}" title="{}">{}</span>"#,
             b.css_class(),
             b.title(),
             b.label()
@@ -267,24 +267,78 @@ fn badge_html(badge: Option<Badge>) -> String {
     }
 }
 
-/// Renders the copy-to-clipboard button for an endpoint's example curl
-/// command. `base` is the current request's origin, substituted into the
-/// endpoint's `{base}`-templated curl string before HTML-escaping.
-fn copy_button_html(curl_template: &str, base: &str) -> String {
-    let curl = curl_template.replace("{base}", base);
+/// Renders a copy-to-clipboard button. `command` is the exact text placed on
+/// the clipboard (kept in `data-curl`, which the client script reads).
+fn copy_button_html(command: &str, label: &str) -> String {
     format!(
-        r#" <button type="button" class="copy-btn" data-curl="{}" title="Copy curl example" aria-label="Copy curl example">Copy</button>"#,
-        escape_html(&curl)
+        r#"<button type="button" class="copy-btn" data-curl="{}" aria-label="{}">Copy</button>"#,
+        escape_html(command),
+        escape_html(label)
     )
 }
 
-fn render_toc() -> String {
-    let mut s = String::new();
-    s.push_str("<nav class=\"toc\" aria-label=\"Endpoint categories\">\n");
-    for cat in CATEGORIES {
-        let _ = writeln!(s, "<a href=\"#{}\">{}</a>", cat.id, escape_html(cat.title));
+/// Same-origin path for the homepage's "Try" button, or `None` when the
+/// endpoint can't be exercised by a plain browser GET (it needs a request
+/// body, custom headers, credentials, or a non-GET method). Harmless curl
+/// display flags (`-i`, `-L`, `-N`, `-o file`, `| gunzip`) are ignored
+/// because `fetch` follows redirects, buffers streams and decodes gzip itself.
+fn try_path(ep: &Endpoint) -> Option<String> {
+    if !ep.methods.starts_with("GET") {
+        return None;
     }
-    s.push_str("</nav>\n");
+    let mut rest = ep.curl.strip_prefix("curl ")?;
+    for flag in ["-i ", "-L ", "-N "] {
+        rest = rest.strip_prefix(flag).unwrap_or(rest);
+    }
+    let rest = rest.strip_suffix(" | gunzip").unwrap_or(rest);
+    let rest = rest.find(" -o ").map_or(rest, |i| &rest[..i]);
+    let rest = rest.trim_matches('\'');
+    let path = rest.strip_prefix("{base}")?;
+    if path.is_empty() || path.contains([' ', '<', '\'']) {
+        return None;
+    }
+    Some(path.to_string())
+}
+
+fn methods_label(methods: &str) -> String {
+    if methods == "ANY" {
+        "Any method".to_string()
+    } else {
+        methods.replace('/', ", ")
+    }
+}
+
+fn render_sidebar(total: usize, enhanced: usize, new: usize) -> String {
+    let mut s = String::new();
+    s.push_str(
+        "<aside class=\"ref-side\">\n\
+         <label class=\"filter-label\" for=\"ep-filter\">Filter endpoints</label>\n\
+         <input id=\"ep-filter\" type=\"search\" placeholder=\"Path or keyword\" autocomplete=\"off\" spellcheck=\"false\" aria-describedby=\"ep-filter-hint\">\n\
+         <p id=\"ep-filter-hint\" class=\"filter-hint\">Press <kbd>/</kbd> to jump here.</p>\n\
+         <nav class=\"cat-nav\" aria-label=\"Endpoint categories\">\n",
+    );
+    for cat in CATEGORIES {
+        let _ = writeln!(
+            s,
+            "<a href=\"#{}\">{}<span class=\"count\">{}</span></a>",
+            cat.id,
+            escape_html(cat.title),
+            cat.endpoints.len()
+        );
+    }
+    let _ = write!(
+        s,
+        "</nav>\n\
+         <div class=\"legend\">\n\
+         <p>Badges compare each of the {total} endpoints with httpbin.org.</p>\n\
+         <p>{new_badge} Not in httpbin.org ({new})</p>\n\
+         <p>{enh_badge} In httpbin.org, fixed or extended here ({enhanced})</p>\n\
+         <p>No badge: works the same as httpbin.org</p>\n\
+         </div>\n\
+         </aside>\n",
+        new_badge = badge_html(Some(Badge::New)),
+        enh_badge = badge_html(Some(Badge::Enhanced)),
+    );
     s
 }
 
@@ -293,21 +347,30 @@ fn render_categories(base: &str) -> String {
     for cat in CATEGORIES {
         let _ = write!(
             s,
-            "<section id=\"{}\">\n<h2>{} <a class=\"hash\" href=\"#{}\">#</a></h2>\n<p class=\"cat-desc\">{}</p>\n<ul class=\"endpoint-list\">\n",
-            cat.id,
-            escape_html(cat.title),
-            cat.id,
-            escape_html(cat.desc)
+            "<section class=\"ep-cat\" id=\"{id}\">\n<h3><a class=\"anchor\" href=\"#{id}\">{title}</a></h3>\n<p class=\"cat-desc\">{desc}</p>\n<ul class=\"ep-list\">\n",
+            id = cat.id,
+            title = escape_html(cat.title),
+            desc = escape_html(cat.desc)
         );
         for ep in cat.endpoints {
+            let search = format!("{} {} {}", ep.path, ep.methods, ep.desc).to_lowercase();
+            let try_btn = match try_path(ep) {
+                Some(path) => format!(
+                    r#"<button type="button" class="try-btn" data-path="{p}" aria-label="Send GET {p} from this page">Try</button>"#,
+                    p = escape_html(&path)
+                ),
+                None => String::new(),
+            };
+            let curl = ep.curl.replace("{base}", base);
             let _ = writeln!(
                 s,
-                "<li><code class=\"method\">{}</code> <code class=\"path\">{}</code>{}{}<span class=\"desc\">{}</span></li>",
-                escape_html(ep.methods),
-                escape_html(ep.path),
-                badge_html(ep.badge),
-                copy_button_html(ep.curl, base),
-                escape_html(ep.desc)
+                "<li data-search=\"{search}\"><div class=\"ep-head\"><code class=\"path\">{path}</code><span class=\"methods\">{methods}</span>{badge}<span class=\"ep-actions\">{try_btn}{copy}</span></div><p class=\"desc\">{desc}</p></li>",
+                search = escape_html(&search),
+                path = escape_html(ep.path),
+                methods = escape_html(&methods_label(ep.methods)),
+                badge = badge_html(ep.badge),
+                copy = copy_button_html(&curl, &format!("Copy curl command for {}", ep.path)),
+                desc = escape_html(ep.desc)
             );
         }
         s.push_str("</ul>\n</section>\n");
@@ -334,106 +397,380 @@ fn badge_counts() -> (usize, usize, usize) {
     (total, enhanced, new)
 }
 
+/// Homepage typefaces, embedded in the binary (SIL OFL 1.1; licenses live
+/// next to the files in `static/fonts/`) so the page makes no third-party
+/// requests and works offline / air-gapped.
+const FONT_SCHIBSTED_GROTESK: &[u8] = include_bytes!("../../static/fonts/schibsted-grotesk.woff2");
+const FONT_MARTIAN_MONO: &[u8] = include_bytes!("../../static/fonts/martian-mono.woff2");
+
+/// `/fonts/schibsted-grotesk.woff2` and `/fonts/martian-mono.woff2`. The
+/// homepage references them with a `?v=<version>` query, so they can be
+/// cached as immutable.
+pub async fn font_handler(req: HttpRequest) -> Result<HttpResponse> {
+    let body = match req.path() {
+        "/fonts/schibsted-grotesk.woff2" => FONT_SCHIBSTED_GROTESK,
+        "/fonts/martian-mono.woff2" => FONT_MARTIAN_MONO,
+        _ => return Ok(HttpResponse::NotFound().finish()),
+    };
+    Ok(HttpResponse::Ok()
+        .content_type("font/woff2")
+        .insert_header(("Cache-Control", "public, max-age=31536000, immutable"))
+        .body(body))
+}
+
+fn font_faces(version: &str) -> String {
+    format!(
+        r#"@font-face {{ font-family: "Schibsted Grotesk"; src: url("/fonts/schibsted-grotesk.woff2?v={version}") format("woff2"); font-weight: 400 900; font-style: normal; font-display: swap; }}
+@font-face {{ font-family: "Martian Mono"; src: url("/fonts/martian-mono.woff2?v={version}") format("woff2"); font-weight: 100 800; font-stretch: 75% 112.5%; font-style: normal; font-display: swap; }}"#
+    )
+}
+
 const STYLE: &str = r#"
-:root { color-scheme: light dark; }
-* { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
-body {
-    margin: 0 auto;
-    padding: 0 1.25rem 4rem;
-    max-width: 880px;
-    font: 17px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    color: #1f2328;
-    background: #fff;
+:root {
+    color-scheme: light dark;
+    --paper: #F5F7F8;
+    --raised: #FFFFFF;
+    --ink: #17202B;
+    --muted: #56616D;
+    --tin: #DCE2E6;
+    --tin-edge: #A9B4BD;
+    --string: #1E88E5;
+    --send-hover: #1565C0;
+    --sans: "Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif;
+    --mono: "Martian Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
-a { color: #0969da; text-decoration: none; }
-a:hover { text-decoration: underline; }
-header.hero { padding: 2.5rem 0 1rem; }
-header.hero h1 { font-size: 2.5rem; margin: 0 0 0.25rem; letter-spacing: -0.02em; }
-header.hero p.tagline { margin: 0 0 1rem; opacity: 0.85; font-size: 1.05rem; }
-nav.top-links { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; font-size: 0.95rem; }
-h2 { font-size: 1.5rem; margin: 2.5rem 0 0.25rem; scroll-margin-top: 1rem; }
-h2 .hash { opacity: 0; margin-left: 0.4rem; font-weight: 400; }
-h2:hover .hash { opacity: 0.5; }
-p.cat-desc { margin: 0 0 0.75rem; opacity: 0.75; }
-code { background: #f6f8fa; padding: 0.1rem 0.4rem; border-radius: 4px; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 0.85em; }
-.endpoint-list { list-style: none; margin: 0; padding: 0; }
-.endpoint-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; padding: 0.4rem 0; border-bottom: 1px dashed rgba(127,127,127,0.25); }
-.endpoint-list li:last-child { border-bottom: none; }
-.endpoint-list code.method { opacity: 0.6; font-size: 0.75em; min-width: 3.5em; }
-.endpoint-list code.path { font-weight: 600; }
-.endpoint-list span.desc { flex-basis: 100%; opacity: 0.85; font-size: 0.95em; }
-.badge { display: inline-block; font-size: 0.7em; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.1rem 0.45rem; border-radius: 999px; }
-.badge-enhanced { background: #ddf0ff; color: #0550ae; }
-.badge-new { background: #dafbe1; color: #116329; }
-.copy-btn { font: inherit; font-size: 0.7em; font-weight: 600; letter-spacing: 0.02em; padding: 0.1rem 0.5rem; border-radius: 5px; border: 1px solid rgba(127,127,127,0.35); background: #f6f8fa; color: inherit; cursor: pointer; line-height: 1.6; opacity: 0; transition: opacity 0.1s; }
-.endpoint-list li:hover .copy-btn, .copy-btn:focus-visible, .copy-btn.copied { opacity: 1; }
-.copy-btn:hover { background: #eaeef2; }
-.copy-btn.copied { background: #dafbe1; border-color: #2ea043; color: #116329; }
-.toc { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; margin: 1rem 0 2rem; font-size: 0.95rem; }
-.highlights, pre { background: #f6f8fa; border: 1px solid rgba(127,127,127,0.2); border-radius: 8px; padding: 1rem 1.25rem; }
-.highlights ul { margin: 0.5rem 0 0; padding-left: 1.2rem; }
-.highlights li { margin: 0.35rem 0; }
-.legend { display: flex; flex-wrap: wrap; gap: 1.25rem; align-items: center; font-size: 0.9rem; opacity: 0.9; margin: 1rem 0 0; }
-pre { overflow-x: auto; margin: 0.5rem 0; }
-pre code { background: none; padding: 0; font-size: 0.85em; }
-footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid rgba(127,127,127,0.2); font-size: 0.9rem; opacity: 0.85; }
-footer p { margin: 0.35rem 0; }
-/* Dark overrides: MUST stay after the light rules above — equal specificity,
-   so the later rule wins and these take precedence in dark mode. */
 @media (prefers-color-scheme: dark) {
-    body { color: #e6edf3; background: #0d1117; }
-    a { color: #58a6ff; }
-    .badge-enhanced { background: #1f3a5f; color: #9ecbff; }
-    .badge-new { background: #123a24; color: #7ee2a8; }
-    code { background: #161b22; }
-    .highlights, pre { background: #161b22; border-color: #30363d; }
-    footer { border-color: #30363d; }
-    .copy-btn { background: #161b22; border-color: #30363d; color: #e6edf3; }
-    .copy-btn:hover { background: #21262d; }
-    .copy-btn.copied { background: #123a24; border-color: #2ea043; color: #7ee2a8; }
-}
-/* No hover on touch devices: keep copy buttons visible instead of opacity:0. */
-@media (hover: none) {
-    .copy-btn { opacity: 1; }
-}
-"#;
-
-/// Vanilla JS, no dependencies: copies the clicked endpoint's `data-curl`
-/// attribute to the clipboard, with a `document.execCommand` fallback for
-/// non-secure contexts (e.g. testing over plain HTTP on a LAN).
-const SCRIPT: &str = r#"
-function httpcanCopyText(text) {
-    if (navigator.clipboard && window.isSecureContext) {
-        return navigator.clipboard.writeText(text);
+    :root {
+        --paper: #161D26;
+        --raised: #1C2530;
+        --ink: #E8EDF1;
+        --muted: #9AA6B2;
+        --tin: #26303C;
+        --tin-edge: #45525F;
+        --string: #1E88E5;
+        --send-hover: #1E88E5;
     }
-    var ta = document.createElement('textarea');
-    ta.value = text;
-    ta.style.position = 'fixed';
-    ta.style.opacity = '0';
-    document.body.appendChild(ta);
-    ta.focus();
-    ta.select();
-    try { document.execCommand('copy'); } finally { document.body.removeChild(ta); }
-    return Promise.resolve();
 }
-document.addEventListener('click', function (event) {
-    var btn = event.target.closest('.copy-btn');
-    if (!btn) return;
-    httpcanCopyText(btn.getAttribute('data-curl')).then(function () {
-        var previous = btn.textContent;
-        btn.textContent = 'Copied!';
-        btn.classList.add('copied');
-        setTimeout(function () {
-            btn.textContent = previous;
-            btn.classList.remove('copied');
-        }, 1200);
-    });
-});
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 1.125rem/1.55 var(--sans); }
+a { color: inherit; text-decoration: underline; text-decoration-color: var(--tin-edge); text-decoration-thickness: 1px; text-underline-offset: 0.2em; }
+a:hover { text-decoration-color: var(--string); }
+:focus-visible { outline: 2px solid var(--string); outline-offset: 2px; border-radius: 3px; }
+code, kbd, pre { font-family: var(--mono); font-stretch: 87.5%; }
+kbd { font-size: 0.8em; padding: 0.05rem 0.35rem; border: 1px solid var(--tin-edge); border-radius: 4px; background: var(--raised); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.wrap { max-width: 72rem; margin: 0 auto; padding: 0 1.5rem; }
+
+/* Header */
+.site-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem 2rem; padding: 1.5rem 0 0; }
+.wordmark { font-family: var(--mono); font-weight: 800; font-stretch: 112.5%; font-size: 1.3125rem; letter-spacing: -0.02em; text-decoration: none; }
+.site-nav { display: flex; flex-wrap: wrap; gap: 0.25rem 1.5rem; font-size: 1rem; }
+
+/* Hero */
+.hero { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 2rem 4rem; align-items: end; padding: 4.5rem 0 3rem; }
+.hero h1 { margin: 0 0 1.25rem; font-size: clamp(2.5rem, 1.5rem + 4vw, 4.5rem); font-weight: 800; line-height: 1; letter-spacing: -0.035em; max-width: 12ch; text-wrap: balance; }
+.lede { margin: 0; max-width: 34em; font-size: 1.3125rem; line-height: 1.5; }
+.install p { margin: 0 0 0.6rem; font-size: 1rem; font-weight: 600; }
+.cmd { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.5rem; padding: 0.5rem 0.5rem 0.5rem 0.9rem; background: var(--raised); border: 1px solid var(--tin-edge); border-radius: 8px; }
+.cmd code { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.8125rem; line-height: 1.5; }
+
+/* Live console: two cans joined by a string */
+.console { display: grid; grid-template-columns: minmax(0, 5fr) 6rem minmax(0, 7fr); align-items: start; }
+.can { min-width: 0; background: var(--raised); border: 1.5px solid var(--tin-edge); border-radius: 14px; overflow: hidden; }
+.can-rim { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; padding: 0.65rem 1rem; font-size: 0.9375rem; font-weight: 700; border-bottom: 1.5px solid var(--tin-edge); background-color: var(--tin); background-image: repeating-linear-gradient(90deg, transparent 0 4px, rgba(127, 127, 127, 0.16) 4px 5px); }
+.can-rim .meta { font-weight: 500; color: var(--muted); font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.can-body { padding: 1rem; }
+.can pre { margin: 0; font-size: 0.8125rem; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+#req-view, #res-view { max-height: 17rem; overflow: auto; }
+#res-view .res-head { color: var(--muted); }
+#res-view img { display: block; max-width: 100%; max-height: 16rem; margin-top: 0.25rem; border-radius: 6px; }
+.try-line { display: flex; margin-bottom: 1rem; border: 1.5px solid var(--tin-edge); border-radius: 8px; overflow: hidden; background: var(--paper); }
+.try-line:focus-within { outline: 2px solid var(--string); outline-offset: 2px; }
+.try-line .verb { display: flex; align-items: center; padding: 0 0.75rem; font: 700 0.8125rem/1 var(--mono); background: var(--tin); }
+.try-line input { flex: 1; min-width: 0; padding: 0.65rem 0.75rem; border: 0; background: transparent; color: inherit; font: 400 0.875rem/1.2 var(--mono); font-stretch: 87.5%; }
+.try-line input:focus { outline: none; }
+.send-btn { padding: 0 1.1rem; border: 0; background: var(--ink); color: var(--paper); font: 700 0.9375rem/1 var(--sans); cursor: pointer; }
+.send-btn:hover { background: var(--send-hover); }
+.string { display: block; width: 100%; overflow: visible; }
+.string path { fill: none; vector-effect: non-scaling-stroke; stroke-linecap: round; }
+.string .line { stroke: var(--string); stroke-width: 2.5; }
+.string .pulse { stroke: var(--ink); stroke-width: 6; stroke-dasharray: 8 200; stroke-dashoffset: 8; opacity: 0; }
+.string-h { height: 9rem; margin-top: 1.3rem; }
+.string-v { display: none; width: 4rem; height: 3.5rem; margin-left: 2.5rem; }
+.is-sending .string .pulse { opacity: 1; animation: travel 0.6s cubic-bezier(0.45, 0, 0.25, 1) forwards; }
+@keyframes travel { to { stroke-dashoffset: -100; } }
+.console-note { margin: 1.25rem 0 0; max-width: 46em; color: var(--muted); font-size: 1rem; }
+.console-note .cmd { margin-top: 0.6rem; max-width: 40rem; color: var(--ink); }
+
+/* Endpoint reference */
+.ref-intro { padding-top: 5.5rem; }
+.ref { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 3.5rem; padding-top: 0.5rem; }
+.ref-side { position: sticky; top: 1.5rem; align-self: start; max-height: calc(100vh - 3rem); overflow-y: auto; padding: 0.25rem 0.5rem 1rem 0.25rem; font-size: 0.9375rem; }
+.filter-label { display: block; margin-bottom: 0.4rem; font-weight: 700; }
+#ep-filter { width: 100%; padding: 0.6rem 0.75rem; border: 1.5px solid var(--tin-edge); border-radius: 8px; background: var(--raised); color: inherit; font: 400 1rem/1.2 var(--sans); }
+.filter-hint { margin: 0.4rem 0 1.25rem; color: var(--muted); font-size: 0.875rem; }
+.cat-nav a { display: flex; justify-content: space-between; gap: 1rem; padding: 0.3rem 0; text-decoration: none; }
+.cat-nav a:hover { color: var(--string); }
+.cat-nav .count { color: var(--muted); font-variant-numeric: tabular-nums; }
+.legend { margin-top: 1.5rem; padding-top: 1rem; border-top: 1.5px solid var(--tin); color: var(--muted); font-size: 0.875rem; }
+.legend p { margin: 0 0 0.6rem; }
+.ref-main { min-width: 0; }
+h2 { margin: 0 0 0.5rem; font-size: 2.25rem; font-weight: 800; line-height: 1.1; letter-spacing: -0.025em; scroll-margin-top: 1.5rem; }
+.section-intro { margin: 0 0 1.5rem; max-width: 40em; color: var(--muted); }
+.ep-cat { padding-top: 2rem; scroll-margin-top: 0.5rem; }
+.ep-cat h3 { margin: 0; font-size: 1.5rem; font-weight: 700; letter-spacing: -0.015em; }
+.ep-cat h3 .anchor { text-decoration: none; }
+.ep-cat h3 .anchor:hover { color: var(--string); }
+.cat-desc { margin: 0.15rem 0 0.75rem; color: var(--muted); font-size: 1rem; }
+.ep-list { margin: 0; padding: 0; list-style: none; }
+.ep-list li { padding: 0.85rem 0; border-top: 1px solid var(--tin); }
+.ep-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.75rem; }
+.ep-head .path { font-size: 0.9375rem; font-weight: 600; overflow-wrap: anywhere; }
+.ep-head .methods { color: var(--muted); font-size: 0.875rem; }
+.ep-actions { display: flex; gap: 0.4rem; margin-left: auto; }
+.ep-list .desc { margin: 0.3rem 0 0; max-width: 42em; font-size: 1rem; }
+#ep-empty { padding: 2rem 0; color: var(--muted); }
+.badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 999px; font: 600 0.75rem/1.2 var(--sans); white-space: nowrap; }
+.badge-new { background: var(--ink); color: var(--paper); }
+.badge-enhanced { padding: calc(0.2rem - 1px) calc(0.5rem - 1px); border: 1px solid var(--ink); color: var(--ink); }
+.copy-btn, .try-btn { padding: 0.35rem 0.65rem; border: 1px solid var(--tin-edge); border-radius: 6px; background: var(--raised); color: var(--ink); font: 600 0.8125rem/1 var(--sans); cursor: pointer; white-space: nowrap; }
+.copy-btn:hover, .try-btn:hover { background: var(--tin); }
+.copy-btn.copied { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+
+/* What HTTPCan adds */
+.adds { padding-top: 5.5rem; }
+.adds dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 4rem; margin: 1.5rem 0 0; }
+.adds dt { font-weight: 700; font-size: 1.125rem; }
+.adds dd { margin: 0.2rem 0 1.75rem; max-width: 34em; color: var(--muted); font-size: 1rem; }
+.adds code { font-size: 0.875em; color: var(--ink); }
+
+/* Footer */
+.site-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.75rem 2rem; margin-top: 3rem; padding: 1.75rem 0 4rem; border-top: 1.5px solid var(--tin); color: var(--muted); font-size: 0.9375rem; }
+.site-foot p { margin: 0; }
+.site-foot nav { display: flex; flex-wrap: wrap; gap: 0.25rem 1.5rem; }
+
+@media (max-width: 960px) {
+    .hero { grid-template-columns: minmax(0, 1fr); padding-top: 3rem; }
+    .ref-intro { padding-top: 4rem; }
+    .ref { grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
+    .ref-side { position: static; max-height: none; overflow: visible; padding: 0; }
+    .cat-nav { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; }
+    .cat-nav a { gap: 0.4rem; }
+    .adds dl { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 720px) {
+    .console { grid-template-columns: minmax(0, 1fr); }
+    .string-h { display: none; }
+    .string-v { display: block; }
+    h2 { font-size: 1.875rem; }
+}
+@media (hover: hover) {
+    .ep-list li .copy-btn, .ep-list li .try-btn { color: var(--muted); }
+    .ep-list li:hover .copy-btn, .ep-list li:hover .try-btn, .ep-list li .copy-btn:focus-visible, .ep-list li .try-btn:focus-visible { color: var(--ink); }
+    .ep-list li .copy-btn.copied { color: var(--paper); }
+}
+@media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .is-sending .string .pulse { animation: none; opacity: 0; }
+}
 "#;
 
-fn render_homepage(canonical_url: &str, base: &str, version: &str) -> String {
+/// Vanilla JS, no dependencies: copy-to-clipboard (with a
+/// `document.execCommand` fallback for non-secure contexts such as plain HTTP
+/// on a LAN), the live request console, and the endpoint filter.
+const SCRIPT: &str = r#"
+(function () {
+    'use strict';
+    var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function copyText(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+            return navigator.clipboard.writeText(text);
+        }
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        try { document.execCommand('copy'); } finally { document.body.removeChild(ta); }
+        return Promise.resolve();
+    }
+
+    // Live console
+    var consoleEl = document.getElementById('try');
+    var form = document.getElementById('try-form');
+    var input = document.getElementById('try-path');
+    var reqView = document.getElementById('req-view');
+    var resView = document.getElementById('res-view');
+    var resMeta = document.getElementById('res-meta');
+    var curlCode = document.getElementById('try-curl');
+    var curlBtn = document.getElementById('try-curl-btn');
+    var REASONS = { 200: 'OK', 201: 'Created', 202: 'Accepted', 204: 'No Content', 206: 'Partial Content', 304: 'Not Modified', 400: 'Bad Request', 401: 'Unauthorized', 403: 'Forbidden', 404: 'Not Found', 405: 'Method Not Allowed', 418: "I'm a teapot", 429: 'Too Many Requests', 500: 'Internal Server Error', 502: 'Bad Gateway', 503: 'Service Unavailable' };
+    var SHOWN_HEADERS = ['content-type', 'content-length', 'content-encoding', 'cache-control', 'etag', 'x-httpcan-version'];
+    var current = null;
+    var imageUrl = null;
+
+    function normalizePath(p) {
+        p = p.trim();
+        if (!p) p = '/get';
+        if (p.charAt(0) !== '/') p = '/' + p;
+        return p;
+    }
+    function titleCase(h) {
+        return h.replace(/(^|-)([a-z])/g, function (_, d, c) { return d + c.toUpperCase(); });
+    }
+    function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+    async function send() {
+        var path = normalizePath(input.value);
+        input.value = path;
+        var curl = "curl '" + location.origin + path + "'";
+        curlCode.textContent = curl;
+        curlBtn.setAttribute('data-curl', curl);
+        reqView.textContent = 'GET ' + path + ' HTTP/1.1\nHost: ' + location.host;
+        resMeta.textContent = 'Sending';
+        resView.textContent = '';
+
+        if (current) current.abort();
+        var mine = new AbortController();
+        current = mine;
+        consoleEl.classList.remove('is-sending');
+        void consoleEl.offsetWidth; // restart the string animation
+        consoleEl.classList.add('is-sending');
+
+        var started = performance.now();
+        try {
+            var res = await fetch(path, { signal: mine.signal, cache: 'no-store' });
+            var blob = await res.blob();
+            var ms = Math.round(performance.now() - started);
+            // Let the pulse reach the far can before the answer appears.
+            if (!reduceMotion) await wait(Math.max(0, 600 - ms));
+            if (mine !== current) return;
+
+            var ct = res.headers.get('content-type') || '';
+            var status = (res.status + ' ' + (res.statusText || REASONS[res.status] || '')).trim();
+            var meta = status + ', ' + ms + ' ms';
+            if (res.redirected) meta += ', redirected to ' + new URL(res.url).pathname;
+            resMeta.textContent = meta;
+
+            var head = document.createElement('span');
+            head.className = 'res-head';
+            head.textContent = 'HTTP/1.1 ' + status + '\n' + SHOWN_HEADERS
+                .filter(function (h) { return res.headers.get(h); })
+                .map(function (h) { return titleCase(h) + ': ' + res.headers.get(h); })
+                .join('\n') + '\n\n';
+            resView.textContent = '';
+            resView.appendChild(head);
+
+            if (imageUrl) { URL.revokeObjectURL(imageUrl); imageUrl = null; }
+            if (/^image\//.test(ct)) {
+                imageUrl = URL.createObjectURL(blob);
+                var img = new Image();
+                img.alt = 'Image returned by ' + path;
+                img.src = imageUrl;
+                resView.appendChild(img);
+            } else if (/^text\/|json|xml|javascript|event-stream|ndjson/.test(ct) || blob.size === 0) {
+                var body = await blob.text();
+                if (/json/.test(ct)) {
+                    try {
+                        var data = JSON.parse(body);
+                        body = JSON.stringify(data, null, 2);
+                        // Echo endpoints report the headers the server actually
+                        // received: show those as the request.
+                        if (data && data.headers && typeof data.headers === 'object' && !Array.isArray(data.headers)) {
+                            reqView.textContent = 'GET ' + path + ' HTTP/1.1\n' + Object.keys(data.headers).map(function (k) {
+                                var v = data.headers[k];
+                                return k + ': ' + (Array.isArray(v) ? v.join(', ') : v);
+                            }).join('\n');
+                        }
+                    } catch (_) { /* not valid JSON; show as text */ }
+                }
+                var limit = 8000;
+                if (body.length > limit) body = body.slice(0, limit) + '\n\n(' + (body.length - limit) + ' more characters not shown)';
+                resView.appendChild(document.createTextNode(body || '(empty body)'));
+            } else {
+                resView.appendChild(document.createTextNode('(' + blob.size + ' bytes of ' + (ct || 'binary data') + ')'));
+            }
+        } catch (err) {
+            if (err.name === 'AbortError') return;
+            resMeta.textContent = 'No response';
+            resView.textContent = 'The request did not complete (' + err.message + '). Check the path and press Send again.';
+        } finally {
+            if (mine === current) consoleEl.classList.remove('is-sending');
+        }
+    }
+
+    form.addEventListener('submit', function (e) { e.preventDefault(); send(); });
+
+    document.addEventListener('click', function (e) {
+        var copyBtn = e.target.closest('.copy-btn');
+        if (copyBtn) {
+            copyText(copyBtn.getAttribute('data-curl')).then(function () {
+                copyBtn.textContent = 'Copied';
+                copyBtn.classList.add('copied');
+                setTimeout(function () {
+                    copyBtn.textContent = 'Copy';
+                    copyBtn.classList.remove('copied');
+                }, 1200);
+            });
+            return;
+        }
+        var tryBtn = e.target.closest('.try-btn');
+        if (tryBtn) {
+            input.value = tryBtn.getAttribute('data-path');
+            consoleEl.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+            send();
+        }
+    });
+
+    // Endpoint filter
+    var filter = document.getElementById('ep-filter');
+    var rows = Array.prototype.slice.call(document.querySelectorAll('.ep-list li'));
+    var cats = Array.prototype.slice.call(document.querySelectorAll('.ep-cat'));
+    var empty = document.getElementById('ep-empty');
+    filter.addEventListener('input', function () {
+        var q = filter.value.trim().toLowerCase();
+        var shown = 0;
+        rows.forEach(function (li) {
+            var hit = !q || li.getAttribute('data-search').indexOf(q) !== -1;
+            li.hidden = !hit;
+            if (hit) shown++;
+        });
+        cats.forEach(function (c) { c.hidden = !c.querySelector('li:not([hidden])'); });
+        empty.hidden = shown !== 0;
+        if (!shown) empty.textContent = 'No endpoints match “' + filter.value.trim() + '”. Clear the filter to see all of them.';
+    });
+    document.addEventListener('keydown', function (e) {
+        var tag = document.activeElement && document.activeElement.tagName;
+        if (e.key === '/' && !e.metaKey && !e.ctrlKey && tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+            e.preventDefault();
+            filter.focus();
+        }
+    });
+
+    send();
+})();
+"#;
+
+/// The string between the two cans: a sagging line plus the pulse that
+/// travels along it while a request is in flight. `pathLength="100"` keeps
+/// the dash animation independent of the rendered size.
+fn string_svg(class: &str, d: &str) -> String {
+    format!(
+        r#"<svg class="string {class}" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path class="line" d="{d}" pathLength="100"/><path class="pulse" d="{d}" pathLength="100"/></svg>"#
+    )
+}
+
+fn render_homepage(canonical_url: &str, base: &str, host: &str, version: &str) -> String {
     let (total, enhanced, new) = badge_counts();
+    let docker_cmd = "docker run -p 8080:8080 ghcr.io/seedvector/httpcan:latest";
+    let cargo_cmd = "cargo install httpcan && httpcan";
+    let try_default = "/get?hello=can";
+    let try_curl = format!("curl '{base}{try_default}'");
     format!(
         r##"<!doctype html>
 <html lang="en">
@@ -444,76 +781,127 @@ fn render_homepage(canonical_url: &str, base: &str, version: &str) -> String {
 <meta name="description" content="A Rust superset of httpbin.org: {total} drop-in endpoints, mock OpenAI/Anthropic LLM APIs, and a full OAuth 2.0 server — for testing HTTP clients and AI agents.">
 <link rel="canonical" href="{canonical_url}">
 <link rel="icon" type="image/png" href="/favicon.png">
-<style>{style}</style>
+<link rel="preload" href="/fonts/schibsted-grotesk.woff2?v={version}" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/martian-mono.woff2?v={version}" as="font" type="font/woff2" crossorigin>
+<style>{font_faces}{style}</style>
 </head>
 <body>
-<header class="hero">
-<h1>HTTPCan</h1>
-<p class="tagline">A modern, high-performance superset of <a href="https://httpbin.org">httpbin.org</a> for testing HTTP clients, proxies, and AI agents &mdash; with mock OpenAI/Anthropic LLM APIs and a full OAuth 2.0 server. Built with Rust and Actix Web.</p>
-<nav class="top-links">
-<a href="#quick-start">Quick Start</a>
-<a href="#why-httpcan">Why HTTPCan</a>
-<a href="/openapi.json">OpenAPI Spec</a>
+<div class="wrap">
+<header class="site-head">
+<a class="wordmark" href="/">HTTPCan</a>
+<nav class="site-nav" aria-label="Site">
+<a href="#endpoints">Endpoints</a>
+<a href="/openapi.json">OpenAPI spec</a>
 <a href="https://github.com/seedvector/httpcan">GitHub</a>
 </nav>
 </header>
 
-<section id="quick-start">
-<h2>Quick Start <a class="hash" href="#quick-start">#</a></h2>
-<p>You're on a live instance &mdash; <code>{base}</code>. Try an endpoint now:</p>
-<pre><code>curl {base}/get</code></pre>
-<p id="self-host">Want your own? Run HTTPCan locally or in production:</p>
-<pre><code># Docker
-docker run -p 8080:8080 ghcr.io/seedvector/httpcan:latest
-
-# Cargo
-cargo install httpcan &amp;&amp; httpcan
-
-curl http://localhost:8080/get</code></pre>
-</section>
-
-<section id="why-httpcan">
-<h2>Why HTTPCan <a class="hash" href="#why-httpcan">#</a></h2>
-<div class="highlights">
-<p>HTTPCan is a <strong>{total}-endpoint superset of httpbin.org</strong>: every httpbin.org endpoint is covered and drop-in compatible, plus {new} endpoints httpbin.org doesn't have and {enhanced} it has but httpcan fixes or extends (see the badges below). On top of that:</p>
-<ul>
-<li><strong>AI API mock</strong> &mdash; OpenAI- and Anthropic-compatible <code>/llm</code> endpoints: point any SDK <code>base_url</code> at it (streaming included) and test AI clients without a paid provider.</li>
-<li><strong>OAuth 2.0 mock</strong> &mdash; a full authorization server at <code>/oauth2</code>: four RFC 6749 grants with PKCE, one-time codes, rotating refresh tokens, Bearer-protected userinfo, and RFC 8414 discovery.</li>
-<li><strong>AI-friendly streaming</strong> &mdash; native <code>/sse</code> and <code>/ndjson</code> endpoints with OpenAI/Ollama-compatible chunk formats.</li>
-<li><strong>Measured performance</strong> &mdash; in our benchmarks against comparable HTTP testing servers, HTTPCan led on both throughput and tail latency.</li>
-<li><strong>Anti-phishing redirects</strong> &mdash; browser clients hitting <code>/redirect-to</code> see a confirmation page instead of a silent 302, closing an open-redirect abuse vector.</li>
-<li><strong>Correct header handling</strong> &mdash; duplicate and non-ASCII request headers are preserved instead of being dropped or crashing the server.</li>
-<li><strong>Safer by default</strong> &mdash; built-in filtering strips ~100 reverse-proxy/CDN headers from echoed responses, with <code>--exclude-headers</code> for more.</li>
-<li><strong>Cloud-native observability</strong> &mdash; <code>/healthz</code> liveness probe, <code>/tags</code> instance identification, and <code>Server-Timing</code>/<code>X-Httpcan-Version</code> on every response.</li>
-</ul>
-<p class="legend">
-<span><span class="badge badge-enhanced">Enhanced</span> &nbsp;{enhanced} endpoints httpbin has, but httpcan fixes or extends</span>
-<span><span class="badge badge-new">New</span> &nbsp;{new} endpoints not available in httpbin.org</span>
-<span>no badge &nbsp;drop-in compatible with httpbin.org</span>
-</p>
+<main>
+<section class="hero">
+<div>
+<h1>Send a request. See exactly what arrived.</h1>
+<p class="lede">HTTPCan is an HTTP test server for checking clients, proxies and AI agents. It covers every <a href="https://httpbin.org">httpbin.org</a> endpoint, fixes {enhanced} of them, adds {new} more, and includes mock OpenAI, Anthropic and OAuth&nbsp;2.0 servers.</p>
+</div>
+<div class="install" id="self-host">
+<p>Run your own copy</p>
+<div class="cmd"><code>{docker_cmd_html}</code>{docker_copy}</div>
+<div class="cmd"><code>{cargo_cmd_html}</code>{cargo_copy}</div>
 </div>
 </section>
 
-<section id="endpoints">
-<h2>Endpoints <a class="hash" href="#endpoints">#</a></h2>
-<p class="cat-desc">Each endpoint has a <strong>Copy</strong> button with a ready-to-run curl example (with parameters filled in) targeting this instance.</p>
-{toc}
-{categories}
+<section id="try" aria-label="Send a request from this page">
+<div class="console">
+<form class="can" id="try-form">
+<div class="can-rim"><span>Request</span></div>
+<div class="can-body">
+<div class="try-line">
+<span class="verb">GET</span>
+<label class="sr-only" for="try-path">Path to request</label>
+<input id="try-path" name="path" value="{try_default}" autocomplete="off" spellcheck="false">
+<button type="submit" class="send-btn">Send</button>
+</div>
+<pre id="req-view">GET {try_default} HTTP/1.1
+Host: {host}</pre>
+</div>
+</form>
+{string_h}{string_v}
+<div class="can">
+<div class="can-rim"><span>Response</span><span class="meta" id="res-meta"></span></div>
+<div class="can-body">
+<pre id="res-view" aria-live="polite">Press Send to see what HTTPCan returns.</pre>
+<noscript><p>JavaScript is off, so this page can&rsquo;t send requests. Run the command below in a terminal instead.</p></noscript>
+</div>
+</div>
+</div>
+<div class="console-note">
+<p>This page sent a real request to this server when it loaded. Change the path and press Send, or press Try next to any endpoint below. The same request from a terminal:</p>
+<div class="cmd"><code id="try-curl">{try_curl_html}</code><button type="button" class="copy-btn" id="try-curl-btn" data-curl="{try_curl_html}" aria-label="Copy curl command for this request">Copy</button></div>
+</div>
 </section>
 
-<footer>
-<p>HTTPCan &middot; version {version} &middot; MIT License</p>
-<p><a href="/openapi.json">OpenAPI spec</a> &middot; <a href="https://github.com/seedvector/httpcan">Source on GitHub</a> &middot; <a href="https://github.com/seedvector/httpcan/issues">Report an issue</a></p>
+<section class="ref-intro">
+<h2 id="endpoints">Endpoints</h2>
+<p class="section-intro">Every example runs against this server ({base}), so you can paste it straight into a terminal.</p>
+</section>
+<div class="ref">
+{sidebar}
+<div class="ref-main">
+{categories}
+<p id="ep-empty" hidden></p>
+</div>
+</div>
+
+<section class="adds" id="why-httpcan">
+<h2>What HTTPCan adds to httpbin.org</h2>
+<dl>
+<dt>Mock AI APIs</dt>
+<dd>OpenAI- and Anthropic-compatible endpoints under <code>/llm</code>. Point an SDK&rsquo;s <code>base_url</code> at them to test your client, streaming included, without a paid key.</dd>
+<dt>Mock OAuth&nbsp;2.0 server</dt>
+<dd>All four RFC 6749 grants with PKCE, one-time codes, rotating refresh tokens, a Bearer-protected userinfo endpoint and RFC 8414 discovery, under <code>/oauth2</code>.</dd>
+<dt>Streaming endpoints</dt>
+<dd><code>/sse</code> and <code>/ndjson</code> send OpenAI- and Ollama-shaped chunks, so you can test streaming parsers.</dd>
+<dt>Safer redirects</dt>
+<dd>Browsers that open <code>/redirect-to</code> see a confirmation page instead of a silent 302, so the endpoint can&rsquo;t be abused as an open redirect.</dd>
+<dt>Headers kept intact</dt>
+<dd>Duplicate and non-ASCII request headers are echoed back as sent instead of being dropped.</dd>
+<dt>Proxy headers filtered</dt>
+<dd>About 100 reverse-proxy and CDN headers are removed from echoed responses. Add your own with <code>--exclude-headers</code>.</dd>
+<dt>Health checks</dt>
+<dd><code>/healthz</code> for liveness probes, <code>/tags</code> for instance identification, and <code>Server-Timing</code> and <code>X-Httpcan-Version</code> headers on every response.</dd>
+<dt>Fast</dt>
+<dd>Built with Rust and Actix Web. In our benchmarks it led comparable test servers on throughput and tail latency.</dd>
+</dl>
+</section>
+</main>
+
+<footer class="site-foot">
+<p>HTTPCan {version}, MIT License.</p>
+<nav aria-label="Project">
+<a href="/openapi.json">OpenAPI spec</a>
+<a href="https://github.com/seedvector/httpcan">Source on GitHub</a>
+<a href="https://github.com/seedvector/httpcan/issues">Report an issue</a>
+</nav>
 </footer>
+</div>
 <script>{script}</script>
 </body>
 </html>"##,
         canonical_url = canonical_url,
+        font_faces = font_faces(version),
         style = STYLE,
         total = total,
         enhanced = enhanced,
         new = new,
-        toc = render_toc(),
+        docker_cmd_html = escape_html(docker_cmd),
+        docker_copy = copy_button_html(docker_cmd, "Copy Docker command"),
+        cargo_cmd_html = escape_html(cargo_cmd),
+        cargo_copy = copy_button_html(cargo_cmd, "Copy Cargo command"),
+        try_default = escape_html(try_default),
+        try_curl_html = escape_html(&try_curl),
+        host = escape_html(host),
+        string_h = string_svg("string-h", "M0 2 Q50 95 100 2"),
+        string_v = string_svg("string-v", "M30 0 Q95 50 30 100"),
+        sidebar = render_sidebar(total, enhanced, new),
         categories = render_categories(base),
         base = escape_html(base),
         version = version,
@@ -700,7 +1088,12 @@ pub async fn root_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Res
 
     Ok(add_homepage_link_headers(HttpResponse::Ok())
         .content_type("text/html; charset=utf-8")
-        .body(render_homepage(&canonical_url, &base, version)))
+        .body(render_homepage(
+            &canonical_url,
+            &base,
+            connection_info.host(),
+            version,
+        )))
 }
 
 /// `/favicon.png` — embedded in the binary so the default experience is fully

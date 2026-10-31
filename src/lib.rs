@@ -635,7 +635,10 @@ fn create_app(
         // Root endpoint - always renders the static homepage (see src/handlers/root.rs)
         .service(web::resource("/").route(get_or_head(root_handler)))
         // Favicon - embedded in the binary, overridable via static/favicon.png
-        .service(web::resource("/favicon.png").route(get_or_head(favicon_handler)));
+        .service(web::resource("/favicon.png").route(get_or_head(favicon_handler)))
+        // Homepage fonts - embedded in the binary (see src/handlers/root.rs)
+        .service(web::resource("/fonts/schibsted-grotesk.woff2").route(get_or_head(font_handler)))
+        .service(web::resource("/fonts/martian-mono.woff2").route(get_or_head(font_handler)));
 
     // Only add root static file service if the static directory exists
     // This is added after all routes so explicit routes (API endpoints,
