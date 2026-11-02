@@ -270,3 +270,65 @@ async fn root_homepage_has_copy_curl_buttons() {
         "homepage should include the copy-to-clipboard script"
     );
 }
+
+/// Drift guard: every piece of shared homepage copy (hero, self-host
+/// commands, highlights, badge legend, footer) appears in both the HTML page
+/// and the Markdown view, compared as plain text.
+#[actix_web::test]
+async fn root_markdown_and_html_carry_the_same_copy() {
+    let app = test::init_service(create_app(cfg())).await;
+    let fetch = |accept: &'static str| {
+        test::TestRequest::get()
+            .uri("/")
+            .insert_header(("Host", "example.com"))
+            .insert_header(("Accept", accept))
+            .to_request()
+    };
+    let html = test::read_body(test::call_service(&app, fetch("text/html")).await).await;
+    let md = test::read_body(test::call_service(&app, fetch("text/markdown")).await).await;
+    let html = std::str::from_utf8(&html).unwrap();
+    let md = std::str::from_utf8(&md).unwrap();
+
+    let squash = |s: &str| s.split_whitespace().collect::<Vec<_>>().join(" ");
+    // HTML → text: drop tags, decode the entities the page uses.
+    let mut html_text = String::new();
+    let mut in_tag = false;
+    for c in html.chars() {
+        match c {
+            '<' => in_tag = true,
+            // Inline tags (<code>, <a>) must not split words; block
+            // elements are already separated by newlines in the markup.
+            '>' => in_tag = false,
+            _ if !in_tag => html_text.push(c),
+            _ => {}
+        }
+    }
+    let html_text = squash(
+        &html_text
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"")
+            .replace("&rsquo;", "’")
+            .replace("&hellip;", "…")
+            .replace("&nbsp;", " ")
+            .replace("&amp;", "&")
+            .replace('\u{a0}', " "),
+    );
+    // Markdown → text: links to their text, emphasis and code ticks dropped.
+    let md_text = squash(
+        &crate::handlers::root::inline_plain(md)
+            .replace("**", "")
+            .replace('\u{a0}', " "),
+    );
+
+    for phrase in
+        crate::handlers::root::shared_homepage_copy("http://example.com", env!("CARGO_PKG_VERSION"))
+    {
+        let phrase = squash(&phrase);
+        assert!(html_text.contains(&phrase), "HTML homepage lacks: {phrase}");
+        assert!(
+            md_text.contains(&phrase),
+            "Markdown homepage lacks: {phrase}"
+        );
+    }
+}

@@ -247,6 +247,202 @@ const CATEGORIES: &[Category] = &[
     },
 ];
 
+// ---------------------------------------------------------------------------
+// Shared homepage copy. Everything a reader sees outside the endpoint
+// catalog lives here, once, and both renderers (`render_homepage` for HTML,
+// `render_markdown` for `Accept: text/markdown`) draw from it, so the two
+// views cannot drift apart. Text uses a tiny inline markup understood by
+// both: `` `code` `` and `[text](url)`; everything else is plain Unicode
+// (use '\u{a0}' for a non-breaking space).
+// ---------------------------------------------------------------------------
+
+const HERO_TITLE: &str = "Send a request. See exactly what arrived.";
+
+fn hero_lede(enhanced: usize, new: usize) -> String {
+    format!(
+        "HTTPCan is an HTTP test server for checking clients, proxies and AI agents. It covers every [httpbin.org](https://httpbin.org) endpoint, fixes {enhanced} of them, adds {new} more, and includes mock OpenAI, Anthropic and OAuth\u{a0}2.0 servers."
+    )
+}
+
+/// The request the homepage console sends on load; also the Markdown
+/// view's first example.
+const TRY_DEFAULT: &str = "/get?hello=can";
+
+const SELF_HOST_TITLE: &str = "Run your own copy";
+const DOCKER_CMD: &str = "docker run -p 8080:8080 ghcr.io/seedvector/httpcan:latest";
+const CARGO_CMD: &str = "cargo install httpcan && httpcan";
+
+fn endpoints_intro(base: &str) -> String {
+    format!("Every example runs against this server ({base}), so you can paste it straight into a terminal.")
+}
+
+/// Badge legend: intro line, then the New / Enhanced / no-badge entries.
+fn legend_intro(total: usize) -> String {
+    format!("Badges compare each of the {total} endpoints with httpbin.org.")
+}
+const LEGEND_NEW: &str = "Not in httpbin.org";
+const LEGEND_ENHANCED: &str = "In httpbin.org, fixed or extended here";
+const LEGEND_NONE: &str = "No badge: works the same as httpbin.org";
+
+const HIGHLIGHTS_TITLE: &str = "What HTTPCan adds to httpbin.org";
+
+/// One "What HTTPCan adds" entry.
+struct Highlight {
+    title: &'static str,
+    body: &'static str,
+}
+
+const HIGHLIGHTS: &[Highlight] = &[
+    Highlight {
+        title: "Mock AI APIs",
+        body: "OpenAI- and Anthropic-compatible endpoints under `/llm`. Point an SDK’s `base_url` at them to test your client, streaming included, without a paid key. An `httpcan` block scripts the answer: tool calls (wire-correct per family, streaming included), injected provider-shaped errors (429/529/…), pinned usage for billing tests, response delays, and multi-turn sequences. Chat apps that can’t send request fields get the same controls by typing `#mock error=rate_limit` or `#mock tool=get_weather`, or by picking the `auto-tools` model for a full tool loop. Every response carries `X-Httpcan-Mock: true`.",
+    },
+    Highlight {
+        title: "Mock OAuth\u{a0}2.0 server",
+        body: "All four RFC 6749 grants with PKCE, one-time codes, rotating refresh tokens, a Bearer-protected userinfo endpoint and RFC 8414 discovery, under `/oauth2`.",
+    },
+    Highlight {
+        title: "Streaming endpoints",
+        body: "`/sse` and `/ndjson` send OpenAI- and Ollama-shaped chunks, so you can test streaming parsers.",
+    },
+    Highlight {
+        title: "Safer redirects",
+        body: "Browsers that open `/redirect-to` see a confirmation page instead of a silent 302, so the endpoint can’t be abused as an open redirect.",
+    },
+    Highlight {
+        title: "Headers kept intact",
+        body: "Duplicate and non-ASCII request headers are echoed back as sent instead of being dropped.",
+    },
+    Highlight {
+        title: "Proxy headers filtered",
+        body: "About 100 reverse-proxy and CDN headers are removed from echoed responses. Add your own with `--exclude-headers`.",
+    },
+    Highlight {
+        title: "Health checks",
+        body: "`/healthz` for liveness probes, `/tags` for instance identification, and `Server-Timing` and `X-Httpcan-Version` headers on every response.",
+    },
+    Highlight {
+        title: "Fast",
+        body: "Built with Rust and Actix Web. In our benchmarks it led comparable test servers on throughput and tail latency.",
+    },
+];
+
+/// Footer links (label, href). Relative hrefs resolve against the
+/// instance's origin in the Markdown view.
+const FOOTER_LINKS: &[(&str, &str)] = &[
+    ("OpenAPI spec", "/openapi.json"),
+    ("Source on GitHub", "https://github.com/seedvector/httpcan"),
+    (
+        "Report an issue",
+        "https://github.com/seedvector/httpcan/issues",
+    ),
+];
+
+fn footer_line(version: &str) -> String {
+    format!("HTTPCan {version}, MIT License.")
+}
+
+/// Render the shared inline markup as HTML: escapes the text, then turns
+/// `` `code` `` into `<code>` and `[text](url)` into links.
+fn inline_html(src: &str) -> String {
+    let mut out = String::new();
+    let mut rest = src;
+    while let Some(i) = rest.find(['`', '[']) {
+        out.push_str(&escape_html(&rest[..i]));
+        let tail = &rest[i..];
+        if let Some(code) = tail.strip_prefix('`') {
+            if let Some(end) = code.find('`') {
+                let _ = write!(out, "<code>{}</code>", escape_html(&code[..end]));
+                rest = &code[end + 1..];
+                continue;
+            }
+        } else if let Some((text, url, after)) = parse_link(tail) {
+            let _ = write!(
+                out,
+                "<a href=\"{}\">{}</a>",
+                escape_html(url),
+                escape_html(text)
+            );
+            rest = after;
+            continue;
+        }
+        // Unmatched marker: emit it literally.
+        out.push_str(&escape_html(&tail[..1]));
+        rest = &tail[1..];
+    }
+    out.push_str(&escape_html(rest));
+    out
+}
+
+/// `[text](url)rest` → `(text, url, rest)`.
+fn parse_link(s: &str) -> Option<(&str, &str, &str)> {
+    let inner = s.strip_prefix('[')?;
+    let close = inner.find("](")?;
+    let after_text = &inner[close + 2..];
+    let end = after_text.find(')')?;
+    Some((&inner[..close], &after_text[..end], &after_text[end + 1..]))
+}
+
+/// The shared inline markup is already valid Markdown; only the
+/// non-breaking spaces are normalized so agents see plain text.
+fn inline_md(src: &str) -> String {
+    src.replace('\u{a0}', " ")
+}
+
+/// Plain-text form of the shared inline markup (code ticks dropped, links
+/// reduced to their text). Used by the drift test to check both renderings
+/// carry every piece of shared copy.
+#[cfg(test)]
+pub(crate) fn inline_plain(src: &str) -> String {
+    let mut out = String::new();
+    let mut rest = src;
+    while let Some(i) = rest.find(['`', '[']) {
+        out.push_str(&rest[..i]);
+        let tail = &rest[i..];
+        if let Some(after) = tail.strip_prefix('`') {
+            rest = after;
+        } else if let Some((text, _, after)) = parse_link(tail) {
+            out.push_str(text);
+            rest = after;
+        } else {
+            out.push('[');
+            rest = &tail[1..];
+        }
+    }
+    out.push_str(rest);
+    out.replace('\u{a0}', " ")
+}
+
+/// Every piece of shared copy, as plain text, for the given instance —
+/// what both the HTML and the Markdown homepage must contain.
+#[cfg(test)]
+pub(crate) fn shared_homepage_copy(base: &str, version: &str) -> Vec<String> {
+    let (total, enhanced, new) = badge_counts();
+    let mut copy = vec![
+        HERO_TITLE.to_string(),
+        hero_lede(enhanced, new),
+        SELF_HOST_TITLE.to_string(),
+        DOCKER_CMD.to_string(),
+        CARGO_CMD.to_string(),
+        TRY_DEFAULT.to_string(),
+        endpoints_intro(base),
+        legend_intro(total),
+        LEGEND_NEW.to_string(),
+        LEGEND_ENHANCED.to_string(),
+        LEGEND_NONE.to_string(),
+        HIGHLIGHTS_TITLE.to_string(),
+        footer_line(version),
+    ];
+    for h in HIGHLIGHTS {
+        copy.push(h.title.to_string());
+        copy.push(h.body.to_string());
+    }
+    for (label, _) in FOOTER_LINKS {
+        copy.push(label.to_string());
+    }
+    copy.iter().map(|c| inline_plain(c)).collect()
+}
+
 fn escape_html(input: &str) -> String {
     input
         .replace('&', "&amp;")
@@ -330,14 +526,18 @@ fn render_sidebar(total: usize, enhanced: usize, new: usize) -> String {
         s,
         "</nav>\n\
          <div class=\"legend\">\n\
-         <p>Badges compare each of the {total} endpoints with httpbin.org.</p>\n\
-         <p>{new_badge} Not in httpbin.org ({new})</p>\n\
-         <p>{enh_badge} In httpbin.org, fixed or extended here ({enhanced})</p>\n\
-         <p>No badge: works the same as httpbin.org</p>\n\
+         <p>{intro}</p>\n\
+         <p>{new_badge} {legend_new} ({new})</p>\n\
+         <p>{enh_badge} {legend_enhanced} ({enhanced})</p>\n\
+         <p>{legend_none}</p>\n\
          </div>\n\
          </aside>\n",
+        intro = inline_html(&legend_intro(total)),
         new_badge = badge_html(Some(Badge::New)),
         enh_badge = badge_html(Some(Badge::Enhanced)),
+        legend_new = inline_html(LEGEND_NEW),
+        legend_enhanced = inline_html(LEGEND_ENHANCED),
+        legend_none = inline_html(LEGEND_NONE),
     );
     s
 }
@@ -767,9 +967,9 @@ fn string_svg(class: &str, d: &str) -> String {
 
 fn render_homepage(canonical_url: &str, base: &str, host: &str, version: &str) -> String {
     let (total, enhanced, new) = badge_counts();
-    let docker_cmd = "docker run -p 8080:8080 ghcr.io/seedvector/httpcan:latest";
-    let cargo_cmd = "cargo install httpcan && httpcan";
-    let try_default = "/get?hello=can";
+    let docker_cmd = DOCKER_CMD;
+    let cargo_cmd = CARGO_CMD;
+    let try_default = TRY_DEFAULT;
     let try_curl = format!("curl '{base}{try_default}'");
     format!(
         r##"<!doctype html>
@@ -799,11 +999,11 @@ fn render_homepage(canonical_url: &str, base: &str, host: &str, version: &str) -
 <main>
 <section class="hero">
 <div>
-<h1>Send a request. See exactly what arrived.</h1>
-<p class="lede">HTTPCan is an HTTP test server for checking clients, proxies and AI agents. It covers every <a href="https://httpbin.org">httpbin.org</a> endpoint, fixes {enhanced} of them, adds {new} more, and includes mock OpenAI, Anthropic and OAuth&nbsp;2.0 servers.</p>
+<h1>{hero_title}</h1>
+<p class="lede">{hero_lede}</p>
 </div>
 <div class="install" id="self-host">
-<p>Run your own copy</p>
+<p>{self_host_title}</p>
 <div class="cmd"><code>{docker_cmd_html}</code>{docker_copy}</div>
 <div class="cmd"><code>{cargo_cmd_html}</code>{cargo_copy}</div>
 </div>
@@ -841,7 +1041,7 @@ Host: {host}</pre>
 
 <section class="ref-intro">
 <h2 id="endpoints">Endpoints</h2>
-<p class="section-intro">Every example runs against this server ({base}), so you can paste it straight into a terminal.</p>
+<p class="section-intro">{endpoints_intro}</p>
 </section>
 <div class="ref">
 {sidebar}
@@ -852,46 +1052,47 @@ Host: {host}</pre>
 </div>
 
 <section class="adds" id="why-httpcan">
-<h2>What HTTPCan adds to httpbin.org</h2>
+<h2>{highlights_title}</h2>
 <dl>
-<dt>Mock AI APIs</dt>
-<dd>OpenAI- and Anthropic-compatible endpoints under <code>/llm</code>. Point an SDK&rsquo;s <code>base_url</code> at them to test your client, streaming included, without a paid key.</dd>
-<dt>Mock OAuth&nbsp;2.0 server</dt>
-<dd>All four RFC 6749 grants with PKCE, one-time codes, rotating refresh tokens, a Bearer-protected userinfo endpoint and RFC 8414 discovery, under <code>/oauth2</code>.</dd>
-<dt>Streaming endpoints</dt>
-<dd><code>/sse</code> and <code>/ndjson</code> send OpenAI- and Ollama-shaped chunks, so you can test streaming parsers.</dd>
-<dt>Safer redirects</dt>
-<dd>Browsers that open <code>/redirect-to</code> see a confirmation page instead of a silent 302, so the endpoint can&rsquo;t be abused as an open redirect.</dd>
-<dt>Headers kept intact</dt>
-<dd>Duplicate and non-ASCII request headers are echoed back as sent instead of being dropped.</dd>
-<dt>Proxy headers filtered</dt>
-<dd>About 100 reverse-proxy and CDN headers are removed from echoed responses. Add your own with <code>--exclude-headers</code>.</dd>
-<dt>Health checks</dt>
-<dd><code>/healthz</code> for liveness probes, <code>/tags</code> for instance identification, and <code>Server-Timing</code> and <code>X-Httpcan-Version</code> headers on every response.</dd>
-<dt>Fast</dt>
-<dd>Built with Rust and Actix Web. In our benchmarks it led comparable test servers on throughput and tail latency.</dd>
-</dl>
+{highlights}</dl>
 </section>
 </main>
 
 <footer class="site-foot">
-<p>HTTPCan {version}, MIT License.</p>
+<p>{footer_line}</p>
 <nav aria-label="Project">
-<a href="/openapi.json">OpenAPI spec</a>
-<a href="https://github.com/seedvector/httpcan">Source on GitHub</a>
-<a href="https://github.com/seedvector/httpcan/issues">Report an issue</a>
-</nav>
+{footer_links}</nav>
 </footer>
 </div>
 <script>{script}</script>
 </body>
 </html>"##,
         canonical_url = canonical_url,
+        hero_title = inline_html(HERO_TITLE),
+        hero_lede = inline_html(&hero_lede(enhanced, new)),
+        self_host_title = inline_html(SELF_HOST_TITLE),
+        endpoints_intro = inline_html(&endpoints_intro(base)),
+        highlights_title = inline_html(HIGHLIGHTS_TITLE),
+        highlights = HIGHLIGHTS
+            .iter()
+            .map(|h| format!(
+                "<dt>{}</dt>\n<dd>{}</dd>\n",
+                inline_html(h.title),
+                inline_html(h.body)
+            ))
+            .collect::<String>(),
+        footer_line = inline_html(&footer_line(version)),
+        footer_links = FOOTER_LINKS
+            .iter()
+            .map(|(label, href)| format!(
+                "<a href=\"{}\">{}</a>\n",
+                escape_html(href),
+                inline_html(label)
+            ))
+            .collect::<String>(),
         font_faces = font_faces(version),
         style = STYLE,
         total = total,
-        enhanced = enhanced,
-        new = new,
         docker_cmd_html = escape_html(docker_cmd),
         docker_copy = copy_button_html(docker_cmd, "Copy Docker command"),
         cargo_cmd_html = escape_html(cargo_cmd),
@@ -903,7 +1104,6 @@ Host: {host}</pre>
         string_v = string_svg("string-v", "M30 0 Q95 50 30 100"),
         sidebar = render_sidebar(total, enhanced, new),
         categories = render_categories(base),
-        base = escape_html(base),
         version = version,
         script = SCRIPT,
     )
@@ -917,67 +1117,44 @@ fn md_table_escape(cell: &str) -> String {
 
 /// Renders the homepage as Markdown for AI agents that send
 /// `Accept: text/markdown` (Content-Type: text/markdown). Mirrors the HTML
-/// page — intro, quick start, highlights, and every endpoint grouped by
-/// category with runnable curl examples resolved against `base` — so agents
-/// get clean text instead of scraping dense HTML. See
+/// page — hero, self-host commands, highlights, badge legend, every endpoint
+/// grouped by category with runnable curl examples resolved against `base`,
+/// and the footer — all drawn from the same shared copy and `CATEGORIES`
+/// data as `render_homepage`, so agents get the same content as clean text
+/// instead of scraping dense HTML. Only the interactive parts (request
+/// console, filter, Try/Copy buttons) are HTML-only. See
 /// <https://developers.cloudflare.com/fundamentals/reference/markdown-for-agents/>.
 fn render_markdown(base: &str, version: &str) -> String {
     let (total, enhanced, new) = badge_counts();
     let mut s = String::new();
 
-    let _ = writeln!(
-        s,
-        "# HTTPCan\n\nA modern, high-performance superset of [httpbin.org](https://httpbin.org) for testing HTTP clients, proxies, and AI agents — with mock OpenAI/Anthropic LLM APIs and a full OAuth 2.0 server. Built with Rust and Actix Web.\n"
-    );
-    let _ = writeln!(s, "- [OpenAPI spec]({base}/openapi.json)");
-    let _ = writeln!(
-        s,
-        "- [Source on GitHub](https://github.com/seedvector/httpcan)\n"
-    );
+    // Hero: same title and lede as the HTML page.
+    let _ = writeln!(s, "# HTTPCan\n");
+    let _ = writeln!(s, "**{}**\n", inline_md(HERO_TITLE));
+    let _ = writeln!(s, "{}\n", inline_md(&hero_lede(enhanced, new)));
 
-    let _ = writeln!(s, "## Quick Start\n");
-    let _ = writeln!(
-        s,
-        "You're on a live instance — `{base}`. Try an endpoint now:\n"
-    );
-    let _ = writeln!(s, "```sh");
-    let _ = writeln!(s, "curl {base}/get");
-    let _ = writeln!(s, "```\n");
-    let _ = writeln!(s, "Want your own? Run HTTPCan locally or in production:\n");
-    let _ = writeln!(s, "```sh");
-    let _ = writeln!(s, "# Docker");
-    let _ = writeln!(
-        s,
-        "docker run -p 8080:8080 ghcr.io/seedvector/httpcan:latest\n"
-    );
-    let _ = writeln!(s, "# Cargo");
-    let _ = writeln!(s, "cargo install httpcan && httpcan\n");
-    let _ = writeln!(s, "curl http://localhost:8080/get");
-    let _ = writeln!(s, "```\n");
+    // The request the HTML console sends on load, as a runnable command.
+    let _ = writeln!(s, "```sh\ncurl '{base}{TRY_DEFAULT}'\n```\n");
 
-    let _ = writeln!(s, "## Why HTTPCan\n");
-    let _ = writeln!(
-        s,
-        "HTTPCan is a **{total}-endpoint superset of httpbin.org**: every httpbin.org endpoint is covered and drop-in compatible, plus {new} endpoints httpbin.org doesn't have and {enhanced} it has but httpcan fixes or extends.\n"
-    );
-    let _ = writeln!(s, "- **AI API mock** — OpenAI- and Anthropic-compatible `/llm` endpoints: point any SDK `base_url` at it (streaming included) and test AI clients without a paid provider.");
-    let _ = writeln!(s, "- **OAuth 2.0 mock** — a full authorization server at `/oauth2`: four RFC 6749 grants with PKCE, one-time codes, rotating refresh tokens, Bearer-protected userinfo, and RFC 8414 discovery.");
-    let _ = writeln!(s, "- **AI-friendly streaming** — native `/sse` and `/ndjson` endpoints with OpenAI/Ollama-compatible chunk formats.");
-    let _ = writeln!(s, "- **Measured performance** — in our benchmarks against comparable HTTP testing servers, HTTPCan led on both throughput and tail latency.");
-    let _ = writeln!(s, "- **Anti-phishing redirects** — browser clients hitting `/redirect-to` see a confirmation page instead of a silent 302, closing an open-redirect abuse vector.");
-    let _ = writeln!(s, "- **Correct header handling** — duplicate and non-ASCII request headers are preserved instead of being dropped or crashing the server.");
-    let _ = writeln!(s, "- **Safer by default** — built-in filtering strips ~100 reverse-proxy/CDN headers from echoed responses, with `--exclude-headers` for more.");
-    let _ = writeln!(
-        s,
-        "- **Cloud-native observability** — `/healthz` liveness probe, `/tags` instance identification, and `Server-Timing`/`X-Httpcan-Version` on every response.\n"
-    );
-    let _ = writeln!(
-        s,
-        "> **{enhanced}** Enhanced (httpbin has it; httpcan fixes/extends) · **{new}** New (not in httpbin.org) · no badge = drop-in compatible.\n"
-    );
+    let _ = writeln!(s, "## {}\n", inline_md(SELF_HOST_TITLE));
+    let _ = writeln!(s, "```sh\n{DOCKER_CMD}\n{CARGO_CMD}\n```\n");
+
+    let _ = writeln!(s, "## {}\n", inline_md(HIGHLIGHTS_TITLE));
+    for h in HIGHLIGHTS {
+        let _ = writeln!(s, "- **{}** — {}", inline_md(h.title), inline_md(h.body));
+    }
+    let _ = writeln!(s);
 
     let _ = writeln!(s, "## Endpoints\n");
-    let _ = writeln!(s, "All examples below target this instance (`{base}`).\n");
+    let _ = writeln!(s, "{}\n", inline_md(&endpoints_intro(base)));
+    let _ = writeln!(
+        s,
+        "> {}\n>\n> - _(New)_ {} ({new})\n> - _(Enhanced)_ {} ({enhanced})\n> - {}\n",
+        inline_md(&legend_intro(total)),
+        inline_md(LEGEND_NEW),
+        inline_md(LEGEND_ENHANCED),
+        inline_md(LEGEND_NONE)
+    );
     for cat in CATEGORIES {
         let _ = writeln!(s, "### {}\n", cat.title);
         let _ = writeln!(s, "{}\n", cat.desc);
@@ -1004,10 +1181,19 @@ fn render_markdown(base: &str, version: &str) -> String {
     }
 
     let _ = writeln!(s, "---\n");
-    let _ = writeln!(
-        s,
-        "HTTPCan · version {version} · {total} endpoints · MIT License\n"
-    );
+    let links = FOOTER_LINKS
+        .iter()
+        .map(|(label, href)| {
+            let href = if href.starts_with('/') {
+                format!("{base}{href}")
+            } else {
+                href.to_string()
+            };
+            format!("[{}]({href})", inline_md(label))
+        })
+        .collect::<Vec<_>>()
+        .join(" · ");
+    let _ = writeln!(s, "{} {links}", inline_md(&footer_line(version)));
 
     s
 }
@@ -1082,11 +1268,12 @@ pub async fn root_handler(req: HttpRequest, config: web::Data<AppConfig>) -> Res
         let tokens = body.chars().count() / 4;
         return Ok(add_homepage_link_headers(HttpResponse::Ok())
             .content_type("text/markdown; charset=utf-8")
+            .append_header(("Vary", "Accept"))
             .insert_header(("x-markdown-tokens", tokens.to_string()))
             .body(body));
     }
-
     Ok(add_homepage_link_headers(HttpResponse::Ok())
+        .append_header(("Vary", "Accept"))
         .content_type("text/html; charset=utf-8")
         .body(render_homepage(
             &canonical_url,
