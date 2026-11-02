@@ -231,6 +231,84 @@ print(reply.choices[0].message.content)  # Custom reply text
 
 The Anthropic SDK works with `base_url="https://httpcan.org/llm"` (it appends `/v1/messages` itself). `GET /llm` returns a self-describing index, and `GET /llm/v1/models` returns the model list in whichever family's shape the request looks like (an `anthropic-version` header switches it).
 
+#### Mock script: tool calls, error injection, usage pinning, delay, sequences
+
+Every `/llm` request accepts an `httpcan` block that scripts the mock's
+answer in a provider-neutral way (`internal/llm-mock-advanced-design.md`):
+
+```bash
+# Tool calls: correct wire shape per family (message.tool_calls /
+# content[]{type:"tool_use"} / output[]{type:"function_call"}), streaming
+# included. tool_choice:"required" (or {"type":"any"}) synthesizes a call
+# from the first declared tool when tool_calls is unset.
+curl -X POST localhost:8081/llm/v1/chat/completions -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"weather?"}],"httpcan":{"tool_calls":[{"name":"get_weather","arguments":{"city":"SF"}}]}}'
+
+# Error injection with provider-correct bodies: rate_limit(429) |
+# overloaded(503/Anthropic 529) | context_length(400) | invalid_api_key(401)
+# | content_filter (in-band 200 + refusal)
+curl -X POST localhost:8081/llm/v1/messages -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"x"}],"httpcan":{"error":"overloaded"}}'  # -> 529
+
+# Deterministic usage (billing/cost-tracker tests), TTFB delay (<=10s) and
+# stream pacing (stream_chunk_delay_ms, <=1s; long content degenerates to
+# <=600 deltas so every stream finishes in bounded time)
+curl -X POST localhost:8081/llm/v1/chat/completions -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"x"}],"httpcan":{"usage":{"prompt_tokens":10,"completion_tokens":5},"delay_ms":300}}'
+
+# Multi-turn sequences: the step advances once per tool turn the client
+# sends back (a batch of role:"tool" / tool_result / function_call_output
+# results — parallel results count once); the last step repeats. Stateless — the script rides
+# in the request, so it works through any SDK via extra_body.
+curl -X POST localhost:8081/llm/v1/chat/completions -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"weather?"}],"httpcan":{"sequence":[{"tool_calls":[{"name":"get_weather","arguments":{"city":"SF"}}]},{"content":"72F and sunny"}]}}'
+```
+
+Every `/llm` response carries `X-Httpcan-Mock: true`, so clients can assert
+the traffic never left the mock. The legacy completions API has no tools, so
+`tool_calls` there is a 400 with a pointer to `/llm/v1/chat/completions`.
+
+#### Testing from GUI clients (Cherry Studio, LobeChat, Open WebUI, …)
+
+Chat UIs can't send request-body fields, so two prompt-level controls work
+everywhere:
+
+1. **`#mock` directives** — type them into the chat box. The sigil must be a
+   standalone token in the **last user message**; the rest of its line is
+   space-separated `key=value` directives (unknown tokens ignored):
+
+   ```text
+   #mock error=rate_limit          → 429 provider-shaped error (also: overloaded 529/503,
+                                     context_length, invalid_api_key, content_filter)
+   #mock delay=3000                → 3s TTFB latency
+   #mock usage=10x5                → deterministic prompt x completion token counts
+   #mock tool=get_weather          → answer with one tool call; arguments are generated
+                                     from the declared tool's JSON schema (required fields
+                                     filled with schema-valid values), else {}
+   #mock tool=bash args={"command": "ls -la"}
+                                   → explicit arguments (JSON object; takes the rest of
+                                     the line, so put args= last)
+   #mock error=overloaded delay=500 → combine freely
+   ```
+
+   Only the last user message is scanned, and only while no tool results
+   follow it — so a directive fires once per user turn, and `tool=` loops end
+   after the tool result comes back (history never re-triggers;
+   `#mockery` doesn't match), and an explicit `httpcan` block in the same
+   request always wins over prompt directives.
+
+2. **The `auto-tools` model** — pick it as the model name (it's listed in
+   `/llm/v1/models`). With tools declared (e.g. Cherry Studio's MCP servers)
+   it calls the first declared tool; once the client sends the tool result
+   back, it replies `Tool result: <last result>` — a full visible tool loop
+   with zero configuration.
+
+Cherry Studio recipe: add a custom OpenAI-compatible provider
+(`API 地址` = `http://localhost:8080/llm/v1`, any key), fetch the model list,
+pick `auto-tools`, enable an MCP server, and chat. Type `#mock` directives
+in the message box to exercise errors, usage pinning and delays on the same
+conversation.
+
 ### OAuth 2.0 Mock
 
 ```bash

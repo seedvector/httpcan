@@ -20,6 +20,7 @@ fn llm_frame_data(frame: &str) -> serde_json::Value {
     serde_json::from_str(frame.strip_prefix("data: ").unwrap_or(frame)).unwrap()
 }
 
+mod advanced;
 mod anthropic;
 mod completions;
 mod models;

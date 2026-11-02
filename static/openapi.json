@@ -70,7 +70,7 @@
     },
     {
       "name": "AI API Mock",
-      "description": "Mock OpenAI- and Anthropic-compatible LLM APIs."
+      "description": "Mock OpenAI- and Anthropic-compatible LLM APIs: point an SDK base_url at /llm and test without a paid provider. No auth (any API key works); every response carries X-Httpcan-Mock: true. Script answers with the httpcan body block (SDKs) or #mock prompt directives and the auto-tools model (GUI chat clients)."
     },
     {
       "name": "OAuth 2.0 Mock",
@@ -5574,7 +5574,7 @@
         ],
         "summary": "Self-describing index of the LLM mock endpoints",
         "operationId": "getLlmIndex",
-        "description": "Endpoints, base_url guidance for OpenAI/Anthropic SDKs, and the httpcan response-override contract.",
+        "description": "Self-describing index: endpoints, base_url guidance for both SDK families (OpenAI SDK: /llm/v1 or /llm; Anthropic SDK: /llm), the httpcan mock-script contract, the #mock prompt directives and the auto-tools model.",
         "responses": {
           "200": {
             "description": "LLM mock index",
@@ -5596,7 +5596,7 @@
         ],
         "summary": "Mock OpenAI Chat Completions API",
         "operationId": "createChatCompletionMock",
-        "description": "Returns a canonical chat.completion response. Supports stream:true (chat.completion.chunk SSE with [DONE], include_usage via stream_options) and an httpcan.content body override. /llm/chat/completions is an undocumented silent alias.",
+        "description": "Mock OpenAI Chat Completions API: the canonical chat.completion shape. stream:true emits chat.completion.chunk SSE frames (role delta first, finish_reason chunk last, [DONE] sentinel; stream_options.include_usage adds a usage chunk). The httpcan script adds tool calls, error injection, pinned usage, delays and multi-turn sequences; forced tool_choice and the auto-tools model synthesize calls. /llm/chat/completions is a silent alias for SDKs whose base_url is /llm. #mock prompt directives: a standalone #mock token in the last user message, while no tool results follow it, turns the rest of that line into key=value directives: error=<kind>, delay=<ms>, usage=<prompt>x<completion>, tool=<name> (arguments from the declared tool's schema), args=<JSON object> (explicit arguments, rest of the line). Directives fire once per user turn; an explicit httpcan block wins.",
         "requestBody": {
           "required": true,
           "content": {
@@ -5608,7 +5608,8 @@
                 ],
                 "properties": {
                   "model": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Echoed back verbatim; any id is accepted. The reserved id auto-tools runs an automatic tool loop for GUI clients: with tools declared it calls the first client tool (schema-valid arguments), and once tool results come back it replies 'Tool result: <last result>'."
                   },
                   "messages": {
                     "type": "array",
@@ -5647,11 +5648,105 @@
                       }
                     }
                   },
+                  "tools": {
+                    "type": "array",
+                    "description": "Declared tools ({type:\"function\", function:{name, parameters}}). parameters schemas drive generated tool-call arguments.",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "tool_choice": {
+                    "description": "\"required\" or {type:\"function\", function:{name}} forces a call (synthesized from the first declared tool, or the named one) when httpcan.tool_calls is unset.",
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "object"
+                      }
+                    ]
+                  },
                   "httpcan": {
                     "type": "object",
+                    "description": "Mock script, provider-neutral across the /llm endpoints. Strict SDKs pass it via extra_body. Explicit fields beat #mock prompt directives.",
                     "properties": {
                       "content": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "Assistant text; sent alongside tool_calls when both are set. Unset: a placeholder text, or no text for tool-only answers (message.content null)."
+                      },
+                      "refusal": {
+                        "type": "string",
+                        "description": "In-band refusal text (soft content_filter): message.content null, message.refusal set, finish_reason content_filter."
+                      },
+                      "tool_calls": {
+                        "type": "array",
+                        "description": "Tool calls to answer with: message.tool_calls[] (streamed as tool_calls deltas), finish_reason tool_calls.",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "name"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "description": "Defaults to a generated call_* id, identical in every stream chunk."
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "arguments": {
+                              "type": "object",
+                              "description": "Arguments object. Omitted: generated from the matching declared tool's JSON schema (every required field filled with a schema-valid value: const/default/examples/enum first, then by type), else {}."
+                            }
+                          }
+                        }
+                      },
+                      "stop_reason": {
+                        "type": "string",
+                        "description": "Explicit finish_reason override (derived otherwise: stop / tool_calls / content_filter)."
+                      },
+                      "usage": {
+                        "type": "object",
+                        "description": "Pinned usage (prompt_tokens / completion_tokens); unset fields fall back to the estimate.",
+                        "properties": {
+                          "prompt_tokens": {
+                            "type": "integer"
+                          },
+                          "completion_tokens": {
+                            "type": "integer"
+                          }
+                        }
+                      },
+                      "error": {
+                        "type": "string",
+                        "enum": [
+                          "rate_limit",
+                          "overloaded",
+                          "context_length",
+                          "invalid_api_key",
+                          "content_filter"
+                        ],
+                        "description": "Injected error: rate_limit 429, overloaded 503, context_length 400, invalid_api_key 401, all in the OpenAI error envelope. content_filter is in-band (200 + refusal), never an error body."
+                      },
+                      "delay_ms": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 10000,
+                        "description": "Pre-response (time-to-first-byte) delay in ms, applied to JSON, streaming and error responses alike. Clamped to 10000."
+                      },
+                      "stream_chunk_delay_ms": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 1000,
+                        "description": "Inter-delta delay for streams in ms (default 50, clamped to 1000). Long text is grouped into at most 600 deltas."
+                      },
+                      "sequence": {
+                        "type": "array",
+                        "description": "Multi-turn script, stateless: the request carrying N completed tool turns gets step N (one turn = a run of consecutive role:\"tool\" messages; parallel results of one turn count once). The last step repeats. Step fields override the top-level ones.",
+                        "items": {
+                          "type": "object",
+                          "description": "Same fields as httpcan, except sequence."
+                        }
                       }
                     }
                   }
@@ -5665,7 +5760,16 @@
             "description": "chat.completion object or SSE stream"
           },
           "400": {
-            "description": "OpenAI-shaped error"
+            "description": "OpenAI-shaped error: malformed JSON or missing required field, injected context_length, or (legacy completions) httpcan.tool_calls"
+          },
+          "401": {
+            "description": "OpenAI-shaped error: injected invalid_api_key (no real auth is performed; any key works)"
+          },
+          "429": {
+            "description": "OpenAI-shaped error: injected rate_limit"
+          },
+          "503": {
+            "description": "OpenAI-shaped error: injected overloaded"
           },
           "405": {
             "description": "Method not allowed (POST only)"
@@ -5680,7 +5784,7 @@
         ],
         "summary": "Mock Anthropic Messages API",
         "operationId": "createMessageMock",
-        "description": "Returns an Anthropic message with text content blocks and stop_reason. Supports stream:true (full event protocol: message_start through message_stop) and an httpcan.content body override.",
+        "description": "Mock Anthropic Messages API: content blocks, stop_reason and two-field usage. stream:true follows the event protocol exactly (message_start → content_block_start/delta/stop → message_delta → message_stop, no [DONE]). The httpcan script adds tool_use blocks (input_json_delta streaming), Anthropic-shaped errors (529 overloaded_error included), pinned usage, delays and multi-turn sequences; forced tool_choice and the auto-tools model synthesize calls. #mock prompt directives: a standalone #mock token in the last user message, while no tool results follow it, turns the rest of that line into key=value directives: error=<kind>, delay=<ms>, usage=<prompt>x<completion>, tool=<name> (arguments from the declared tool's schema), args=<JSON object> (explicit arguments, rest of the line). Directives fire once per user turn; an explicit httpcan block wins.",
         "requestBody": {
           "required": true,
           "content": {
@@ -5692,7 +5796,8 @@
                 ],
                 "properties": {
                   "model": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Echoed back verbatim; any id is accepted. The reserved id auto-tools runs an automatic tool loop for GUI clients: with tools declared it calls the first client tool (schema-valid arguments), and once tool results come back it replies 'Tool result: <last result>'."
                   },
                   "messages": {
                     "type": "array",
@@ -5732,11 +5837,98 @@
                     "type": "boolean",
                     "default": false
                   },
+                  "tools": {
+                    "type": "array",
+                    "description": "Declared tools ({name, input_schema}). Server tools with a versioned type (web_search_20250305, bash_…) are never called by the mock; input_schema drives generated arguments.",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "tool_choice": {
+                    "type": "object",
+                    "description": "{type:\"any\"} or {type:\"tool\", name} forces a call (first declared client tool, or the named one) when httpcan.tool_calls is unset."
+                  },
                   "httpcan": {
                     "type": "object",
+                    "description": "Mock script, provider-neutral across the /llm endpoints. Strict SDKs pass it via extra_body. Explicit fields beat #mock prompt directives.",
                     "properties": {
                       "content": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "Assistant text; sent as a text block before the tool_use blocks when both are set. Unset: a placeholder text, or no text block at all for tool-only answers."
+                      },
+                      "refusal": {
+                        "type": "string",
+                        "description": "In-band refusal text (soft content_filter): returned as the text block with stop_reason refusal."
+                      },
+                      "tool_calls": {
+                        "type": "array",
+                        "description": "Tool calls to answer with: content[]{type:\"tool_use\"} blocks with arguments as the input object (streamed as input_json_delta), stop_reason tool_use.",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "name"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "description": "Defaults to a generated toolu_* id, identical in the stream and the final message."
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "arguments": {
+                              "type": "object",
+                              "description": "Arguments object. Omitted: generated from the matching declared tool's JSON schema (every required field filled with a schema-valid value: const/default/examples/enum first, then by type), else {}."
+                            }
+                          }
+                        }
+                      },
+                      "stop_reason": {
+                        "type": "string",
+                        "description": "Explicit stop_reason override (derived otherwise: end_turn / tool_use / refusal)."
+                      },
+                      "usage": {
+                        "type": "object",
+                        "description": "Pinned usage; prompt_tokens / completion_tokens map to input_tokens / output_tokens. Unset fields fall back to the estimate.",
+                        "properties": {
+                          "prompt_tokens": {
+                            "type": "integer"
+                          },
+                          "completion_tokens": {
+                            "type": "integer"
+                          }
+                        }
+                      },
+                      "error": {
+                        "type": "string",
+                        "enum": [
+                          "rate_limit",
+                          "overloaded",
+                          "context_length",
+                          "invalid_api_key",
+                          "content_filter"
+                        ],
+                        "description": "Injected error: rate_limit 429 rate_limit_error, overloaded 529 overloaded_error, context_length 400 invalid_request_error, invalid_api_key 401 authentication_error, all in the Anthropic error envelope. content_filter is in-band (200 + refusal), never an error body."
+                      },
+                      "delay_ms": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 10000,
+                        "description": "Pre-response (time-to-first-byte) delay in ms, applied to JSON, streaming and error responses alike. Clamped to 10000."
+                      },
+                      "stream_chunk_delay_ms": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 1000,
+                        "description": "Inter-delta delay for streams in ms (default 50, clamped to 1000). Long text is grouped into at most 600 deltas."
+                      },
+                      "sequence": {
+                        "type": "array",
+                        "description": "Multi-turn script, stateless: the request carrying N completed tool turns gets step N (one turn = a user message carrying tool_result blocks; parallel results of one turn count once). The last step repeats. Step fields override the top-level ones.",
+                        "items": {
+                          "type": "object",
+                          "description": "Same fields as httpcan, except sequence."
+                        }
                       }
                     }
                   }
@@ -5750,7 +5942,16 @@
             "description": "Anthropic message object or SSE event stream"
           },
           "400": {
-            "description": "Anthropic-shaped error"
+            "description": "Anthropic-shaped error: malformed JSON or missing required field, injected context_length, or (legacy completions) httpcan.tool_calls"
+          },
+          "401": {
+            "description": "Anthropic-shaped error: injected invalid_api_key (no real auth is performed; any key works)"
+          },
+          "429": {
+            "description": "Anthropic-shaped error: injected rate_limit"
+          },
+          "529": {
+            "description": "Anthropic-shaped error: injected overloaded (overloaded_error)"
           },
           "405": {
             "description": "Method not allowed (POST only)"
@@ -5765,7 +5966,7 @@
         ],
         "summary": "List mock models",
         "operationId": "listMockModels",
-        "description": "OpenAI list shape by default; Anthropic shape when an anthropic-version request header is present (both SDK families construct this same path).",
+        "description": "OpenAI list shape by default; Anthropic shape when an anthropic-version request header is present (both SDK families construct this same path). Includes the reserved auto-tools model (automatic tool loop for GUI clients).",
         "responses": {
           "200": {
             "description": "Model list"
@@ -5805,7 +6006,7 @@
         ],
         "summary": "Mock OpenAI Responses API",
         "operationId": "createResponseMock",
-        "description": "Returns a canonical Response object (spec-required fields incl. temperature/top_p/metadata/tool_choice, output_text convenience, ResponseUsage with detail sub-objects). Streaming emits named SSE events (response.created through response.completed) with incrementing sequence_number and no [DONE] sentinel. /llm/responses is an undocumented silent alias. instructions is echoed back.",
+        "description": "Mock OpenAI Responses API: a Response object with every spec-required field, the output_text convenience field and ResponseUsage with detail sub-objects; instructions is echoed back. stream:true emits named SSE events (response.created → … → response.completed) with an incrementing sequence_number and no [DONE]. The httpcan script adds function_call output items, error injection, pinned usage, delays and multi-turn sequences. /llm/responses is a silent alias. #mock prompt directives: a standalone #mock token in the last user message, while no tool results follow it, turns the rest of that line into key=value directives: error=<kind>, delay=<ms>, usage=<prompt>x<completion>, tool=<name> (arguments from the declared tool's schema), args=<JSON object> (explicit arguments, rest of the line). Directives fire once per user turn; an explicit httpcan block wins.",
         "requestBody": {
           "required": true,
           "content": {
@@ -5814,7 +6015,8 @@
                 "type": "object",
                 "properties": {
                   "model": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Echoed back verbatim; any id is accepted. The reserved id auto-tools runs an automatic tool loop for GUI clients: with tools declared it calls the first client tool (schema-valid arguments), and once tool results come back it replies 'Tool result: <last result>'."
                   },
                   "input": {
                     "oneOf": [
@@ -5824,7 +6026,8 @@
                       {
                         "type": "array"
                       }
-                    ]
+                    ],
+                    "description": "A plain string (scanned for #mock directives) or a list of message / function_call / function_call_output items."
                   },
                   "instructions": {
                     "type": "string"
@@ -5833,11 +6036,101 @@
                     "type": "boolean",
                     "default": false
                   },
+                  "tools": {
+                    "type": "array",
+                    "description": "Declared tools; only {type:\"function\", name, parameters} entries are callable by the mock, and parameters drives generated arguments.",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "tool_choice": {
+                    "description": "\"required\" or {type:\"function\", name} forces a call (first declared function tool, or the named one) when httpcan.tool_calls is unset.",
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "object"
+                      }
+                    ]
+                  },
                   "httpcan": {
                     "type": "object",
+                    "description": "Mock script, provider-neutral across the /llm endpoints. Strict SDKs pass it via extra_body. Explicit fields beat #mock prompt directives.",
                     "properties": {
                       "content": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "Assistant text: a message output item before the function_call items. Unset: a placeholder text, or no message item for tool-only answers. An empty string also omits the message item; streaming and non-streaming produce the same output array."
+                      },
+                      "refusal": {
+                        "type": "string",
+                        "description": "In-band refusal text (soft content_filter): a refusal content part, status incomplete, incomplete_details.reason content_filter."
+                      },
+                      "tool_calls": {
+                        "type": "array",
+                        "description": "Tool calls to answer with: output[]{type:\"function_call\"} items, streamed via response.function_call_arguments.delta/done. The Responses API has no finish reason; the response completes normally.",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "name"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "description": "Becomes call_id (a generated call_* id when unset). The item id is a generated fc_* id. Both are identical across stream events and the final response.completed object."
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "arguments": {
+                              "type": "object",
+                              "description": "Arguments object. Omitted: generated from the matching declared tool's JSON schema (every required field filled with a schema-valid value: const/default/examples/enum first, then by type), else {}."
+                            }
+                          }
+                        }
+                      },
+                      "usage": {
+                        "type": "object",
+                        "description": "Pinned usage; prompt_tokens / completion_tokens map to input_tokens / output_tokens. Unset fields fall back to the estimate.",
+                        "properties": {
+                          "prompt_tokens": {
+                            "type": "integer"
+                          },
+                          "completion_tokens": {
+                            "type": "integer"
+                          }
+                        }
+                      },
+                      "error": {
+                        "type": "string",
+                        "enum": [
+                          "rate_limit",
+                          "overloaded",
+                          "context_length",
+                          "invalid_api_key",
+                          "content_filter"
+                        ],
+                        "description": "Injected error: rate_limit 429, overloaded 503, context_length 400, invalid_api_key 401, all in the OpenAI error envelope. content_filter is in-band (200 + refusal), never an error body."
+                      },
+                      "delay_ms": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 10000,
+                        "description": "Pre-response (time-to-first-byte) delay in ms, applied to JSON, streaming and error responses alike. Clamped to 10000."
+                      },
+                      "stream_chunk_delay_ms": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 1000,
+                        "description": "Inter-delta delay for streams in ms (default 50, clamped to 1000). Long text is grouped into at most 600 deltas."
+                      },
+                      "sequence": {
+                        "type": "array",
+                        "description": "Multi-turn script, stateless: the request carrying N completed tool turns gets step N (one turn = a run of consecutive function_call_output items; parallel results of one turn count once). The last step repeats. Step fields override the top-level ones.",
+                        "items": {
+                          "type": "object",
+                          "description": "Same fields as httpcan, except sequence."
+                        }
                       }
                     }
                   }
@@ -5851,7 +6144,16 @@
             "description": "Response object or named SSE event stream"
           },
           "400": {
-            "description": "OpenAI-shaped error"
+            "description": "OpenAI-shaped error: malformed JSON or missing required field, injected context_length, or (legacy completions) httpcan.tool_calls"
+          },
+          "401": {
+            "description": "OpenAI-shaped error: injected invalid_api_key (no real auth is performed; any key works)"
+          },
+          "429": {
+            "description": "OpenAI-shaped error: injected rate_limit"
+          },
+          "503": {
+            "description": "OpenAI-shaped error: injected overloaded"
           },
           "405": {
             "description": "Method not allowed (POST only)"
@@ -5866,7 +6168,7 @@
         ],
         "summary": "Mock OpenAI legacy Completions API",
         "operationId": "createCompletionMock",
-        "description": "Text-in/text-out legacy completions: canonical text_completion shape with spec-required choices fields (logprobs as null). Supports prompt as string or arrays, echo:true (prepends the prompt), n choices, SSE streaming (no role first-chunk, stop chunk, [DONE], include_usage via stream_options) and the httpcan.content override. /llm/completions is an undocumented silent alias.",
+        "description": "Mock OpenAI legacy Completions API (text in, text out): the text_completion shape with prompt as string or arrays, echo:true (prepends the prompt), n choices, and SSE streaming (no role chunk, stop chunk, [DONE], include_usage). httpcan error / refusal / usage / delay fields apply; tool_calls is a 400 because the legacy API has no tools. /llm/completions is a silent alias. #mock prompt directives: a standalone #mock token in the prompt turns the rest of that line into key=value directives (error=<kind>, delay=<ms>, usage=<prompt>x<completion>); an explicit httpcan block wins.",
         "requestBody": {
           "required": true,
           "content": {
@@ -5878,7 +6180,8 @@
                 ],
                 "properties": {
                   "model": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Echoed back verbatim; any id is accepted."
                   },
                   "prompt": {
                     "oneOf": [
@@ -5912,9 +6215,61 @@
                   },
                   "httpcan": {
                     "type": "object",
+                    "description": "Mock script, provider-neutral across the /llm endpoints. Strict SDKs pass it via extra_body. No tools or turns on this API: tool_calls is a 400 pointing at /llm/v1/chat/completions, and sequence always uses its first step.",
                     "properties": {
                       "content": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "Completion text (prefixed with the prompt when echo is true). Unset: a placeholder text."
+                      },
+                      "refusal": {
+                        "type": "string",
+                        "description": "In-band refusal text (soft content_filter): empty text, finish_reason content_filter, 0 completion tokens."
+                      },
+                      "stop_reason": {
+                        "type": "string",
+                        "description": "Explicit finish_reason override (derived otherwise: stop / content_filter)."
+                      },
+                      "usage": {
+                        "type": "object",
+                        "description": "Pinned usage (prompt_tokens / completion_tokens); unset fields fall back to the estimate.",
+                        "properties": {
+                          "prompt_tokens": {
+                            "type": "integer"
+                          },
+                          "completion_tokens": {
+                            "type": "integer"
+                          }
+                        }
+                      },
+                      "error": {
+                        "type": "string",
+                        "enum": [
+                          "rate_limit",
+                          "overloaded",
+                          "context_length",
+                          "invalid_api_key",
+                          "content_filter"
+                        ],
+                        "description": "Injected error: rate_limit 429, overloaded 503, context_length 400, invalid_api_key 401, all in the OpenAI error envelope. content_filter is in-band (200 + refusal), never an error body."
+                      },
+                      "delay_ms": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 10000,
+                        "description": "Pre-response (time-to-first-byte) delay in ms, applied to JSON, streaming and error responses alike. Clamped to 10000."
+                      },
+                      "stream_chunk_delay_ms": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 1000,
+                        "description": "Inter-delta delay for streams in ms (default 50, clamped to 1000). Long text is grouped into at most 600 deltas."
+                      },
+                      "sequence": {
+                        "type": "array",
+                        "description": "Accepted for symmetry; with no tool turns on this API the first step always applies.",
+                        "items": {
+                          "type": "object"
+                        }
                       }
                     }
                   }
@@ -5928,7 +6283,16 @@
             "description": "text_completion object or SSE stream"
           },
           "400": {
-            "description": "OpenAI-shaped error"
+            "description": "OpenAI-shaped error: malformed JSON or missing required field, injected context_length, or (legacy completions) httpcan.tool_calls"
+          },
+          "401": {
+            "description": "OpenAI-shaped error: injected invalid_api_key (no real auth is performed; any key works)"
+          },
+          "429": {
+            "description": "OpenAI-shaped error: injected rate_limit"
+          },
+          "503": {
+            "description": "OpenAI-shaped error: injected overloaded"
           },
           "405": {
             "description": "Method not allowed (POST only)"

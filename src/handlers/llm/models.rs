@@ -13,6 +13,7 @@
 //! endpoints' lenient "any model name is valid" semantics: clients that
 //! pre-validate a model before sending never see a mismatch.
 
+use super::AUTO_TOOLS_MODEL;
 use actix_web::{web, HttpRequest, HttpResponse, Result};
 use serde_json::json;
 
@@ -71,20 +72,30 @@ fn anthropic_model(id: &str) -> serde_json::Value {
 }
 
 pub async fn models_handler(req: HttpRequest) -> Result<HttpResponse> {
+    // The reserved auto-tools model rides at the end of both catalogs so
+    // GUI clients that fetch the model list (Cherry Studio, …) can add it
+    // with one click and exercise tool loops without body control.
     if is_anthropic_client(&req) {
-        let data: Vec<serde_json::Value> = ANTHROPIC_MODELS
+        let ids: Vec<&str> = ANTHROPIC_MODELS
             .iter()
-            .map(|id| anthropic_model(id))
+            .copied()
+            .chain(std::iter::once(AUTO_TOOLS_MODEL))
             .collect();
+        let data: Vec<serde_json::Value> = ids.iter().map(|id| anthropic_model(id)).collect();
         return Ok(HttpResponse::Ok().json(json!({
             "data": data,
-            "first_id": ANTHROPIC_MODELS.first(),
+            "first_id": ids.first(),
             "has_more": false,
-            "last_id": ANTHROPIC_MODELS.last()
+            "last_id": ids.last()
         })));
     }
 
-    let data: Vec<serde_json::Value> = OPENAI_MODELS.iter().map(|id| openai_model(id)).collect();
+    let ids: Vec<&str> = OPENAI_MODELS
+        .iter()
+        .copied()
+        .chain(std::iter::once(AUTO_TOOLS_MODEL))
+        .collect();
+    let data: Vec<serde_json::Value> = ids.iter().map(|id| openai_model(id)).collect();
     Ok(HttpResponse::Ok().json(json!({
         "object": "list",
         "data": data

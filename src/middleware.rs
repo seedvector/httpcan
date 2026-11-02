@@ -98,6 +98,10 @@ where
         let start_time = Instant::now();
         let method = req.method().to_string();
         let uri = req.uri().to_string();
+        // Every /llm response proves it was answered by the mock, never an
+        // upstream provider (Kong's Mocking Policy does the same with
+        // X-Kong-Mocking-Plugin).
+        let is_llm = req.path().starts_with("/llm");
         let user_agent = req
             .headers()
             .get("user-agent")
@@ -154,6 +158,12 @@ where
             }
             if let Ok(dur) = HeaderValue::from_str(&format!("app;dur={duration_ms:.3}")) {
                 headers.insert(HeaderName::from_static("server-timing"), dur);
+            }
+            if is_llm {
+                headers.insert(
+                    HeaderName::from_static("x-httpcan-mock"),
+                    HeaderValue::from_static("true"),
+                );
             }
 
             Ok(res)

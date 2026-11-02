@@ -9,6 +9,10 @@
 //! chunk last, `data: [DONE]` sentinel, and — when
 //! `stream_options.include_usage` is set — an extra empty-choices chunk
 //! carrying `usage` between the stop chunk and `[DONE]`.
+//!
+//! The `httpcan` override block (`internal/llm-mock-advanced-design.md`)
+//! adds tool calls (`message.tool_calls`, `finish_reason:"tool_calls"`),
+//! error injection, usage pinning, delays and multi-turn sequences on top.
 
 use super::*;
 use actix_web::{web, HttpResponse, Result};
@@ -27,6 +31,8 @@ struct ChatCompletionsRequest {
     n: Option<u32>,
     stream: Option<bool>,
     stream_options: Option<StreamOptions>,
+    tools: Option<serde_json::Value>,
+    tool_choice: Option<serde_json::Value>,
     httpcan: Option<HttpcanOverride>,
 }
 
@@ -61,6 +67,28 @@ pub(crate) fn usage_json(prompt_tokens: usize, completion_tokens: usize) -> serd
         "total_tokens": prompt_tokens + completion_tokens,
         "prompt_tokens_details": null,
         "completion_tokens_details": null
+    })
+}
+
+/// `message.tool_calls[]` entries: `function.arguments` is the JSON-encoded
+/// string, exactly as the real API transports it.
+fn tool_calls_json(calls: &[MockToolCall]) -> serde_json::Value {
+    json!(calls
+        .iter()
+        .map(|c| json!({
+            "id": c.id_or("call_"),
+            "type": "function",
+            "function": { "name": c.name, "arguments": c.arguments_json() }
+        }))
+        .collect::<Vec<_>>())
+}
+
+/// Declared function tools (`tools[].function.{name, parameters}`), for
+/// forced `tool_choice` / auto-tools synthesis and argument sampling.
+fn declared_tools(tools: Option<&serde_json::Value>) -> Vec<DeclaredTool> {
+    collect_tools(tools, |t| {
+        let f = t.get("function")?;
+        Some((f.get("name")?.as_str()?, f.get("parameters")))
     })
 }
 
@@ -124,11 +152,49 @@ pub async fn chat_completions_handler(body: web::Bytes) -> Result<HttpResponse> 
             )
         })
         .fold(String::new(), |acc, line| acc + &line);
-    let prompt_tokens = estimate_tokens(&prompt_text);
+    let estimated_prompt_tokens = estimate_tokens(&prompt_text);
 
-    let content = override_content(req.httpcan.as_ref(), DEFAULT_CONTENT).to_string();
-    let completion_tokens = estimate_tokens(&content);
+    let text_of =
+        |m: &InMessage| content_text(m.content.as_ref().unwrap_or(&serde_json::Value::Null));
+    let is_tool = |m: &InMessage| m.role.as_deref() == Some("tool");
+    // Sequence advancement: one step per tool turn (a run of `role:"tool"`
+    // messages — parallel results count once).
+    let tool_turns = count_result_runs(&messages, is_tool);
+    // Prompt `#mock` directives come from the last user message, only while
+    // it is the live turn (no tool results after it).
+    let directive_text = messages
+        .iter()
+        .rposition(|m| m.role.as_deref() == Some("user"))
+        .filter(|&i| !messages[i + 1..].iter().any(is_tool))
+        .map(|i| text_of(&messages[i]));
+    let last_tool_result = messages.iter().rev().find(|m| is_tool(m)).map(text_of);
 
+    let plan = plan_response(PlanInput {
+        httpcan: req.httpcan.as_ref(),
+        model: &model,
+        tool_choice: req.tool_choice.as_ref(),
+        tools: declared_tools(req.tools.as_ref()),
+        tool_turns,
+        directive_text,
+        last_tool_result,
+        default_content: DEFAULT_CONTENT,
+        id_prefix: "call_",
+        estimated_prompt_tokens,
+    });
+    plan.delay().await;
+    if let Some(error) = plan.script.hard_error() {
+        return Ok(openai_error_response(error));
+    }
+
+    let finish_reason = plan.script.stop_reason.clone().unwrap_or_else(|| {
+        match (&plan.tool_calls[..], &plan.refusal) {
+            ([], Some(_)) => "content_filter".to_string(),
+            ([], None) => "stop".to_string(),
+            // A tool-carrying answer finishes with tool_calls even when text
+            // accompanies it, as the real API does.
+            (_, _) => "tool_calls".to_string(),
+        }
+    });
     let id = format!("chatcmpl-{}", rand_hex24());
     let created = now_unix();
 
@@ -137,24 +203,35 @@ pub async fn chat_completions_handler(body: web::Bytes) -> Result<HttpResponse> 
             &id,
             created,
             &model,
-            &content,
-            prompt_tokens,
-            completion_tokens,
+            &plan.content,
+            &plan.refusal,
+            &plan.tool_calls,
+            &finish_reason,
+            plan.prompt_tokens,
+            plan.completion_tokens,
             req.stream_options.as_ref().and_then(|o| o.include_usage) == Some(true),
+            plan.script.stream_chunk_delay_ms,
         ));
     }
 
     let choices: Vec<serde_json::Value> = (0..n)
         .map(|i| {
+            let mut message = match &plan.refusal {
+                Some(text) => json!({ "role": "assistant", "content": null, "refusal": text }),
+                // Tool-only answers carry `content: null`, as the real API does.
+                None if plan.content.is_empty() && !plan.tool_calls.is_empty() => {
+                    json!({ "role": "assistant", "content": null, "refusal": null })
+                }
+                None => json!({ "role": "assistant", "content": plan.content, "refusal": null }),
+            };
+            if !plan.tool_calls.is_empty() {
+                message["tool_calls"] = tool_calls_json(&plan.tool_calls);
+            }
             json!({
                 "index": i,
-                "message": {
-                    "role": "assistant",
-                    "content": content,
-                    "refusal": null
-                },
+                "message": message,
                 "logprobs": null,
-                "finish_reason": "stop"
+                "finish_reason": finish_reason
             })
         })
         .collect();
@@ -165,7 +242,7 @@ pub async fn chat_completions_handler(body: web::Bytes) -> Result<HttpResponse> 
         "created": created,
         "model": model,
         "choices": choices,
-        "usage": usage_json(prompt_tokens, completion_tokens)
+        "usage": usage_json(plan.prompt_tokens, plan.completion_tokens)
     })))
 }
 
@@ -182,23 +259,20 @@ fn stream_chat_completion(
     created: i64,
     model: &str,
     content: &str,
+    refusal: &Option<String>,
+    tool_calls: &[MockToolCall],
+    finish_reason: &str,
     prompt_tokens: usize,
     completion_tokens: usize,
     include_usage: bool,
+    chunk_delay_ms: u64,
 ) -> HttpResponse {
     let id = id.to_string();
     let model = model.to_string();
-    let words: Vec<String> = content
-        .split_whitespace()
-        .enumerate()
-        .map(|(i, w)| {
-            if i == 0 {
-                w.to_string()
-            } else {
-                format!(" {w}")
-            }
-        })
-        .collect();
+    let refusal = refusal.clone();
+    let tool_calls = tool_calls.to_vec();
+    let finish_reason = finish_reason.to_string();
+    let words = stream_words(content);
 
     let stream = async_stream::stream! {
         // First chunk carries the assistant role.
@@ -206,20 +280,50 @@ fn stream_chat_completion(
             json!({ "role": "assistant", "content": "" }),
             None
         )]))));
+        sleep(Duration::from_millis(chunk_delay_ms)).await;
 
-        for word in &words {
+        // Text deltas (skipped for in-band refusals, which carry no content).
+        if refusal.is_none() {
+            for word in &words {
+                yield Ok(sse_frame(&stream_chunk(&id, created, &model, json!([choice(
+                    json!({ "content": word }),
+                    None
+                )]))));
+                sleep(Duration::from_millis(chunk_delay_ms)).await;
+            }
+        }
+
+        // Tool-call deltas: one chunk opening the call (id + name + empty
+        // arguments), one carrying the full JSON-encoded arguments — the
+        // fragments the SDK concatenates.
+        for (index, call) in tool_calls.iter().enumerate() {
             yield Ok(sse_frame(&stream_chunk(&id, created, &model, json!([choice(
-                json!({ "content": word }),
+                json!({ "tool_calls": [{
+                    "index": index,
+                    "id": call.id_or("call_"),
+                    "type": "function",
+                    "function": { "name": call.name, "arguments": "" }
+                }] }),
                 None
             )]))));
-            sleep(Duration::from_millis(STREAM_CHUNK_DELAY_MS)).await;
+            sleep(Duration::from_millis(chunk_delay_ms)).await;
+
+            yield Ok(sse_frame(&stream_chunk(&id, created, &model, json!([choice(
+                json!({ "tool_calls": [{
+                    "index": index,
+                    "function": { "arguments": call.arguments_json() }
+                }] }),
+                None
+            )]))));
+            sleep(Duration::from_millis(chunk_delay_ms)).await;
         }
 
         // Final chunk: empty delta + finish_reason.
         yield Ok(sse_frame(&stream_chunk(&id, created, &model, json!([choice(
             json!({}),
-            Some("stop")
+            Some(finish_reason.as_str())
         )]))));
+        sleep(Duration::from_millis(chunk_delay_ms)).await;
 
         // When stream_options.include_usage is set, one extra chunk with
         // empty choices and the usage block lands before [DONE].

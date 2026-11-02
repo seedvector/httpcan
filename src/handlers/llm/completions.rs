@@ -8,6 +8,10 @@
 //! there is no role first-chunk — then a stop chunk, then `[DONE]`, with an
 //! extra empty-choices usage chunk when `stream_options.include_usage` is
 //! set.
+//!
+//! The legacy API has no tool-calling, so a `httpcan.tool_calls` override is
+//! a 400 rather than a silent degradation; every other script field
+//! (error/usage/delay/sequence) applies (`internal/llm-mock-advanced-design.md`).
 
 use super::*;
 use actix_web::{web, HttpResponse, Result};
@@ -110,14 +114,52 @@ pub async fn completions_handler(body: web::Bytes) -> Result<HttpResponse> {
     let echo = req.echo.unwrap_or(false);
 
     let prompt = prompt_text(req.prompt.as_ref().unwrap_or(&serde_json::Value::Null));
-    let prompt_tokens = estimate_tokens(&prompt);
+    let estimated_prompt_tokens = estimate_tokens(&prompt);
 
-    // With echo, the returned text starts with the prompt itself.
-    let mut text = override_content(req.httpcan.as_ref(), DEFAULT_CONTENT).to_string();
-    if echo && !prompt.is_empty() {
-        text = format!("{prompt}{text}");
+    // Prompt `#mock` directives live in the prompt itself (the whole prompt
+    // is user-typed on this API). No tools and no turns on this API.
+    let plan = plan_response(PlanInput {
+        httpcan: req.httpcan.as_ref(),
+        model: &model,
+        tool_choice: None,
+        tools: Vec::new(),
+        tool_turns: 0,
+        directive_text: Some(prompt.clone()),
+        last_tool_result: None,
+        default_content: DEFAULT_CONTENT,
+        id_prefix: "call_",
+        estimated_prompt_tokens,
+    });
+    if !plan.tool_calls.is_empty() {
+        return Ok(openai_bad_request(
+            "httpcan.tool_calls is not supported on the legacy completions API; use /llm/v1/chat/completions.".into(),
+        ));
     }
-    let completion_tokens = estimate_tokens(&text);
+    plan.delay().await;
+    if let Some(error) = plan.script.hard_error() {
+        return Ok(openai_error_response(error));
+    }
+
+    // With echo, the returned text starts with the prompt itself. An in-band
+    // refusal carries no text and finishes with content_filter, the closest
+    // finish_reason the legacy API offers.
+    let refusal = plan.refusal.is_some();
+    let text = if refusal {
+        String::new()
+    } else if echo && !prompt.is_empty() {
+        format!("{prompt}{}", plan.content)
+    } else {
+        plan.content.clone()
+    };
+    let finish_reason = plan.script.stop_reason.clone().unwrap_or_else(|| {
+        if refusal {
+            "content_filter".to_string()
+        } else {
+            "stop".to_string()
+        }
+    });
+    let prompt_tokens = plan.prompt_tokens;
+    let completion_tokens = plan.estimate_completion(&text);
 
     let id = format!("cmpl-{}", rand_hex24());
     let created = now_unix();
@@ -128,19 +170,22 @@ pub async fn completions_handler(body: web::Bytes) -> Result<HttpResponse> {
             created,
             &model,
             &text,
+            &finish_reason,
             prompt_tokens,
             completion_tokens,
             req.stream_options.as_ref().and_then(|o| o.include_usage) == Some(true),
+            plan.script.stream_chunk_delay_ms,
         ));
     }
 
+    let out_text = text.as_str();
     let choices: Vec<serde_json::Value> = (0..n)
         .map(|i| {
             json!({
-                "text": text,
+                "text": out_text,
                 "index": i,
                 "logprobs": null,
-                "finish_reason": "stop"
+                "finish_reason": finish_reason
             })
         })
         .collect();
@@ -161,23 +206,16 @@ fn stream_completion(
     created: i64,
     model: &str,
     text: &str,
+    finish_reason: &str,
     prompt_tokens: usize,
     completion_tokens: usize,
     include_usage: bool,
+    chunk_delay_ms: u64,
 ) -> HttpResponse {
     let id = id.to_string();
     let model = model.to_string();
-    let words: Vec<String> = text
-        .split_whitespace()
-        .enumerate()
-        .map(|(i, w)| {
-            if i == 0 {
-                w.to_string()
-            } else {
-                format!(" {w}")
-            }
-        })
-        .collect();
+    let finish_reason = finish_reason.to_string();
+    let words = stream_words(text);
 
     let stream = async_stream::stream! {
         // Legacy completions have no role chunk: straight into the text.
@@ -185,11 +223,12 @@ fn stream_completion(
             yield Ok::<web::Bytes, actix_web::Error>(sse_frame(&stream_chunk(
                 &id, created, &model, json!([choice(word, None)]),
             )));
-            sleep(Duration::from_millis(STREAM_CHUNK_DELAY_MS)).await;
+            sleep(Duration::from_millis(chunk_delay_ms)).await;
         }
 
         // Final chunk: empty text + finish_reason.
-        yield Ok(sse_frame(&stream_chunk(&id, created, &model, json!([choice("", Some("stop"))]))));
+        yield Ok(sse_frame(&stream_chunk(&id, created, &model, json!([choice("", Some(finish_reason.as_str()))]))));
+        sleep(Duration::from_millis(chunk_delay_ms)).await;
 
         if include_usage {
             let mut chunk = stream_chunk(&id, created, &model, json!([]));
