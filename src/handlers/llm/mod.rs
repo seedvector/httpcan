@@ -555,16 +555,14 @@ pub(crate) fn prompt_directives(text: &str) -> Option<HttpcanOverride> {
                     }
                 }
             }
-            "tool" => {
-                if !value.is_empty() {
-                    ov.tool_calls = Some(vec![MockToolCall {
-                        id: None,
-                        name: value.to_string(),
-                        // Unset: filled from the declared tool's schema.
-                        arguments: args.clone().unwrap_or(serde_json::Value::Null),
-                    }]);
-                    any = true;
-                }
+            "tool" if !value.is_empty() => {
+                ov.tool_calls = Some(vec![MockToolCall {
+                    id: None,
+                    name: value.to_string(),
+                    // Unset: filled from the declared tool's schema.
+                    arguments: args.clone().unwrap_or(serde_json::Value::Null),
+                }]);
+                any = true;
             }
             _ => {}
         }
