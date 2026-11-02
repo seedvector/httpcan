@@ -1,221 +1,22 @@
 # HTTPCan
 
-A modern, high‑performance superset of [httpbin.org](https://httpbin.org) for testing HTTP clients, proxies, and AI agents — with mock OpenAI/Anthropic LLM APIs and a full OAuth 2.0 server. Built with Rust and Actix Web.
+An [httpbin.org](https://httpbin.org)-compatible HTTP test server that also mocks the OpenAI, Anthropic and OAuth 2.0 APIs, so you can test HTTP clients, proxies and AI agents without calling real providers.
 
-**Hosted at <https://httpcan.org>** — every endpoint is live there, zero install.
+**Status:** actively developed, pre-1.0 (4 releases since August 2026, see [tags](https://github.com/seedvector/httpcan/tags)). The httpbin-compatible endpoints are stable; the `/llm` mock options and the Rust library API may still change between minor versions. MIT licensed.
 
 [![Crates.io](https://img.shields.io/crates/v/httpcan.svg)](https://crates.io/crates/httpcan)
-[![ghcr.io](https://img.shields.io/badge/ghcr.io-seedvector%2Fhttpcan-1f6feb?logo=github)](https://github.com/orgs/seedvector/packages/container/package/httpcan)
+[![CI](https://github.com/seedvector/httpcan/actions/workflows/ci.yml/badge.svg)](https://github.com/seedvector/httpcan/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Quick Links: [Quick Start](#quick-start) · [Installation](#installation) · [Configuration](#-configuration) · [Examples](#usage-examples) · [OpenAPI & Homepage](#openapi--homepage) · [API Reference](#api-reference) · [Production](#-production-considerations) · [Library](#-library-usage) · [Development](#development) · [License](#license)
+## Try it without installing
 
-## ✨ Features
-
-- **84-endpoint superset of httpbin.org**: every httpbin.org endpoint covered and drop‑in compatible, plus 33 endpoints httpbin.org doesn't have and 18 it has but httpcan fixes or extends — see the [homepage](#openapi--homepage) for the full badge‑tagged list
-- **AI API mock**: OpenAI- and Anthropic-compatible `/llm` endpoints — point any SDK `base_url` at it (streaming included) and test AI clients without a paid provider
-- **OAuth 2.0 mock**: a full authorization server at `/oauth2` — four RFC 6749 grants (authorization code + PKCE, implicit, password, rotating refresh, client credentials), Bearer-protected userinfo, and RFC 8414 discovery
-- **AI‑friendly streaming**: native `/sse` and `/ndjson` endpoints with OpenAI/Ollama‑compatible chunk formats
-- **Measured performance**: in our benchmarks against comparable HTTP testing servers, HTTPCan led on both throughput and tail latency
-- **Anti‑phishing redirects**: browser clients hitting `/redirect-to` see a confirmation page instead of a silent 302, closing an open‑redirect abuse vector
-- **Correct header handling**: duplicate and non‑ASCII request headers are preserved instead of being dropped or crashing the server
-- **Safer by default**: built‑in filtering strips ~100 reverse‑proxy/CDN headers from echoed responses, with `--exclude-headers` for more
-- **Cloud‑native observability**: `/healthz` liveness probe, `/tags` instance identification, and `Server-Timing`/`X-Httpcan-Version` headers on every response
-- **Self‑documenting homepage**: `/` lists every endpoint by category with compatibility badges and one‑click "Copy curl" buttons — fully static HTML, crawlable by search engines and AI agents
-- **Tiny & fast**: <10MB Docker image, minimal memory footprint, high throughput via Actix Web + Tokio
-
-## Quick Start
-
-No install needed — the full API is hosted at **<https://httpcan.org>**:
+Every endpoint is live at **<https://httpcan.org>**:
 
 ```bash
 curl https://httpcan.org/get
 ```
 
-Or run your own:
-
-```bash
-# Docker (recommended)
-docker run -p 8080:8080 ghcr.io/seedvector/httpcan:latest
-curl http://localhost:8080/get
-
-# Cargo
-cargo install httpcan
-httpcan
-curl http://localhost:8080/get
-```
-
-## Installation
-
-### 🐳 Docker
-
-```bash
-# Latest image
-docker run -p 8080:8080 ghcr.io/seedvector/httpcan:latest
-
-# Custom port
-docker run -p 3000:3000 ghcr.io/seedvector/httpcan:latest --port 3000
-
-# Header filtering
-docker run -p 8080:8080 ghcr.io/seedvector/httpcan:latest --exclude-headers "foo, x-bar-*"
-```
-
-### 📦 Cargo
-
-```bash
-# Install globally
-cargo install httpcan
-
-# Run
-httpcan
-httpcan --port 3000
-httpcan --exclude-headers "foo, x-bar-*"
-httpcan --port 3000 --no-current-server --exclude-headers "x-forwarded-*,cf-*"
-```
-
-### 🛠️ From Source
-
-```bash
-git clone https://github.com/seedvector/httpcan.git
-cd httpcan
-
-# Default (8080)
-cargo run
-
-# Custom port
-cargo run -- --port 3000
-
-# Release build
-cargo build --release
-./target/release/httpcan --port 8080
-```
-
-## 🧰 Configuration
-
-CLI flags:
-
-| Option                         | Description                                                                                                       | Default | Example                                                    |
-|--------------------------------|-------------------------------------------------------------------------------------------------------------------|---------|------------------------------------------------------------|
-| `-p, --port <PORT>`            | Port number to listen on. Also settable via `HTTPCAN_PORT`                                                        | `8080`  | `--port 3000`                                             |
-| `--openapi-servers <MODE>`     | How `/openapi.json` builds its `servers` array: `current-first` (default) prepends the instance the visitor is talking to; `spec-only` serves the spec's own servers verbatim. Also settable via `HTTPCAN_OPENAPI_SERVERS` | `current-first` | `--openapi-servers spec-only` |
-| `--exclude-headers <HEADERS>`  | Exclude headers in responses; comma‑separated; supports wildcard suffix (e.g., `x-bar-*`). Also settable via `HTTPCAN_EXCLUDE_HEADERS` | `""`    | `--exclude-headers "x-forwarded-*,cf-*,server"`           |
-| `--max-bytes <BYTES>`          | Max bytes for `/bytes`, `/stream-bytes`, `/range`, and `/drip`; over‑limit returns 404 instead of truncating (httpbin #594). Also settable via `HTTPCAN_MAX_BYTES` | `102400` | `--max-bytes 1048576`                                     |
-| `--canonical-scheme <auto\|http\|https>` | Scheme for SEO‑facing URLs only (canonical link, sitemap.xml, robots.txt); doesn't affect copy‑curl examples or the OpenAPI current server, which always mirror the actual request. Also settable via `HTTPCAN_CANONICAL_SCHEME` | `auto`  | `--canonical-scheme https` |
-| `--static-dir <DIR>`          | Static assets directory: user overrides for `openapi.json`, `favicon.png`, `index.html`, `robots.txt`, `sitemap.xml`, plus extra files served at `/static/<name>` or `/<name>`. Also settable via `HTTPCAN_STATIC_DIR` | *binary-relative `static`, else `./static`* | `--static-dir /etc/httpcan/static` |
-| `--oauth2-clients <ID:SECRET,…>` | OAuth 2.0 client registry for `/oauth2`: when set, client secrets are validated (`invalid_client` on mismatch); when empty, any non‑empty secret passes (mock mode). Also settable via `HTTPCAN_OAUTH2_CLIENTS` | *(empty)* | `--oauth2-clients "webapp:s3cr3t,cli:an0ther"` |
-| `-h, --help`                   | Print help information                                                                                             |         | `--help`                                                  |
-| `-V, --version`                | Print version                                                                                                      |         | `--version`                                               |
-
-Notes:
-- Built‑in filtering includes reverse proxy/CDN providers (Nginx, Cloudflare, AWS, GCP, Azure).
-- When using Docker, ensure `-p host:container` mapping matches your `--port` if you override it.
-
-Any flag backed by an environment variable (e.g. `HTTPCAN_CANONICAL_SCHEME`) can also be set via a `.env` file in the working directory — handy for a bare‑binary deployment on a server, where there's no Docker `--env-file`/`env_file:` or systemd `EnvironmentFile=` to inject real environment variables for you:
-
-```bash
-# .env
-HTTPCAN_CANONICAL_SCHEME=https
-```
-
-```bash
-./httpcan   # picks up .env from the current directory automatically
-```
-
-`.env` values are loaded before CLI flags are parsed, so an explicit `--canonical-scheme` flag still takes precedence over `HTTPCAN_CANONICAL_SCHEME` in `.env`.
-
-## Usage Examples
-
-```bash
-# Basic GET
-curl https://httpcan.org/get
-
-# POST with JSON
-curl -X POST https://httpcan.org/post \
-  -H "Content-Type: application/json" \
-  -d '{"key":"value"}'
-```
-
-### Auth
-
-```bash
-# Basic auth
-curl -u username:password https://httpcan.org/basic-auth/username/password
-
-# Username only (empty password) — enhanced
-curl -u username: https://httpcan.org/basic-auth/username
-```
-
-### Status & Redirects
-
-```bash
-# Specific status
-curl https://httpcan.org/status/418
-
-# Random from list
-curl https://httpcan.org/status/200,404,500
-
-# Inject response headers (rate-limit / Retry-After testing)
-curl -H "Accept: application/json" "https://httpcan.org/status/429?header=Retry-After:120&header=X-RateLimit-Remaining:0"
-
-# Redirect to a URL (supports form/json)
-curl -X POST https://httpcan.org/redirect-to -d "url=https://example.com"
-```
-
-> **🔒 Open‑redirect protection on `/redirect‑to`**
->
-> Unlike a naive 302, `/redirect-to` detects **browser clients** (via `Accept: text/html`) and returns an **interstitial warning page** instead of silently redirecting. This prevents phishing abuse where attackers exploit your trusted domain (e.g. `…/redirect-to?url=https://evil.com`).
->
-> - Programmatic clients (curl, httpx, …) still receive the standard `302` — no API breakage.
-> - Browser clients get a `200` HTML page showing the destination URL and requiring an explicit click.
-> - Non‑`http(s)` URL schemes (`javascript:`, `data:`, …) render as a **disabled link**.
-> - Destination URLs are HTML‑escaped in the interstitial to prevent XSS.
-> - The page carries `X-Robots-Tag: noindex` to avoid search‑engine indexing.
-
-### Compression & Formats
-
-```bash
-curl -H "Accept-Encoding: gzip" https://httpcan.org/gzip
-curl https://httpcan.org/json
-curl https://httpcan.org/xml
-```
-
-### Streaming (SSE/NDJSON)
-
-```bash
-# SSE
-curl https://httpcan.org/sse?count=3&format=simple
-curl https://httpcan.org/sse/5?format=openai&delay=2000
-
-# NDJSON
-curl https://httpcan.org/ndjson?count=3&format=simple
-curl https://httpcan.org/ndjson/5?format=ollama&model=llama3&delay=1500
-```
-
-### AI API Mock
-
-```bash
-# OpenAI-compatible chat completions (streaming supported)
-curl -X POST https://httpcan.org/llm/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{"model":"gpt-5.6-sol","messages":[{"role":"user","content":"Hello"}]}'
-
-# Anthropic-compatible messages
-curl -X POST https://httpcan.org/llm/v1/messages \
-  -H "Content-Type: application/json" \
-  -d '{"model":"claude-sonnet-5","max_tokens":64,"messages":[{"role":"user","content":"Hello"}]}'
-
-# OpenAI-compatible Responses API
-curl -X POST https://httpcan.org/llm/v1/responses \
-  -H "Content-Type: application/json" \
-  -d '{"model":"gpt-5.6-sol","input":"Hello"}'
-
-# OpenAI-compatible legacy completions (text-in/text-out)
-curl -X POST https://httpcan.org/llm/v1/completions \
-  -H "Content-Type: application/json" \
-  -d '{"model":"gpt-5.6-sol","prompt":"Once upon a time"}'
-```
-
-Point an SDK at it — no API key needed (any value is accepted), and responses are deterministic:
+Point an OpenAI SDK at it. Any API key works, and responses are deterministic:
 
 ```python
 from openai import OpenAI
@@ -229,201 +30,79 @@ reply = client.chat.completions.create(
 print(reply.choices[0].message.content)  # Custom reply text
 ```
 
-The Anthropic SDK works with `base_url="https://httpcan.org/llm"` (it appends `/v1/messages` itself). `GET /llm` returns a self-describing index, and `GET /llm/v1/models` returns the model list in whichever family's shape the request looks like (an `anthropic-version` header switches it).
+## Why httpcan
 
-#### Mock script: tool calls, error injection, usage pinning, delay, sequences
+- **Drop-in for httpbin.org.** Every httpbin.org endpoint, same paths and response shapes, plus 33 endpoints httpbin.org doesn't have and 18 it has that httpcan fixes or extends (84 in total). Existing httpbin tests keep working when you change the base URL.
+- **LLM API mock.** OpenAI Chat Completions, Responses and legacy completions, plus Anthropic Messages, with streaming. Each request can script its own response: tool calls in the right format for each provider, provider-shaped errors (429, 503/529, 401, …), fixed token usage, and multi-turn tool sequences. The script travels in the request, so the mock is stateless and works through any SDK. GUI chat apps can drive it with `#mock` directives typed into the chat. [Details](docs/llm-mock.md)
+- **OAuth 2.0 authorization server.** Authorization code with PKCE, implicit, password, client credentials, rotating refresh tokens, and RFC 8414 discovery. [Details](docs/oauth2.md)
+- **One self-contained binary.** No database or external services. The Docker image is about 8 MB and runs as a non-root user.
 
-Every `/llm` request accepts an `httpcan` block that scripts the mock's
-answer in a provider-neutral way (`internal/llm-mock-advanced-design.md`):
+**When to use something else:**
 
-```bash
-# Tool calls: correct wire shape per family (message.tool_calls /
-# content[]{type:"tool_use"} / output[]{type:"function_call"}), streaming
-# included. tool_choice:"required" (or {"type":"any"}) synthesizes a call
-# from the first declared tool when tool_calls is unset.
-curl -X POST localhost:8081/llm/v1/chat/completions -H "Content-Type: application/json" \
-  -d '{"messages":[{"role":"user","content":"weather?"}],"httpcan":{"tool_calls":[{"name":"get_weather","arguments":{"city":"SF"}}]}}'
+- You need a WebSocket echo endpoint, random-failure injection (`/unstable`), or a zero-dependency Go library to embed in Go tests: [go-httpbin](https://github.com/mccutchen/go-httpbin) has those, and httpcan doesn't.
+- You need real model output or record/replay of real provider traffic: httpcan only returns deterministic placeholders.
+- You need to mock *your own* API's endpoints: use a general-purpose mock server such as [WireMock](https://wiremock.org).
 
-# Error injection with provider-correct bodies: rate_limit(429) |
-# overloaded(503/Anthropic 529) | context_length(400) | invalid_api_key(401)
-# | content_filter (in-band 200 + refusal)
-curl -X POST localhost:8081/llm/v1/messages -H "Content-Type: application/json" \
-  -d '{"messages":[{"role":"user","content":"x"}],"httpcan":{"error":"overloaded"}}'  # -> 529
-
-# Deterministic usage (billing/cost-tracker tests), TTFB delay (<=10s) and
-# stream pacing (stream_chunk_delay_ms, <=1s; long content degenerates to
-# <=600 deltas so every stream finishes in bounded time)
-curl -X POST localhost:8081/llm/v1/chat/completions -H "Content-Type: application/json" \
-  -d '{"messages":[{"role":"user","content":"x"}],"httpcan":{"usage":{"prompt_tokens":10,"completion_tokens":5},"delay_ms":300}}'
-
-# Multi-turn sequences: the step advances once per tool turn the client
-# sends back (a batch of role:"tool" / tool_result / function_call_output
-# results — parallel results count once); the last step repeats. Stateless — the script rides
-# in the request, so it works through any SDK via extra_body.
-curl -X POST localhost:8081/llm/v1/chat/completions -H "Content-Type: application/json" \
-  -d '{"messages":[{"role":"user","content":"weather?"}],"httpcan":{"sequence":[{"tool_calls":[{"name":"get_weather","arguments":{"city":"SF"}}]},{"content":"72F and sunny"}]}}'
-```
-
-Every `/llm` response carries `X-Httpcan-Mock: true`, so clients can assert
-the traffic never left the mock. The legacy completions API has no tools, so
-`tool_calls` there is a 400 with a pointer to `/llm/v1/chat/completions`.
-
-#### Testing from GUI clients (Cherry Studio, LobeChat, Open WebUI, …)
-
-Chat UIs can't send request-body fields, so two prompt-level controls work
-everywhere:
-
-1. **`#mock` directives** — type them into the chat box. The sigil must be a
-   standalone token in the **last user message**; the rest of its line is
-   space-separated `key=value` directives (unknown tokens ignored):
-
-   ```text
-   #mock error=rate_limit          → 429 provider-shaped error (also: overloaded 529/503,
-                                     context_length, invalid_api_key, content_filter)
-   #mock delay=3000                → 3s TTFB latency
-   #mock usage=10x5                → deterministic prompt x completion token counts
-   #mock tool=get_weather          → answer with one tool call; arguments are generated
-                                     from the declared tool's JSON schema (required fields
-                                     filled with schema-valid values), else {}
-   #mock tool=bash args={"command": "ls -la"}
-                                   → explicit arguments (JSON object; takes the rest of
-                                     the line, so put args= last)
-   #mock error=overloaded delay=500 → combine freely
-   ```
-
-   Only the last user message is scanned, and only while no tool results
-   follow it — so a directive fires once per user turn, and `tool=` loops end
-   after the tool result comes back (history never re-triggers;
-   `#mockery` doesn't match), and an explicit `httpcan` block in the same
-   request always wins over prompt directives.
-
-2. **The `auto-tools` model** — pick it as the model name (it's listed in
-   `/llm/v1/models`). With tools declared (e.g. Cherry Studio's MCP servers)
-   it calls the first declared tool; once the client sends the tool result
-   back, it replies `Tool result: <last result>` — a full visible tool loop
-   with zero configuration.
-
-Cherry Studio recipe: add a custom OpenAI-compatible provider
-(`API 地址` = `http://localhost:8080/llm/v1`, any key), fetch the model list,
-pick `auto-tools`, enable an MCP server, and chat. Type `#mock` directives
-in the message box to exercise errors, usage pinning and delays on the same
-conversation.
-
-### OAuth 2.0 Mock
+## Run your own
 
 ```bash
-# 1) Send the resource owner to the authorization endpoint (consent page)
-open "https://httpcan.org/oauth2/authorize?response_type=code&client_id=webapp&redirect_uri=https%3A%2F%2Fexample.com%2Fcb&state=xyz&scope=read"
+# Docker
+docker run -p 8080:8080 ghcr.io/seedvector/httpcan:latest
 
-# 2) Exchange the one-time code (Basic or form-body client auth; PKCE supported)
-curl -X POST https://httpcan.org/oauth2/token \
-  -u webapp:s3cr3t \
-  -d "grant_type=authorization_code&code=<code>&redirect_uri=https://example.com/cb"
+# or with Cargo (needs a Rust toolchain)
+cargo install httpcan
+httpcan
 
-# 3) Call the Bearer-protected resource
-curl https://httpcan.org/oauth2/userinfo -H "Authorization: Bearer <token>"
+# then
+curl http://localhost:8080/get
 ```
 
-All four RFC 6749 grants work: `authorization_code` (with PKCE `S256`/`plain`), `password`, `refresh_token` (rotating — a presented refresh token is single-use), and `client_credentials`. `response_type=token` (implicit flow, legacy) hands out the access token in the redirect fragment. Codes are one-time, tokens are HMAC-signed per process, and the consent email is the only identity. `GET /oauth2` is a self-describing index; `GET /.well-known/oauth-authorization-server` serves RFC 8414 metadata for discovery-based clients.
+The server listens on port 8080 by default. Change it with `--port` (or `HTTPCAN_PORT`). Under Docker, match the `-p host:container` mapping. All flags, `.env` support, header filtering, custom static files and production hardening are in [docs/configuration.md](docs/configuration.md).
 
-### Cookies & Inspection
+From source:
 
 ```bash
-curl https://httpcan.org/cookies
-curl https://httpcan.org/headers
-curl https://httpcan.org/ip
+git clone https://github.com/seedvector/httpcan.git
+cd httpcan
+cargo run --release -- --port 8080
 ```
 
-## OpenAPI & Homepage
+## Examples
 
-- OpenAPI spec: `GET /openapi.json`
-- API catalog (RFC 9727, automated discovery): `GET /.well-known/api-catalog` — a Linkset pointing agents at the spec, docs, and health probe; URLs mirror the request origin
-- Homepage: visit `/` for a static, crawlable page listing every endpoint by category, each with a compatibility badge (`Enhanced`/`New`) relative to httpbin.org and a one‑click "Copy curl" button (pre‑filled with sample parameters and resolved against the instance you're viewing). It always renders as HTML, regardless of the `Accept` header — no JavaScript required to read the content.
+```bash
+# Status codes: a fixed code, a random pick, injected rate-limit headers
+curl https://httpcan.org/status/418
+curl https://httpcan.org/status/200,404,500
+curl "https://httpcan.org/status/429?header=Retry-After:120"
 
-## API Reference
+# Server-sent events in OpenAI chunk format
+curl "https://httpcan.org/sse/5?format=openai&delay=2000"
 
-Endpoints are grouped into the same categories shown on the homepage (`/`) — visit a running instance for the full interactive list with compatibility badges and copy‑ready curl examples:
+# Anthropic-shaped "overloaded" error from the LLM mock (returns 529)
+curl -X POST https://httpcan.org/llm/v1/messages \
+  -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"x"}],"httpcan":{"error":"overloaded"}}'
+```
 
-| Category | Endpoints |
+## Documentation
+
+| Topic | Where |
 |---|---|
-| HTTP Methods | `/get` `/post` `/put` `/patch` `/delete` `/method` `/head` `/options` `/trace` `/query` `/echo` |
-| Anything | `/anything` `/anything/{path}` |
-| Auth | `/basic-auth` `/hidden-basic-auth` `/bearer` `/jwt-bearer` `/digest-auth` |
-| Status codes | `/status/{codes}` |
-| Request inspection | `/headers` `/ip` `/user-agent` |
-| Response inspection | `/cache` `/etag` `/response-headers` |
-| Response formats | `/json` `/xml` `/html` `/robots.txt` `/deny` `/encoding/utf8` `/encoding/iso-8859-1` `/gzip` `/deflate` `/brotli` `/zstd` |
-| Dynamic data | `/uuid` `/base64` `/bytes` `/stream-bytes` `/stream` `/range` `/links` `/drip` `/delay` |
-| Cookies | `/cookies` `/cookies/set` `/cookies/delete` |
-| Images | `/image` `/image/png` `/image/jpeg` `/image/webp` `/image/svg` |
-| Redirects | `/redirect` `/relative-redirect` `/absolute-redirect` `/redirect-to` |
-| Streaming | `/sse` `/ndjson` |
-| AI API Mock | `/llm/v1/chat/completions` `/llm/v1/messages` `/llm/v1/responses` `/llm/v1/completions` `/llm/v1/models` |
-| OAuth 2.0 Mock | `/oauth2/authorize` `/oauth2/token` `/oauth2/userinfo` |
-| Observability | `/healthz` `/tags` |
+| Every endpoint, what changed from httpbin.org, more examples | [docs/endpoints.md](docs/endpoints.md) |
+| LLM mock: endpoints, the `httpcan` script block, `#mock` directives, chat apps | [docs/llm-mock.md](docs/llm-mock.md) |
+| OAuth 2.0 mock: flows and client validation | [docs/oauth2.md](docs/oauth2.md) |
+| CLI flags, self-hosting, production considerations | [docs/configuration.md](docs/configuration.md) |
+| Embedding httpcan in Rust tests | [LIBRARY_USAGE.md](LIBRARY_USAGE.md) |
+| Machine-readable spec | [OpenAPI](https://httpcan.org/openapi.json) |
 
-Every endpoint carries a compatibility badge relative to httpbin.org:
+Any running instance also serves a homepage at `/` that lists every endpoint with a one-click "Copy curl" button.
 
-- *(no badge)* — drop‑in compatible with httpbin.org
-- **Enhanced** — httpbin.org has this endpoint, but httpcan fixes a bug or extends it
-- **New** — not available in httpbin.org
-
-For full parameter details and schemas, consult the [OpenAPI spec](/openapi.json).
-
-### HTTPCan Enhancements
-
-- Echo endpoint: `/echo` reflects request body and headers (multi‑method)
-- Methods+: `QUERY` HTTP method (RFC 9430 — a safe, idempotent GET with a body) accepted on `/anything`, `/anything/{anything}`, and `/echo`, with a dedicated `/query` endpoint echoing URL args plus the parsed body
-- Auth+: Basic auth with username only; JWT Bearer decode/inspect at `/jwt-bearer`
-- Status+: Content‑type priority: `Accept` > request `Content-Type` > default; supports custom bodies via query/body
-- Redirects+: `POST /redirect-to` supports `application/x-www-form-urlencoded`, `multipart/form-data`, `application/json`; browser clients get an open-redirect interstitial (see [above](#status--redirects))
-- Streaming+: SSE/NDJSON endpoints with `count`, `delay`, and AI formats (OpenAI/Ollama)
-- File uploads+: Multiple files with the same field return as array across multipart endpoints
-- Observability+: `/healthz` liveness probe; `/tags` exposes `HTTPCAN_*` env vars; every response carries `Server-Timing` and `X-Httpcan-Version` headers
-- Method echo+: `/method` echoes any method name; `/head` `/options` `/trace` `/query` are dedicated echo endpoints; GET endpoints also answer `HEAD`
-- Status headers+: `?header=Name:Value` injects response headers on `/status/{codes}` (repeatable; e.g. `Retry-After` for rate‑limit testing)
-- Body encoding+: POST to `/gzip`, `/deflate`, `/brotli`, `/zstd`, or `/base64` returns the request body in the matching encoding
-
-## 🚀 Production Considerations
-
-Before deploying HTTPCan on the public internet, review these hardening options:
-
-- **Open‑redirect protection on `/redirect‑to`**: Browser clients (detected via `Accept: text/html`) receive an interstitial warning page showing the destination URL instead of a silent `302`. This blocks phishing abuse via `…/redirect-to?url=https://evil.com` on your trusted domain. Programmatic clients (curl, httpx, …) still get the standard `302` for API compatibility. Non‑`http(s)` URL schemes render as a disabled link.
-- **No reflected XSS on `/base64`**: Decoded content is always returned as `text/plain; charset=utf-8`, never `text/html`. Browsers display the raw text without rendering embedded `<script>` tags.
-- **Response header filtering**:
-  - **Built‑in (always on)**: ~100 reverse‑proxy/CDN headers are stripped from all echoed responses by default — Nginx (`x-real-ip`, `x-forwarded-*`), Cloudflare (`cf-*`), AWS CloudFront/ALB (`cloudfront-*`, `x-amzn-*`), GCP (`x-appengine-*`, `x-cloud-trace-context`), Azure (`x-azure-*`, `x-ms-*`). Prevents infrastructure information leakage without any configuration.
-  - **Custom (`--exclude-headers`)**: Add your own patterns to strip additional sensitive headers, with wildcard suffix support: `--exclude-headers "x-internal-*,server,x-secret-token"`.
-- **Resource limits**: `--max-bytes` caps `/bytes` and `/stream-bytes` responses (default 100KB); over‑limit requests return `404` instead of silently truncating (httpbin #594).
-- **Non‑root Docker**: The official image runs as a dedicated unprivileged user (`uid 10001`).
-
-## 🎨 Self-Hosting & Customization
-
-The binary is fully self-contained: the OpenAPI spec and favicon are embedded at compile time, and `/`, `/robots.txt`, and `/sitemap.xml` are generated per request. To customize your instance, drop files into a static assets directory (`--static-dir`, or the default `static/` next to the binary / `./static`; in Docker, mount a volume at `/httpcan/static` — files must be world-readable for `uid 10001`):
-
-| File in static dir | Replaces | Notes |
-|---|---|---|
-| `openapi.json` | embedded spec at `/openapi.json` | The current server is still injected into `servers` (verbatim with `--openapi-servers spec-only`) |
-| `favicon.png` | embedded favicon at `/favicon.png` | |
-| `index.html` | generated homepage at `/` | Forfeits origin-resolved curl examples, markdown negotiation, and Link headers |
-| `robots.txt` | generated policy at `/robots.txt` | E.g. `Disallow: *` for private instances |
-| `sitemap.xml` | generated index at `/sitemap.xml` | Absolute URLs in a static file don't follow the request origin or `--canonical-scheme` |
-
-Behavior notes:
-
-- Files are checked per request — adding or replacing a file takes effect immediately, no restart. The directory itself must exist at startup.
-- Every other file in the directory is served at `/static/<name>` (and at `/<name>` when the name doesn't collide with an API route).
-- Reserved: files named after API routes (`json`, `get`, `image`, …) never shadow those routes; dot‑prefixed files are rejected with 400.
-
-## 🦀 Library Usage
-
-Add dependency:
+## Use as a Rust library
 
 ```toml
 [dependencies]
-httpcan = "0.6"
+httpcan = "0.9"
 ```
-
-Embed server:
 
 ```rust
 use httpcan::HttpCanServer;
@@ -440,22 +119,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-More examples and advanced config: see [LIBRARY_USAGE.md](LIBRARY_USAGE.md).
+## Contributing
 
-## Development
+Issues and pull requests are welcome at [github.com/seedvector/httpcan](https://github.com/seedvector/httpcan/issues). Before sending a PR:
 
 ```bash
-# Run checks
 cargo fmt --all
 cargo clippy --all -- -D warnings
 cargo test
-
-# Run locally
-cargo run -- --port 8080
 ```
-
-Contributions are welcome! Please open issues/PRs for discussion.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).
