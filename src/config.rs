@@ -89,6 +89,10 @@ pub struct Args {
         value_name = "ID:SECRET[,ID:SECRET...]"
     )]
     pub oauth2_clients: Option<String>,
+
+    /// Model ids listed by `/llm/v1/models`, comma-separated (e.g. "gpt-5.5,claude-opus-5-5"). Default: the mock-owned httpcan-openai / httpcan-anthropic. The httpcan-auto-tools model is always appended. Requests accept any model id either way; this only changes what model pickers show.
+    #[arg(long, env = "HTTPCAN_LLM_MODELS", value_name = "ID[,ID...]")]
+    pub llm_models: Option<String>,
 }
 
 /// How `/openapi.json` builds its `servers` array.

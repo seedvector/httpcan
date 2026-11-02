@@ -70,6 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - **exclude_headers**: List of headers to exclude from responses
 - **static_dir**: Custom static files directory. A file named `openapi.json`, `favicon.png`, `index.html`, `robots.txt`, or `sitemap.xml` inside it replaces the built-in default at that canonical URL (checked per request, no restart needed); every other file is served at `/static/<name>`. Files named after API routes never shadow those routes.
 - **max_bytes**: Maximum bytes for `/bytes` and `/stream-bytes`; over-limit requests return 404 instead of silently truncating (default: 102400, httpbin #594)
+- **llm_models**: Model ids listed by `/llm/v1/models` (default: empty, which lists the mock-owned `httpcan-openai` / `httpcan-anthropic`). `httpcan-auto-tools` is always appended; requests accept any model id regardless.
 - **canonical_scheme**: `SchemeOverride::Auto` (default), `Http`, `Https`. Forces the scheme used for SEO-facing URLs only (canonical link, sitemap.xml, robots.txt). Copy-curl examples on the homepage and the OpenAPI current server always mirror the visitor's actual request, regardless of this setting.
 
 ## Examples

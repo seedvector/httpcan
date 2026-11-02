@@ -126,6 +126,8 @@ pub async fn completions_handler(body: web::Bytes) -> Result<HttpResponse> {
         tool_turns: 0,
         directive_text: Some(prompt.clone()),
         last_tool_result: None,
+        answering_tool_results: false,
+        supports_tools: false,
         default_content: DEFAULT_CONTENT,
         id_prefix: "call_",
         estimated_prompt_tokens,

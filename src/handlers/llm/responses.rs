@@ -230,6 +230,7 @@ pub async fn responses_handler(body: web::Bytes) -> Result<HttpResponse> {
         .find(|i| is_call_output(i))
         .and_then(|i| i.get("output"))
         .map(|o| o.as_str().map_or_else(|| input_text(o), str::to_string));
+    let answering_tool_results = items.last().is_some_and(is_call_output);
 
     let plan = plan_response(PlanInput {
         httpcan: req.httpcan.as_ref(),
@@ -239,6 +240,8 @@ pub async fn responses_handler(body: web::Bytes) -> Result<HttpResponse> {
         tool_turns,
         directive_text,
         last_tool_result,
+        answering_tool_results,
+        supports_tools: true,
         default_content: DEFAULT_CONTENT,
         id_prefix: "call_",
         estimated_prompt_tokens: estimated_input_tokens,

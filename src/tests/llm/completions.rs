@@ -70,7 +70,7 @@ async fn llm_completions_prompt_array_echo_and_custom_content() {
         crate::handlers::llm::estimate_tokens("Say hi Say hiDone.")
     );
     // No model in request -> default echoed.
-    assert_eq!(v["model"], "gpt-5.6-sol");
+    assert_eq!(v["model"], "httpcan-openai");
 }
 
 #[actix_web::test]

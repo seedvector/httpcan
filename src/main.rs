@@ -63,6 +63,17 @@ async fn main() -> std::io::Result<()> {
             .collect()
     });
 
+    let llm_models: Vec<String> = args
+        .llm_models
+        .map(|spec| {
+            spec.split(',')
+                .map(str::trim)
+                .filter(|id| !id.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+
     // Create server configuration
     let mut config = ServerConfig::new()
         .port(args.port)
@@ -70,7 +81,8 @@ async fn main() -> std::io::Result<()> {
         .exclude_headers(exclude_headers)
         .max_bytes(args.max_bytes)
         .canonical_scheme(args.canonical_scheme)
-        .oauth2_clients(oauth2_clients);
+        .oauth2_clients(oauth2_clients)
+        .llm_models(llm_models);
     if let Some(dir) = args.static_dir {
         config = config.static_dir(dir);
     }

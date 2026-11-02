@@ -34,9 +34,14 @@ pub use models::*;
 pub use openai::*;
 pub use responses::*;
 
-/// Default model echoed for OpenAI-family requests that omit `model`
-/// (current flagship per models.dev).
-pub(crate) const OPENAI_DEFAULT_MODEL: &str = "gpt-5.6-sol";
+/// Default model echoed for OpenAI-family requests that omit `model`.
+/// Mock-owned and frozen: it never tracks a vendor lineup, so a test that
+/// asserts the echoed default keeps passing across httpcan upgrades.
+pub(crate) const OPENAI_DEFAULT_MODEL: &str = "httpcan-openai";
+
+/// Default model echoed for Anthropic-family requests that omit `model`
+/// (mock-owned and frozen, like [`OPENAI_DEFAULT_MODEL`]).
+pub(crate) const ANTHROPIC_DEFAULT_MODEL: &str = "httpcan-anthropic";
 
 /// One named SSE event frame, as the Anthropic and Responses-API stream
 /// protocols transport them (`event: <type>` + `data:` payload).
@@ -446,15 +451,34 @@ pub(crate) fn choice_forces_tool(choice: Option<&serde_json::Value>) -> Option<O
     }
 }
 
-/// Reserved model id that flips the mock into an automatic tool loop: with
-/// `tools` declared it calls the first one (empty arguments), and once the
-/// client sends tool results it answers by echoing the last one. GUI clients
-/// (Cherry Studio, LobeChat, Open WebUI, …) can't inject an `httpcan` block
-/// or force `tool_choice` — the model name is the one knob they all expose.
-pub(crate) const AUTO_TOOLS_MODEL: &str = "auto-tools";
+/// Reserved model id that flips the mock into an automatic tool loop: on a
+/// user turn with `tools` declared it calls the first one (schema-sampled
+/// arguments), and when the request ends with tool results it answers by
+/// echoing the last one. GUI clients (Cherry Studio, LobeChat, Open WebUI, …)
+/// can't inject an `httpcan` block or force `tool_choice` — the model name is
+/// the one knob they all expose.
+pub(crate) const AUTO_TOOLS_MODEL: &str = "httpcan-auto-tools";
 
 pub(crate) fn is_auto_tools(model: &str) -> bool {
     model.eq_ignore_ascii_case(AUTO_TOOLS_MODEL)
+}
+
+/// Reply for the auto-tools model when there is nothing to call, so GUI
+/// users learn why no tool loop happened instead of seeing the generic
+/// placeholder. Worded as "client tools" because server/built-in tools
+/// (e.g. Anthropic `web_search`) are declared but never called by the mock.
+pub(crate) const AUTO_TOOLS_NO_TOOLS_CONTENT: &str = "httpcan-auto-tools: this request declared no client tools, so there is nothing to call (server/built-in tools such as web_search are never called). Enable tools or an MCP server in your client; if the client hides tools from models it doesn't recognise, mark this model as tool-capable in its settings.";
+
+/// Whether `tool_choice` explicitly forbids tool calls: OpenAI/Responses
+/// `"none"` or Anthropic `{"type":"none"}`.
+pub(crate) fn choice_disables_tools(choice: Option<&serde_json::Value>) -> bool {
+    match choice {
+        Some(serde_json::Value::String(s)) => s == "none",
+        Some(serde_json::Value::Object(obj)) => {
+            obj.get("type").and_then(|t| t.as_str()) == Some("none")
+        }
+        _ => false,
+    }
 }
 
 /// Second-turn reply for the auto tool loop: echo the last tool result so
@@ -613,6 +637,14 @@ pub(crate) struct PlanInput<'a> {
     pub directive_text: Option<String>,
     /// Last tool result text, for the auto-tools echo reply.
     pub last_tool_result: Option<String>,
+    /// The request ends with tool results (the client is completing a tool
+    /// round) rather than a fresh user turn. Decides the auto-tools step per
+    /// request, so a long conversation can run any number of tool loops.
+    pub answering_tool_results: bool,
+    /// Whether this API can carry tools at all (false for legacy
+    /// completions), so the auto-tools "no client tools" hint only shows
+    /// where declaring tools is possible.
+    pub supports_tools: bool,
     pub default_content: &'a str,
     /// Family prefix for generated tool-call ids (`call_` / `toolu_`).
     pub id_prefix: &'a str,
@@ -657,8 +689,14 @@ pub(crate) fn plan_response(input: PlanInput<'_>) -> ResponsePlan {
             }
         }
     }
-    // auto-tools: turn 1 calls the first declared tool; later turns echo.
-    if tool_calls.is_empty() && input.tool_turns == 0 && is_auto_tools(input.model) {
+    // auto-tools: a fresh user turn calls the first declared tool (unless
+    // tool_choice says "none"); a request ending in tool results echoes.
+    let auto_tools = is_auto_tools(input.model);
+    if tool_calls.is_empty()
+        && auto_tools
+        && !input.answering_tool_results
+        && !choice_disables_tools(input.tool_choice)
+    {
         if let Some(name) = input.tools.first().map(|t| t.name.clone()) {
             tool_calls.push(MockToolCall {
                 id: None,
@@ -683,8 +721,10 @@ pub(crate) fn plan_response(input: PlanInput<'_>) -> ResponsePlan {
     let content = script.content.clone().unwrap_or_else(|| {
         if !tool_calls.is_empty() {
             String::new()
-        } else if input.tool_turns > 0 && is_auto_tools(input.model) {
+        } else if auto_tools && input.answering_tool_results {
             tool_echo_content(input.last_tool_result.as_deref())
+        } else if auto_tools && input.supports_tools && input.tools.is_empty() {
+            AUTO_TOOLS_NO_TOOLS_CONTENT.to_string()
         } else {
             input.default_content.to_string()
         }
@@ -968,9 +1008,14 @@ pub async fn llm_index_handler(
             "example_user_message": "#mock error=rate_limit delay=500",
             "note": "For GUI clients (Cherry Studio, LobeChat, Open WebUI, …) that cannot send request-body fields. Explicit httpcan blocks win over prompt directives."
         },
+        "default_models": {
+            "openai": OPENAI_DEFAULT_MODEL,
+            "anthropic": ANTHROPIC_DEFAULT_MODEL,
+            "note": "Echoed when a request omits model. Any model name is accepted and echoed verbatim; these mock-owned ids never change."
+        },
         "auto_tools_model": {
-            "model": "auto-tools",
-            "behavior": "with tools declared: calls the first declared tool; once the client sends tool results: replies with 'Tool result: <last result>'. Listed in /llm/v1/models so GUI clients can add it with one click."
+            "model": AUTO_TOOLS_MODEL,
+            "behavior": "on a user turn with tools declared: calls the first declared tool (unless tool_choice is none); when the request ends with tool results: replies with 'Tool result: <last result>'; with no client tools declared (server tools don't count): replies with a hint. Works for any number of tool loops in one conversation. Listed in /llm/v1/models so GUI clients can add it with one click."
         }
     })))
 }

@@ -73,7 +73,7 @@ async fn llm_messages_custom_content_and_system_tokens() {
     // + "user: Hello\n" (12) = 35 chars -> ceil(35/4) = 9.
     assert_eq!(v["usage"]["input_tokens"], 9);
     // No model in request -> default model echoed.
-    assert!(v["model"].as_str().unwrap().starts_with("claude-"));
+    assert_eq!(v["model"], "httpcan-anthropic");
 }
 
 #[actix_web::test]

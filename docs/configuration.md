@@ -11,6 +11,7 @@
 | `--canonical-scheme <auto\|http\|https>` | Scheme for SEO-facing URLs only (canonical link, sitemap.xml, robots.txt); doesn't affect copy-curl examples or the OpenAPI current server, which always mirror the actual request. Also settable via `HTTPCAN_CANONICAL_SCHEME` | `auto` | `--canonical-scheme https` |
 | `--static-dir <DIR>` | Static assets directory: user overrides for `openapi.json`, `favicon.png`, `index.html`, `robots.txt`, `sitemap.xml`, plus extra files served at `/static/<name>` or `/<name>`. Also settable via `HTTPCAN_STATIC_DIR` | *`static` next to the binary, else `./static`* | `--static-dir /etc/httpcan/static` |
 | `--oauth2-clients <ID:SECRET,…>` | OAuth 2.0 client registry for `/oauth2`: when set, client secrets are validated (`invalid_client` on mismatch); when empty, any non-empty secret passes (mock mode). Also settable via `HTTPCAN_OAUTH2_CLIENTS` | *(empty)* | `--oauth2-clients "webapp:s3cr3t,cli:an0ther"` |
+| `--llm-models <ID,…>` | Model ids listed by `/llm/v1/models` for both API families, replacing the default `httpcan-openai` / `httpcan-anthropic`. `httpcan-auto-tools` is always appended. Requests accept any model id either way; this only changes what model pickers show. Also settable via `HTTPCAN_LLM_MODELS` | *(empty)* | `--llm-models "gpt-5.5,claude-opus-5-5"` |
 | `-h, --help` | Print help information | | |
 | `-V, --version` | Print version | | |
 

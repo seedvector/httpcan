@@ -804,7 +804,7 @@ async fn llm_auto_tools_model_calls_first_declared_tool() {
         .uri("/llm/v1/chat/completions")
         .insert_header(("content-type", "application/json"))
         .set_payload(
-            r#"{"model":"auto-tools","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"first_tool"}},{"type":"function","function":{"name":"second_tool"}}]}"#,
+            r#"{"model":"httpcan-auto-tools","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"first_tool"}},{"type":"function","function":{"name":"second_tool"}}]}"#,
         )
         .to_request();
     let resp = test::call_service(&app, req).await;
@@ -822,7 +822,7 @@ async fn llm_auto_tools_model_echoes_tool_result_on_second_turn() {
         .uri("/llm/v1/chat/completions")
         .insert_header(("content-type", "application/json"))
         .set_payload(
-            r#"{"model":"auto-tools","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":null,"tool_calls":[{"id":"c1","type":"function","function":{"name":"t","arguments":"{}"}}]},{"role":"tool","tool_call_id":"c1","content":"72F"}],"tools":[{"type":"function","function":{"name":"t"}}]}"#,
+            r#"{"model":"httpcan-auto-tools","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":null,"tool_calls":[{"id":"c1","type":"function","function":{"name":"t","arguments":"{}"}}]},{"role":"tool","tool_call_id":"c1","content":"72F"}],"tools":[{"type":"function","function":{"name":"t"}}]}"#,
         )
         .to_request();
     let resp = test::call_service(&app, req).await;
@@ -841,7 +841,7 @@ async fn llm_auto_tools_anthropic_loop() {
         .uri("/llm/v1/messages")
         .insert_header(("content-type", "application/json"))
         .set_payload(format!(
-            r#"{{"model":"auto-tools","messages":[{{"role":"user","content":"x"}}],"tools":{tools}}}"#
+            r#"{{"model":"httpcan-auto-tools","messages":[{{"role":"user","content":"x"}}],"tools":{tools}}}"#
         ))
         .to_request();
     let resp = test::call_service(&app, req).await;
@@ -854,7 +854,7 @@ async fn llm_auto_tools_anthropic_loop() {
         .uri("/llm/v1/messages")
         .insert_header(("content-type", "application/json"))
         .set_payload(format!(
-            r#"{{"model":"auto-tools","messages":[{{"role":"user","content":"x"}},{{"role":"user","content":[{{"type":"tool_result","tool_use_id":"t1","content":"done"}}]}}],"tools":{tools}}}"#
+            r#"{{"model":"httpcan-auto-tools","messages":[{{"role":"user","content":"x"}},{{"role":"user","content":[{{"type":"tool_result","tool_use_id":"t1","content":"done"}}]}}],"tools":{tools}}}"#
         ))
         .to_request();
     let resp = test::call_service(&app, req).await;
@@ -875,7 +875,7 @@ async fn llm_models_list_includes_auto_tools() {
         .iter()
         .filter_map(|m| m["id"].as_str())
         .collect();
-    assert!(ids.contains(&"auto-tools"), "{ids:?}");
+    assert!(ids.contains(&"httpcan-auto-tools"), "{ids:?}");
 }
 
 // ------------------------------------------------------- review regressions
@@ -1077,7 +1077,7 @@ async fn llm_completions_refusal_counts_no_text_tokens() {
 async fn llm_anthropic_auto_tools_skips_server_tools() {
     let (_, body) = llm_post(
         "/llm/v1/messages",
-        r#"{"model":"auto-tools","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"web_search_20250305","name":"web_search"},{"name":"get_weather","input_schema":{"type":"object"}}]}"#,
+        r#"{"model":"httpcan-auto-tools","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"web_search_20250305","name":"web_search"},{"name":"get_weather","input_schema":{"type":"object"}}]}"#,
     )
     .await;
     let v: serde_json::Value = serde_json::from_str(&body).unwrap();
@@ -1167,7 +1167,7 @@ async fn llm_prompt_mock_tool_args_from_declared_schema() {
 async fn llm_auto_tools_and_forced_choice_use_schema_args() {
     let (_, body) = llm_post(
         "/llm/v1/chat/completions",
-        r#"{"model":"auto-tools","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"get_weather","parameters":{"type":"object","properties":{"city":{"type":"string","default":"SF"}},"required":["city"]}}}]}"#,
+        r#"{"model":"httpcan-auto-tools","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"get_weather","parameters":{"type":"object","properties":{"city":{"type":"string","default":"SF"}},"required":["city"]}}}]}"#,
     )
     .await;
     let v: serde_json::Value = serde_json::from_str(&body).unwrap();
@@ -1189,4 +1189,141 @@ async fn llm_prompt_mock_explicit_args_directive() {
         v["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"],
         r#"{"command":"ls -la"}"#
     );
+}
+
+// ------------------------------------------- auto-tools: per-turn behaviour
+
+const WEATHER_TOOLS: &str = r#"[{"type":"function","function":{"name":"get_weather","parameters":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]}}}]"#;
+
+/// A new user message after a finished tool loop starts another loop: the
+/// decision is per request, not "any tool result anywhere in history".
+#[actix_web::test]
+async fn llm_auto_tools_calls_again_after_completed_loop() {
+    let (_, body) = llm_post(
+        "/llm/v1/chat/completions",
+        &format!(
+            r#"{{"model":"httpcan-auto-tools","messages":[{{"role":"user","content":"SF?"}},{{"role":"assistant","content":null,"tool_calls":[{{"id":"c1","type":"function","function":{{"name":"get_weather","arguments":"{{}}"}}}}]}},{{"role":"tool","tool_call_id":"c1","content":"72F"}},{{"role":"assistant","content":"Tool result: 72F"}},{{"role":"user","content":"NYC?"}}],"tools":{WEATHER_TOOLS}}}"#
+        ),
+    )
+    .await;
+    let v: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(v["choices"][0]["finish_reason"], "tool_calls");
+    assert_eq!(
+        v["choices"][0]["message"]["tool_calls"][0]["function"]["name"],
+        "get_weather"
+    );
+}
+
+#[actix_web::test]
+async fn llm_auto_tools_anthropic_calls_again_after_completed_loop() {
+    let (_, body) = llm_post(
+        "/llm/v1/messages",
+        r#"{"model":"httpcan-auto-tools","max_tokens":64,"tools":[{"name":"get_weather","input_schema":{"type":"object"}}],"messages":[{"role":"user","content":"SF?"},{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"get_weather","input":{}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"72F"}]},{"role":"assistant","content":"Tool result: 72F"},{"role":"user","content":"NYC?"}]}"#,
+    )
+    .await;
+    let v: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(v["stop_reason"], "tool_use");
+    let blocks = v["content"].as_array().unwrap();
+    assert_eq!(blocks[blocks.len() - 1]["name"], "get_weather");
+}
+
+/// The second loop's tool result echoes the *new* result.
+#[actix_web::test]
+async fn llm_auto_tools_second_loop_echoes_latest_result() {
+    let (_, body) = llm_post(
+        "/llm/v1/chat/completions",
+        &format!(
+            r#"{{"model":"httpcan-auto-tools","messages":[{{"role":"user","content":"SF?"}},{{"role":"assistant","content":null,"tool_calls":[{{"id":"c1","type":"function","function":{{"name":"get_weather","arguments":"{{}}"}}}}]}},{{"role":"tool","tool_call_id":"c1","content":"72F"}},{{"role":"assistant","content":"Tool result: 72F"}},{{"role":"user","content":"NYC?"}},{{"role":"assistant","content":null,"tool_calls":[{{"id":"c2","type":"function","function":{{"name":"get_weather","arguments":"{{}}"}}}}]}},{{"role":"tool","tool_call_id":"c2","content":"55F"}}],"tools":{WEATHER_TOOLS}}}"#
+        ),
+    )
+    .await;
+    let v: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(v["choices"][0]["message"]["content"], "Tool result: 55F");
+    assert_eq!(v["choices"][0]["finish_reason"], "stop");
+}
+
+#[actix_web::test]
+async fn llm_auto_tools_respects_tool_choice_none() {
+    let (_, body) = llm_post(
+        "/llm/v1/chat/completions",
+        &format!(
+            r#"{{"model":"httpcan-auto-tools","tool_choice":"none","messages":[{{"role":"user","content":"hi"}}],"tools":{WEATHER_TOOLS}}}"#
+        ),
+    )
+    .await;
+    let v: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(v["choices"][0]["finish_reason"], "stop");
+    assert!(v["choices"][0]["message"]["tool_calls"].is_null());
+
+    let (_, body) = llm_post(
+        "/llm/v1/messages",
+        r#"{"model":"httpcan-auto-tools","max_tokens":64,"tool_choice":{"type":"none"},"tools":[{"name":"get_weather","input_schema":{"type":"object"}}],"messages":[{"role":"user","content":"hi"}]}"#,
+    )
+    .await;
+    let v: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(v["stop_reason"], "end_turn");
+    assert!(v["content"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|b| b["type"] != "tool_use"));
+}
+
+#[actix_web::test]
+async fn llm_auto_tools_without_tools_replies_with_hint() {
+    let (_, body) = llm_post(
+        "/llm/v1/chat/completions",
+        r#"{"model":"httpcan-auto-tools","messages":[{"role":"user","content":"hi"}]}"#,
+    )
+    .await;
+    let v: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(
+        v["choices"][0]["message"]["content"],
+        crate::handlers::llm::AUTO_TOOLS_NO_TOOLS_CONTENT
+    );
+
+    // Anthropic server tools are never called, so a request declaring only
+    // server tools gets the hint too (worded as "no client tools").
+    let (_, body) = llm_post(
+        "/llm/v1/messages",
+        r#"{"model":"httpcan-auto-tools","max_tokens":64,"tools":[{"type":"web_search_20250305","name":"web_search"}],"messages":[{"role":"user","content":"hi"}]}"#,
+    )
+    .await;
+    let v: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(v["stop_reason"], "end_turn");
+    assert_eq!(
+        v["content"][0]["text"],
+        crate::handlers::llm::AUTO_TOOLS_NO_TOOLS_CONTENT
+    );
+    assert!(v["content"][0]["text"]
+        .as_str()
+        .unwrap()
+        .contains("no client tools"));
+
+    // Legacy completions can't carry tools: no hint there, just the default.
+    let (_, body) = llm_post(
+        "/llm/v1/completions",
+        r#"{"model":"httpcan-auto-tools","prompt":"hi"}"#,
+    )
+    .await;
+    let v: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_ne!(
+        v["choices"][0]["text"],
+        crate::handlers::llm::AUTO_TOOLS_NO_TOOLS_CONTENT
+    );
+}
+
+/// The old `auto-tools` name has no alias: it is now an ordinary echoed id.
+#[actix_web::test]
+async fn llm_old_auto_tools_name_is_plain_model() {
+    let (_, body) = llm_post(
+        "/llm/v1/chat/completions",
+        &format!(
+            r#"{{"model":"auto-tools","messages":[{{"role":"user","content":"hi"}}],"tools":{WEATHER_TOOLS}}}"#
+        ),
+    )
+    .await;
+    let v: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(v["model"], "auto-tools");
+    assert!(v["choices"][0]["message"]["tool_calls"].is_null());
 }

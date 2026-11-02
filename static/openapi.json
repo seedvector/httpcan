@@ -70,7 +70,7 @@
     },
     {
       "name": "AI API Mock",
-      "description": "Mock OpenAI- and Anthropic-compatible LLM APIs: point an SDK base_url at /llm and test without a paid provider. No auth (any API key works); every response carries X-Httpcan-Mock: true. Script answers with the httpcan body block (SDKs) or #mock prompt directives and the auto-tools model (GUI chat clients)."
+      "description": "Mock OpenAI- and Anthropic-compatible LLM APIs: point an SDK base_url at /llm and test without a paid provider. No auth (any API key works); every response carries X-Httpcan-Mock: true. Script answers with the httpcan body block (SDKs) or #mock prompt directives and the httpcan-auto-tools model (GUI chat clients)."
     },
     {
       "name": "OAuth 2.0 Mock",
@@ -5574,7 +5574,7 @@
         ],
         "summary": "Self-describing index of the LLM mock endpoints",
         "operationId": "getLlmIndex",
-        "description": "Self-describing index: endpoints, base_url guidance for both SDK families (OpenAI SDK: /llm/v1 or /llm; Anthropic SDK: /llm), the httpcan mock-script contract, the #mock prompt directives and the auto-tools model.",
+        "description": "Self-describing index: endpoints, base_url guidance for both SDK families (OpenAI SDK: /llm/v1 or /llm; Anthropic SDK: /llm), the httpcan mock-script contract, the #mock prompt directives and the httpcan-auto-tools model.",
         "responses": {
           "200": {
             "description": "LLM mock index",
@@ -5596,7 +5596,7 @@
         ],
         "summary": "Mock OpenAI Chat Completions API",
         "operationId": "createChatCompletionMock",
-        "description": "Mock OpenAI Chat Completions API: the canonical chat.completion shape. stream:true emits chat.completion.chunk SSE frames (role delta first, finish_reason chunk last, [DONE] sentinel; stream_options.include_usage adds a usage chunk). The httpcan script adds tool calls, error injection, pinned usage, delays and multi-turn sequences; forced tool_choice and the auto-tools model synthesize calls. /llm/chat/completions is a silent alias for SDKs whose base_url is /llm. #mock prompt directives: a standalone #mock token in the last user message, while no tool results follow it, turns the rest of that line into key=value directives: error=<kind>, delay=<ms>, usage=<prompt>x<completion>, tool=<name> (arguments from the declared tool's schema), args=<JSON object> (explicit arguments, rest of the line). Directives fire once per user turn; an explicit httpcan block wins.",
+        "description": "Mock OpenAI Chat Completions API: the canonical chat.completion shape. stream:true emits chat.completion.chunk SSE frames (role delta first, finish_reason chunk last, [DONE] sentinel; stream_options.include_usage adds a usage chunk). The httpcan script adds tool calls, error injection, pinned usage, delays and multi-turn sequences; forced tool_choice and the httpcan-auto-tools model synthesize calls. /llm/chat/completions is a silent alias for SDKs whose base_url is /llm. #mock prompt directives: a standalone #mock token in the last user message, while no tool results follow it, turns the rest of that line into key=value directives: error=<kind>, delay=<ms>, usage=<prompt>x<completion>, tool=<name> (arguments from the declared tool's schema), args=<JSON object> (explicit arguments, rest of the line). Directives fire once per user turn; an explicit httpcan block wins.",
         "requestBody": {
           "required": true,
           "content": {
@@ -5609,7 +5609,7 @@
                 "properties": {
                   "model": {
                     "type": "string",
-                    "description": "Echoed back verbatim; any id is accepted. The reserved id auto-tools runs an automatic tool loop for GUI clients: with tools declared it calls the first client tool (schema-valid arguments), and once tool results come back it replies 'Tool result: <last result>'."
+                    "description": "Echoed back verbatim; any id is accepted. The reserved id httpcan-auto-tools runs an automatic tool loop for GUI clients: on each user turn with tools declared it calls the first client tool (schema-valid arguments, skipped when tool_choice is none); when the request ends with tool results it replies 'Tool result: <last result>'; with no client tools declared (server tools do not count) it replies with a hint. Omitting model echoes the fixed default (httpcan-openai or httpcan-anthropic)."
                   },
                   "messages": {
                     "type": "array",
@@ -5784,7 +5784,7 @@
         ],
         "summary": "Mock Anthropic Messages API",
         "operationId": "createMessageMock",
-        "description": "Mock Anthropic Messages API: content blocks, stop_reason and two-field usage. stream:true follows the event protocol exactly (message_start → content_block_start/delta/stop → message_delta → message_stop, no [DONE]). The httpcan script adds tool_use blocks (input_json_delta streaming), Anthropic-shaped errors (529 overloaded_error included), pinned usage, delays and multi-turn sequences; forced tool_choice and the auto-tools model synthesize calls. #mock prompt directives: a standalone #mock token in the last user message, while no tool results follow it, turns the rest of that line into key=value directives: error=<kind>, delay=<ms>, usage=<prompt>x<completion>, tool=<name> (arguments from the declared tool's schema), args=<JSON object> (explicit arguments, rest of the line). Directives fire once per user turn; an explicit httpcan block wins.",
+        "description": "Mock Anthropic Messages API: content blocks, stop_reason and two-field usage. stream:true follows the event protocol exactly (message_start → content_block_start/delta/stop → message_delta → message_stop, no [DONE]). The httpcan script adds tool_use blocks (input_json_delta streaming), Anthropic-shaped errors (529 overloaded_error included), pinned usage, delays and multi-turn sequences; forced tool_choice and the httpcan-auto-tools model synthesize calls. #mock prompt directives: a standalone #mock token in the last user message, while no tool results follow it, turns the rest of that line into key=value directives: error=<kind>, delay=<ms>, usage=<prompt>x<completion>, tool=<name> (arguments from the declared tool's schema), args=<JSON object> (explicit arguments, rest of the line). Directives fire once per user turn; an explicit httpcan block wins.",
         "requestBody": {
           "required": true,
           "content": {
@@ -5797,7 +5797,7 @@
                 "properties": {
                   "model": {
                     "type": "string",
-                    "description": "Echoed back verbatim; any id is accepted. The reserved id auto-tools runs an automatic tool loop for GUI clients: with tools declared it calls the first client tool (schema-valid arguments), and once tool results come back it replies 'Tool result: <last result>'."
+                    "description": "Echoed back verbatim; any id is accepted. The reserved id httpcan-auto-tools runs an automatic tool loop for GUI clients: on each user turn with tools declared it calls the first client tool (schema-valid arguments, skipped when tool_choice is none); when the request ends with tool results it replies 'Tool result: <last result>'; with no client tools declared (server tools do not count) it replies with a hint. Omitting model echoes the fixed default (httpcan-openai or httpcan-anthropic)."
                   },
                   "messages": {
                     "type": "array",
@@ -5966,7 +5966,7 @@
         ],
         "summary": "List mock models",
         "operationId": "listMockModels",
-        "description": "OpenAI list shape by default; Anthropic shape when an anthropic-version request header is present (both SDK families construct this same path). Includes the reserved auto-tools model (automatic tool loop for GUI clients).",
+        "description": "OpenAI list shape by default; Anthropic shape when an anthropic-version request header is present (both SDK families construct this same path). Includes the reserved httpcan-auto-tools model (automatic tool loop for GUI clients).",
         "responses": {
           "200": {
             "description": "Model list"
@@ -6016,7 +6016,7 @@
                 "properties": {
                   "model": {
                     "type": "string",
-                    "description": "Echoed back verbatim; any id is accepted. The reserved id auto-tools runs an automatic tool loop for GUI clients: with tools declared it calls the first client tool (schema-valid arguments), and once tool results come back it replies 'Tool result: <last result>'."
+                    "description": "Echoed back verbatim; any id is accepted. The reserved id httpcan-auto-tools runs an automatic tool loop for GUI clients: on each user turn with tools declared it calls the first client tool (schema-valid arguments, skipped when tool_choice is none); when the request ends with tool results it replies 'Tool result: <last result>'; with no client tools declared (server tools do not count) it replies with a hint. Omitting model echoes the fixed default (httpcan-openai or httpcan-anthropic)."
                   },
                   "input": {
                     "oneOf": [

@@ -150,7 +150,7 @@ async fn llm_responses_silent_alias_path() {
     assert_eq!(resp.status(), StatusCode::OK);
     let v: serde_json::Value = serde_json::from_slice(&test::read_body(resp).await).unwrap();
     assert_eq!(v["object"], "response");
-    assert_eq!(v["model"], "gpt-5.6-sol");
+    assert_eq!(v["model"], "httpcan-openai");
 }
 
 #[actix_web::test]

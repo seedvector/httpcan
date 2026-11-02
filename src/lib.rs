@@ -35,6 +35,9 @@ pub struct AppConfig {
     /// `None` = mock mode (any non-empty secret passes); `Some` = real
     /// validation so the `invalid_client` path is reachable.
     pub oauth2_clients: Option<std::collections::HashMap<String, String>>,
+    /// Model ids listed by `/llm/v1/models` (both families). Empty = the
+    /// mock-owned defaults. Requests accept any id regardless.
+    pub llm_models: Vec<String>,
 }
 use handlers::*;
 use middleware::RequestLogger;
@@ -84,6 +87,8 @@ pub struct ServerConfig {
     pub canonical_scheme: config::SchemeOverride,
     /// OAuth2 client registry for `/oauth2` (see `AppConfig::oauth2_clients`).
     pub oauth2_clients: Option<std::collections::HashMap<String, String>>,
+    /// Model ids listed by `/llm/v1/models` (see `AppConfig::llm_models`).
+    pub llm_models: Vec<String>,
 }
 
 impl Default for ServerConfig {
@@ -97,6 +102,7 @@ impl Default for ServerConfig {
             max_bytes: config::DEFAULT_MAX_BYTES,
             canonical_scheme: config::SchemeOverride::Auto,
             oauth2_clients: None,
+            llm_models: Vec::new(),
         }
     }
 }
@@ -162,6 +168,14 @@ impl ServerConfig {
         clients: Option<std::collections::HashMap<String, String>>,
     ) -> Self {
         self.oauth2_clients = clients;
+        self
+    }
+
+    /// Set the model ids listed by `/llm/v1/models` for both API families
+    /// (empty = the mock-owned defaults). The auto-tools model is always
+    /// appended. Requests accept any model id regardless of this list.
+    pub fn llm_models(mut self, models: Vec<String>) -> Self {
+        self.llm_models = models;
         self
     }
 }
@@ -317,6 +331,7 @@ fn create_app(
         canonical_scheme: server_config.canonical_scheme,
         static_path: static_path.clone(),
         oauth2_clients: server_config.oauth2_clients.clone(),
+        llm_models: server_config.llm_models.clone(),
     };
 
     let mut app = App::new()

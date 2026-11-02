@@ -23,7 +23,7 @@ from openai import OpenAI
 
 client = OpenAI(base_url="https://httpcan.org/llm/v1", api_key="not-needed")
 reply = client.chat.completions.create(
-    model="gpt-5.6-sol",
+    model="httpcan-openai"  # any model name works,
     messages=[{"role": "user", "content": "Hello"}],
     extra_body={"httpcan": {"content": "Custom reply text"}},
 )

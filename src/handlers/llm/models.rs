@@ -13,38 +13,38 @@
 //! endpoints' lenient "any model name is valid" semantics: clients that
 //! pre-validate a model before sending never see a mismatch.
 
-use super::AUTO_TOOLS_MODEL;
+use super::{ANTHROPIC_DEFAULT_MODEL, AUTO_TOOLS_MODEL, OPENAI_DEFAULT_MODEL};
+use crate::AppConfig;
 use actix_web::{web, HttpRequest, HttpResponse, Result};
 use serde_json::json;
 
-/// Static catalog per protocol family. A mock has no deployments, so the
-/// lists are illustrative cross-sections of each family's current lineup
-/// (per models.dev, refreshed 2026-08-20).
-const OPENAI_MODELS: &[&str] = &[
-    "gpt-5.6-sol",
-    "gpt-5.6-terra",
-    "gpt-5.6-luna",
-    "gpt-5.5",
-    "gpt-5.5-pro",
-    "gpt-5.4",
-    "gpt-5.4-mini",
-    "gpt-5.4-nano",
-];
-const ANTHROPIC_MODELS: &[&str] = &[
-    "claude-opus-5",
-    "claude-sonnet-5",
-    "claude-fable-5",
-    "claude-haiku-4-5",
-];
+// The catalog is mock-owned on purpose: real vendor ids go stale with every
+// release, and a refreshed list breaks tests that assert on it. The default
+// catalog is the family's default model plus the auto-tools model, and it is
+// frozen. Deployments that want other ids listed (GUI pickers, vendor-named
+// tests) set `--llm-models` / `HTTPCAN_LLM_MODELS`; requests accept any id
+// either way.
 
-/// Fixed `created`/`created_at` stamps — a mock's model list never changes,
-/// so stable values keep responses deterministic. Each is the release date
-/// of the newest listed model (gpt-5.6 family: 2026-07-09; claude-opus-5:
-/// 2026-07-24), with the 5-series context/output limits from models.dev.
-const OPENAI_MODEL_CREATED: i64 = 1_783_555_200;
+/// Fixed metadata stamps. Frozen mock values (not any real model's release
+/// date or limits), so responses stay deterministic across upgrades.
+const OPENAI_MODEL_CREATED: i64 = 1_783_555_200; // 2026-07-09T00:00:00Z
 const ANTHROPIC_MODEL_CREATED_AT: &str = "2026-07-24T00:00:00Z";
 const ANTHROPIC_MAX_INPUT_TOKENS: i64 = 1_000_000;
 const ANTHROPIC_MAX_TOKENS: i64 = 128_000;
+
+/// Catalog ids for one family: the configured list (shared by both
+/// families) or the family default, then the auto-tools model, deduplicated.
+fn catalog<'a>(configured: &'a [String], default_model: &'a str) -> Vec<&'a str> {
+    let mut ids: Vec<&str> = if configured.is_empty() {
+        vec![default_model]
+    } else {
+        configured.iter().map(String::as_str).collect()
+    };
+    ids.push(AUTO_TOOLS_MODEL);
+    let mut seen = std::collections::HashSet::new();
+    ids.retain(|id| seen.insert(*id));
+    ids
+}
 
 fn is_anthropic_client(req: &HttpRequest) -> bool {
     req.headers().contains_key("anthropic-version")
@@ -71,16 +71,15 @@ fn anthropic_model(id: &str) -> serde_json::Value {
     })
 }
 
-pub async fn models_handler(req: HttpRequest) -> Result<HttpResponse> {
+pub async fn models_handler(
+    req: HttpRequest,
+    config: web::Data<AppConfig>,
+) -> Result<HttpResponse> {
     // The reserved auto-tools model rides at the end of both catalogs so
     // GUI clients that fetch the model list (Cherry Studio, …) can add it
     // with one click and exercise tool loops without body control.
     if is_anthropic_client(&req) {
-        let ids: Vec<&str> = ANTHROPIC_MODELS
-            .iter()
-            .copied()
-            .chain(std::iter::once(AUTO_TOOLS_MODEL))
-            .collect();
+        let ids = catalog(&config.llm_models, ANTHROPIC_DEFAULT_MODEL);
         let data: Vec<serde_json::Value> = ids.iter().map(|id| anthropic_model(id)).collect();
         return Ok(HttpResponse::Ok().json(json!({
             "data": data,
@@ -90,11 +89,7 @@ pub async fn models_handler(req: HttpRequest) -> Result<HttpResponse> {
         })));
     }
 
-    let ids: Vec<&str> = OPENAI_MODELS
-        .iter()
-        .copied()
-        .chain(std::iter::once(AUTO_TOOLS_MODEL))
-        .collect();
+    let ids = catalog(&config.llm_models, OPENAI_DEFAULT_MODEL);
     let data: Vec<serde_json::Value> = ids.iter().map(|id| openai_model(id)).collect();
     Ok(HttpResponse::Ok().json(json!({
         "object": "list",

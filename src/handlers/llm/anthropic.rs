@@ -20,7 +20,7 @@ use serde_json::json;
 use std::time::Duration;
 use tokio::time::sleep;
 
-const DEFAULT_MODEL: &str = "claude-sonnet-5";
+const DEFAULT_MODEL: &str = ANTHROPIC_DEFAULT_MODEL;
 const DEFAULT_CONTENT: &str = "This is a mock Anthropic messages response from httpcan. Point any Anthropic-compatible SDK at this base_url, and every request gets this deterministic placeholder response.";
 
 #[derive(Deserialize)]
@@ -152,6 +152,9 @@ pub async fn anthropic_messages_handler(body: web::Bytes) -> Result<HttpResponse
         .find_map(|m| tool_results(m).last())
         .and_then(|p| p.get("content"))
         .map(content_text);
+    let answering_tool_results = messages
+        .last()
+        .is_some_and(|m| tool_results(m).next().is_some());
 
     let plan = plan_response(PlanInput {
         httpcan: req.httpcan.as_ref(),
@@ -161,6 +164,8 @@ pub async fn anthropic_messages_handler(body: web::Bytes) -> Result<HttpResponse
         tool_turns,
         directive_text,
         last_tool_result,
+        answering_tool_results,
+        supports_tools: true,
         default_content: DEFAULT_CONTENT,
         id_prefix: "toolu_",
         estimated_prompt_tokens: estimated_input_tokens,

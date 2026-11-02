@@ -13,28 +13,40 @@ OpenAI- and Anthropic-compatible endpoints that return deterministic responses. 
 
 Every `/llm` response carries `X-Httpcan-Mock: true`, so a test can assert the traffic never left the mock.
 
+## Model names
+
+Any model name is accepted and echoed back unchanged, so code that sends `gpt-…` or `claude-…` works as-is. httpcan doesn't track real vendor models. Its own model ids are fixed and never change between releases, so tests can assert on them:
+
+| Model id | Role |
+|---|---|
+| `httpcan-openai` | Echoed by the OpenAI-family endpoints when a request omits `model` |
+| `httpcan-anthropic` | Echoed by `/llm/v1/messages` when a request omits `model` |
+| `httpcan-auto-tools` | Runs an automatic tool loop (see "Testing from chat apps" below) |
+
+`GET /llm/v1/models` lists the family default plus `httpcan-auto-tools`. To show other ids in model pickers, set `--llm-models "gpt-5.5,claude-opus-5-5"` (or `HTTPCAN_LLM_MODELS`). See [configuration](configuration.md).
+
 ## Quick examples
 
 ```bash
 # OpenAI-compatible chat completions
 curl -X POST https://httpcan.org/llm/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"model":"gpt-5.6-sol","messages":[{"role":"user","content":"Hello"}]}'
+  -d '{"model":"httpcan-openai","messages":[{"role":"user","content":"Hello"}]}'
 
 # Anthropic-compatible messages
 curl -X POST https://httpcan.org/llm/v1/messages \
   -H "Content-Type: application/json" \
-  -d '{"model":"claude-sonnet-5","max_tokens":64,"messages":[{"role":"user","content":"Hello"}]}'
+  -d '{"model":"httpcan-anthropic","max_tokens":64,"messages":[{"role":"user","content":"Hello"}]}'
 
 # OpenAI-compatible Responses API
 curl -X POST https://httpcan.org/llm/v1/responses \
   -H "Content-Type: application/json" \
-  -d '{"model":"gpt-5.6-sol","input":"Hello"}'
+  -d '{"model":"httpcan-openai","input":"Hello"}'
 
 # OpenAI-compatible legacy completions
 curl -X POST https://httpcan.org/llm/v1/completions \
   -H "Content-Type: application/json" \
-  -d '{"model":"gpt-5.6-sol","prompt":"Once upon a time"}'
+  -d '{"model":"httpcan-openai","prompt":"Once upon a time"}'
 ```
 
 ## From an SDK
@@ -44,7 +56,7 @@ from openai import OpenAI
 
 client = OpenAI(base_url="https://httpcan.org/llm/v1", api_key="not-needed")
 reply = client.chat.completions.create(
-    model="gpt-5.6-sol",
+    model="httpcan-openai",
     messages=[{"role": "user", "content": "Hello"}],
     extra_body={"httpcan": {"content": "Custom reply text"}},
 )
@@ -109,9 +121,9 @@ Chat UIs can't add fields to the request body, so two controls work from the pro
 
 Only the last user message is scanned, and only while no tool results follow it. So a directive fires once per user turn, `tool=` loops end once the tool result comes back, older messages never trigger it again, and `#mockery` doesn't count. An explicit `httpcan` block in the same request always wins over prompt directives.
 
-**2. The `auto-tools` model.** Pick it as the model name (it's listed in `/llm/v1/models`). With tools declared (e.g. Cherry Studio's MCP servers) it calls the first declared tool. Once the client sends the tool result back, it replies `Tool result: <last result>`. You get a full visible tool loop with zero configuration.
+**2. The `httpcan-auto-tools` model.** Pick it as the model name (it's listed in `/llm/v1/models`). On each user message with tools declared (e.g. Cherry Studio's MCP servers) it calls the first declared tool. When the client sends the tool result back, it replies `Tool result: <last result>`. This repeats for every user message, so one conversation can run any number of tool loops. `tool_choice: "none"` is respected. If the request declares no tools, it replies with a hint telling you to enable tools or an MCP server.
 
-Cherry Studio recipe: add a custom OpenAI-compatible provider (API Address `http://localhost:8080/llm/v1`, any key), fetch the model list, pick `auto-tools`, enable an MCP server, and chat. Type `#mock` directives in the message box to trigger errors, fixed usage and delays in the same conversation.
+Cherry Studio recipe: add a custom OpenAI-compatible provider (API Address `http://localhost:8080/llm/v1`, any key), fetch the model list, pick `httpcan-auto-tools`, enable an MCP server, and chat. Type `#mock` directives in the message box to trigger errors, fixed usage and delays in the same conversation.
 
 ## What it does not do
 
