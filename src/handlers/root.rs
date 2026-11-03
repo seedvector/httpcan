@@ -618,7 +618,7 @@ pub async fn font_handler(req: HttpRequest) -> Result<HttpResponse> {
         .body(body))
 }
 
-fn font_faces(version: &str) -> String {
+pub(crate) fn font_faces(version: &str) -> String {
     format!(
         r#"@font-face {{ font-family: "Schibsted Grotesk"; src: url("/fonts/schibsted-grotesk.woff2?v={version}") format("woff2"); font-weight: 400 900; font-style: normal; font-display: swap; }}
 @font-face {{ font-family: "Martian Mono"; src: url("/fonts/martian-mono.woff2?v={version}") format("woff2"); font-weight: 100 800; font-stretch: 75% 112.5%; font-style: normal; font-display: swap; }}"#

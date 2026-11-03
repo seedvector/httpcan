@@ -1,4 +1,5 @@
 use super::*;
+use crate::handlers::page::{html_escape, icon, page_shell, warn_icon};
 use actix_multipart::Multipart;
 use actix_web::web::BytesMut;
 use futures_util::{StreamExt, TryStreamExt};
@@ -160,65 +161,75 @@ fn is_safe_url_scheme(url: &str) -> bool {
     lower.starts_with("http://") || lower.starts_with("https://")
 }
 
-/// HTML-escape a string for safe display in HTML content
-fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&#x27;")
-}
-
 /// Build an HTML interstitial page for external redirect-to requests.
 ///
 /// Instead of returning a 302 that silently redirects browser users to an
 /// arbitrary URL, return a 200 HTML page that shows the destination and
 /// requires a click. Programmatic clients (curl, etc.) still get the 302.
+///
+/// The destination host is pulled out and shown prominently so a lookalike
+/// domain is easy to spot; the safe action ("Go back") is the primary button.
+/// Non-http(s) URLs get a disabled continue button and no link at all.
 fn build_redirect_interstitial(url: &str) -> String {
-    let escaped_url = html_escape(url);
-    let link_html = if is_safe_url_scheme(url) {
-        format!(
-            r#"<a href="{}" rel="noopener noreferrer" class="btn-primary">Continue to external site</a>"#,
-            escaped_url
+    let safe = is_safe_url_scheme(url);
+    let host = if safe {
+        url::Url::parse(url)
+            .ok()
+            .and_then(|u| u.host_str().map(str::to_string))
+    } else {
+        None
+    };
+    let globe = icon(
+        "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20\"/><path d=\"M2 12h20\"/>",
+    );
+    let arrow = icon("<path d=\"M7 7h10v10\"/><path d=\"M7 17 17 7\"/>");
+
+    let (lead, pill, dest_title, continue_btn, explanation) = if safe {
+        let host_label = host.as_deref().unwrap_or("external site");
+        (
+            "You&rsquo;re about to leave httpcan for:",
+            "<span class=\"pill pill-warn\">Leaving httpcan</span>",
+            html_escape(host_label),
+            format!(
+                "<a class=\"btn btn-outline\" href=\"{}\" rel=\"noopener noreferrer\">Continue{}</a>",
+                html_escape(url),
+                arrow
+            ),
+            "This link was made with httpcan&rsquo;s <code>/redirect-to</code> endpoint, which can point anywhere. \
+httpcan doesn&rsquo;t control the destination &mdash; check the domain above and only continue if you trust it."
+                .to_string(),
         )
     } else {
-        r#"<span class="btn-disabled">Link disabled: unsupported URL scheme</span>"#.to_string()
+        (
+            "This link can&rsquo;t be opened:",
+            "<span class=\"pill pill-err\">Blocked</span>",
+            "Unsupported link".to_string(),
+            "<span class=\"btn btn-outline\" aria-disabled=\"true\">Continue</span>".to_string(),
+            "Only <code>http://</code> and <code>https://</code> destinations can be opened from this page."
+                .to_string(),
+        )
     };
 
-    let template = r#"<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>External Link - HTTPCan</title>
-<style>
-body { font-family: system-ui, -apple-system, sans-serif; max-width: 640px; margin: 80px auto; padding: 0 20px; color: #1a1a1a; }
-h1 { font-size: 1.5em; }
-.warning { color: #c41e3a; font-weight: 600; }
-.url { word-break: break-all; background: #f5f5f5; padding: 12px 16px; border-radius: 8px; font-family: monospace; font-size: 0.9em; margin: 16px 0; }
-.actions { margin-top: 24px; }
-.actions a, .actions span { display: inline-block; padding: 10px 24px; border-radius: 8px; margin-right: 12px; font-weight: 500; text-decoration: none; }
-.btn-primary { background: #c41e3a; color: #fff; }
-.btn-secondary { background: #e8e8e8; color: #333; }
-.btn-disabled { color: #999; }
-</style>
-</head>
-<body>
-<h1>External Link</h1>
-<p class="warning">&#9888; You are about to leave HTTPCan and visit an external website.</p>
-<p>Destination URL:</p>
-<div class="url">__URL__</div>
-<p>HTTPCan does not control the content of external sites and cannot guarantee their safety. Proceed only if you trust this destination.</p>
-<div class="actions">
-__LINK__
-<a href="/" class="btn-secondary">Return to HTTPCan</a>
-</div>
-</body>
-</html>"#;
-
-    template
-        .replace("__URL__", &escaped_url)
-        .replace("__LINK__", &link_html)
+    let card = format!(
+        "<div class=\"rim\"><span>External link</span>{pill}</div>\n\
+<div class=\"body\">\n\
+<p class=\"lead\">{lead}</p>\n\
+<div class=\"dest\"><div class=\"dest-host\">{globe}{dest_title}</div><p class=\"dest-url\">{url}</p></div>\n\
+<div class=\"notice\">{warn}<p>{explanation}</p></div>\n\
+</div>\n\
+<div class=\"actions\">\n\
+{continue_btn}\n\
+<a class=\"btn btn-primary\" href=\"/\">Go back</a>\n\
+</div>",
+        url = html_escape(url),
+        warn = warn_icon(),
+    );
+    page_shell(
+        "External Link - HTTPCan",
+        "Redirect check",
+        &card,
+        &[("/", "httpcan home"), ("/#redirects", "About redirects")],
+    )
 }
 
 pub async fn redirect_handler(

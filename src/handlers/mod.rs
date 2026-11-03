@@ -20,6 +20,7 @@ pub mod llm;
 pub mod oauth2;
 pub mod observability;
 pub mod openapi;
+pub mod page;
 pub mod redirects;
 pub mod request_inspection;
 pub mod response_formats;

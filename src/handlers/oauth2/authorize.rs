@@ -11,9 +11,8 @@
 //! resource owner gets an error page (§3.1.2.4). Every other failure is
 //! reported to the client by redirecting with `error` (+`state`).
 
-use super::{
-    html_escape, is_http_url, oauth_redirect, sign, state_param, BearerClaims, CodeClaims,
-};
+use super::{is_http_url, oauth_redirect, sign, state_param, BearerClaims, CodeClaims};
+use crate::handlers::page::{html_escape, icon, page_shell, warn_icon};
 use actix_web::{web, HttpResponse};
 use std::collections::HashMap;
 
@@ -217,102 +216,44 @@ fn error_params(error: &str, description: &str, state: Option<&str>) -> Vec<(Str
     params
 }
 
-/// shadcn/ui design system, ported to plain CSS for the server-rendered
-/// OAuth pages (no JS, no external assets): zinc semantic tokens with a
-/// `prefers-color-scheme` dark theme, and the Card / Button / Input / Alert /
-/// Table component shapes. Lucide icons are inlined as stroke SVGs.
-const PAGE_CSS: &str = r#"
-:root{--radius:.5rem;--background:0 0% 100%;--foreground:240 10% 3.9%;--card:0 0% 100%;
---card-foreground:240 10% 3.9%;--primary:240 5.9% 10%;--primary-foreground:0 0% 98%;
---muted:240 4.8% 95.9%;--muted-foreground:240 3.8% 46.1%;--accent:240 4.8% 95.9%;
---accent-foreground:240 5.9% 10%;--destructive:0 84.2% 60.2%;--border:240 5.9% 90%;
---input:240 5.9% 90%;--ring:240 10% 3.9%;--warning:32 95% 44%;--warning-muted:48 96% 89%}
-@media (prefers-color-scheme:dark){:root{--background:240 10% 3.9%;--foreground:0 0% 98%;
---card:240 10% 3.9%;--card-foreground:0 0% 98%;--primary:0 0% 98%;--primary-foreground:240 5.9% 10%;
---muted:240 3.7% 15.9%;--muted-foreground:240 5% 64.9%;--accent:240 3.7% 15.9%;
---accent-foreground:0 0% 98%;--destructive:0 72% 51%;--border:240 3.7% 15.9%;
---input:240 3.7% 15.9%;--ring:240 4.9% 83.9%;--warning:46 96% 65%;--warning-muted:29 60% 14%}}
-*{box-sizing:border-box}
-body{margin:0;min-height:100svh;display:flex;align-items:center;justify-content:center;
-padding:1.5rem;background:hsl(var(--background));color:hsl(var(--foreground));
-font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
--webkit-font-smoothing:antialiased;font-size:14px;line-height:1.43}
-a{color:inherit}
-.card{width:100%;max-width:28rem;border:1px solid hsl(var(--border));border-radius:.75rem;
-background:hsl(var(--card));color:hsl(var(--card-foreground));box-shadow:0 1px 2px 0 rgb(0 0 0/.05)}
-.card-header{display:flex;flex-direction:column;gap:.375rem;padding:1.5rem}
-.card-title{font-size:1.125rem;font-weight:600;letter-spacing:-.02em;line-height:1.3}
-.card-description{font-size:.875rem;color:hsl(var(--muted-foreground))}
-.card-content{display:flex;flex-direction:column;gap:1rem;padding:0 1.5rem 1.5rem}
-.card-footer{display:flex;align-items:center;gap:.5rem;padding:0 1.5rem 1.5rem;flex-wrap:wrap}
-.alert{display:flex;gap:.625rem;border:1px solid hsl(var(--border));border-radius:.5rem;
-padding:.75rem;background:hsl(var(--muted));font-size:.875rem}
-.alert svg{flex:none;margin-top:.125rem}
-.alert-warning{background:hsl(var(--warning-muted));border-color:hsl(var(--warning)/.35);color:hsl(var(--warning))}
-.alert-warning .alert-body{color:inherit}
-.alert-body b{color:hsl(var(--warning))}
-.alert-destructive{border-color:hsl(var(--destructive)/.5);text-align:left}
-.alert-destructive b{color:hsl(var(--destructive))}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;height:2.25rem;
-padding:0 1rem;border-radius:calc(var(--radius) - .125rem);font-size:.875rem;font-weight:500;
-border:1px solid transparent;cursor:pointer;text-decoration:none;color:inherit}
-.btn:focus-visible,.input:focus-visible{outline:2px solid hsl(var(--ring));outline-offset:2px}
-.btn-primary{background:hsl(var(--primary));color:hsl(var(--primary-foreground))}
-.btn-primary:hover{opacity:.9}
-.btn-outline{border-color:hsl(var(--input));background:hsl(var(--card))}
-.btn-outline:hover{background:hsl(var(--accent))}
-.input{height:2.25rem;width:100%;border:1px solid hsl(var(--input));border-radius:calc(var(--radius) - .125rem);
-padding:0 .75rem;font-size:.875rem;background:transparent;color:inherit;font-family:inherit}
-.field{display:flex;flex-direction:column;gap:.375rem}
-.label{font-size:.875rem;font-weight:500}
-.field-desc{margin:0;font-size:.8125rem;color:hsl(var(--muted-foreground))}
-.data{width:100%;border-collapse:collapse;font-size:.875rem}
-.data th{text-align:left;font-weight:500;color:hsl(var(--muted-foreground));
-padding:.5rem .75rem .5rem 0;white-space:nowrap;vertical-align:baseline}
-.data td{padding:.5rem 0}
-.data tr+tr th,.data tr+tr td{border-top:1px solid hsl(var(--border))}
-code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.8125rem;
-background:hsl(var(--muted));padding:.125rem .375rem;border-radius:.25rem;word-break:break-all}
-.ask{margin:0;font-weight:500}
-.footer-link{margin-left:auto;font-size:.875rem;color:hsl(var(--muted-foreground))}
-.footer-link:hover{color:hsl(var(--foreground))}
-"#;
-
-/// HTML document shell wrapping one centered card.
-fn page_shell(title: &str, card: &str) -> String {
-    format!(
-        "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n\
-<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
-<title>{title}</title>\n<style>{PAGE_CSS}</style>\n</head>\n<body>\n{card}\n</body>\n</html>\n",
-        title = html_escape(title),
-    )
-}
-
 /// Standalone 400 page for failures that must not be redirected. Every
 /// dynamic field is escaped; the fixed description strings stay ASCII.
 fn authorize_error_page(title: &str, description: &str) -> HttpResponse {
     let card = format!(
-        "<div class=\"card\">\n\
-<div class=\"card-header\">\n<div class=\"card-title\">Authorization error</div>\n\
-<div class=\"card-description\">httpcan OAuth 2.0 mock</div>\n</div>\n\
-<div class=\"card-content\">\n\
-<div class=\"alert alert-warning\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\"/><path d=\"M12 9v4\"/><path d=\"M12 17h.01\"/></svg><div class=\"alert-body\">This is a mock OAuth2 service. It does not authenticate anyone.</div></div>\n\
-<div>\n<b>{title}</b>\n<p>{description}</p>\n</div>\n\
+        "<div class=\"rim\"><span>Authorization error</span><span class=\"pill pill-err\">400 &middot; not redirected</span></div>\n\
+<div class=\"body\">\n\
+<div><p class=\"err-title\">{title}</p><p class=\"err-desc\">{description}</p></div>\n\
+<div class=\"notice notice-err\">{icon}<p>The request can&rsquo;t be safely sent back to the client, so it stops here. \
+Fix the parameters in the authorize URL and try again.</p></div>\n\
 </div>\n\
-<div class=\"card-footer\">\n<a class=\"btn btn-outline\" href=\"/oauth2\">Back to the /oauth2 index</a></div>\n\
+<div class=\"actions\">\n\
+<a class=\"btn btn-outline\" href=\"/\">Home</a>\n\
+<a class=\"btn btn-primary\" href=\"/oauth2\">OAuth 2.0 index</a>\n\
 </div>",
+        icon = icon("<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 8v4\"/><path d=\"M12 16h.01\"/>"),
         title = html_escape(title),
         description = html_escape(description),
     );
     HttpResponse::BadRequest()
         .content_type("text/html; charset=utf-8")
         .insert_header(("X-Robots-Tag", "noindex"))
-        .body(page_shell("httpcan OAuth2 - error", &card))
+        .body(page_shell(
+            "httpcan OAuth2 - error",
+            "OAuth 2.0 mock server",
+            &card,
+            &[
+                ("/oauth2", "About this mock"),
+                (
+                    "/.well-known/oauth-authorization-server",
+                    "Discovery metadata",
+                ),
+            ],
+        ))
 }
 
 /// The consent page: hidden fields round-trip every authorize parameter,
-/// the mock warning banner marks this as a mock server, and every
-/// echoed field is HTML-escaped (no template layer otherwise).
+/// a mock notice marks this as a mock server, and every echoed field is
+/// HTML-escaped (no template layer otherwise).
 fn consent_page(
     response_type: &str,
     client_id: &str,
@@ -326,11 +267,8 @@ fn consent_page(
         .get("code_challenge")
         .map(String::as_str)
         .unwrap_or("");
-    let flow = if response_type == "token" {
-        "implicit (response_type=token - legacy, removed in OAuth 2.1)"
-    } else {
-        "authorization code (response_type=code)"
-    };
+    let implicit = response_type == "token";
+
     let hidden = |name: &str, value: &str| {
         format!(
             "<input type=\"hidden\" name=\"{}\" value=\"{}\">",
@@ -338,62 +276,147 @@ fn consent_page(
             html_escape(value)
         )
     };
-    let scope_display = if scope.is_empty() {
-        "-".to_string()
+    let hidden_fields = [
+        hidden("response_type", response_type),
+        hidden("client_id", client_id),
+        hidden("redirect_uri", redirect_uri),
+        hidden("state", state),
+        hidden("scope", scope),
+        hidden("code_challenge", challenge),
+        hidden("code_challenge_method", pkce_method),
+    ]
+    .join("\n");
+
+    // Client identity: first character as a monogram, redirect host as the
+    // "where you'll land" hint (redirect_uri is already validated as a URL).
+    let initial = client_id
+        .chars()
+        .next()
+        .map(|c| c.to_uppercase().collect::<String>())
+        .unwrap_or_default();
+    let redirect_host = url::Url::parse(redirect_uri)
+        .ok()
+        .and_then(|u| {
+            u.host_str()
+                .map(|h| u.port().map_or(h.to_string(), |p| format!("{h}:{p}")))
+        })
+        .unwrap_or_default();
+
+    // Flow badges: grant type, PKCE status, deprecation for implicit.
+    let mut badges = Vec::new();
+    if implicit {
+        badges.push("<span class=\"pill\">Implicit flow</span>".to_string());
+        badges.push(
+            "<span class=\"pill pill-warn\">Legacy &middot; removed in OAuth 2.1</span>"
+                .to_string(),
+        );
     } else {
-        html_escape(scope)
+        badges.push("<span class=\"pill\">Authorization code</span>".to_string());
+        if challenge.is_empty() {
+            badges.push("<span class=\"pill pill-warn\">No PKCE</span>".to_string());
+        } else {
+            badges.push(format!(
+                "<span class=\"pill pill-ok\">PKCE &middot; {}</span>",
+                html_escape(pkce_method)
+            ));
+        }
+    }
+    if state.is_empty() {
+        badges.push("<span class=\"pill pill-warn\">No state</span>".to_string());
+    }
+
+    let scopes_html = if scope.trim().is_empty() {
+        "<p class=\"empty\">No specific scopes requested.</p>".to_string()
+    } else {
+        let items: String = scope
+            .split_whitespace()
+            .map(|s| format!("<li>{}</li>", html_escape(s)))
+            .collect();
+        format!("<ul class=\"scopes\">{items}</ul>")
     };
-    let check_icon = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 6 9 17l-5-5\"/></svg>";
-    let x_icon = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M18 6 6 18\"/><path d=\"m6 6 12 12\"/></svg>";
-    let warn_icon = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\"/><path d=\"M12 9v4\"/><path d=\"M12 17h.01\"/></svg>";
+
+    let dd = |v: &str| {
+        if v.is_empty() {
+            "<span class=\"none\">not sent</span>".to_string()
+        } else {
+            format!("<code>{}</code>", html_escape(v))
+        }
+    };
+    let pkce_rows = if implicit {
+        String::new()
+    } else {
+        format!(
+            "<dt>code_challenge</dt><dd>{}</dd>\n<dt>code_challenge_method</dt><dd>{}</dd>\n",
+            dd(challenge),
+            if challenge.is_empty() {
+                dd("")
+            } else {
+                dd(pkce_method)
+            },
+        )
+    };
+    let delivery = if implicit {
+        "Approving sends an access token back in the redirect URL fragment."
+    } else {
+        "Approving sends a one-time authorization code back in the redirect URL."
+    };
+
+    let chevron = icon("<path d=\"m9 18 6-6-6-6\"/>");
+    let check_icon = icon("<path d=\"M20 6 9 17l-5-5\"/>");
     let card = format!(
-        "<div class=\"card\">\n\
-<div class=\"card-header\">\n<div class=\"card-title\">Authorization request</div>\n\
-<div class=\"card-description\">httpcan OAuth 2.0 mock consent</div>\n</div>\n\
-<div class=\"card-content\">\n\
-<div class=\"alert alert-warning\">{warn_icon}<div class=\"alert-body\"><b>This is a mock consent page.</b> \
-It does not actually authorize the application - it exists to demonstrate and test the OAuth2 flow. \
-If you do not understand any of that, close this page immediately.</div></div>\n\
-<p class=\"ask\">An application is requesting access via the <code>{flow}</code> flow.</p>\n\
-<table class=\"data\">\n\
-<tr><th>Client ID</th><td><code>{client_id}</code></td></tr>\n\
-<tr><th>Scope</th><td><code>{scope_display}</code></td></tr>\n\
-<tr><th>Redirect after approval</th><td><code>{redirect_uri}</code></td></tr>\n\
-</table>\n\
-</div>\n\
+        "<div class=\"rim\"><span>Authorization request</span><span class=\"pill pill-warn\">Mock</span></div>\n\
 <form method=\"POST\" action=\"/oauth2/authorize\">\n\
-{hidden_response_type}\n{hidden_client_id}\n{hidden_redirect_uri}\n{hidden_state}\n{hidden_scope}\n{hidden_challenge}\n{hidden_method}\n\
-<div class=\"card-content\">\n\
-<div class=\"field\">\n<label class=\"label\" for=\"email\">Email to &ldquo;sign in&rdquo; as</label>\n\
-<input class=\"input\" type=\"email\" id=\"email\" name=\"email\" required autofocus placeholder=\"user@example.com\">\n\
-<p class=\"field-desc\">Any address works - it becomes the mock identity (sub/email) in the issued tokens.</p>\n\
+{hidden_fields}\n\
+<div class=\"body\">\n\
+<div class=\"client\"><div class=\"avatar\" aria-hidden=\"true\">{initial}</div>\
+<div><h1><b>{client_id}</b> wants to access your account</h1>\
+<p class=\"sub\">You&rsquo;ll be sent back to <b>{redirect_host}</b></p></div></div>\n\
+<div class=\"badges\">{badges}</div>\n\
+<div><p class=\"section-label\">Requested scopes</p>{scopes_html}</div>\n\
+<div class=\"field\">\n<label for=\"email\">Sign in as</label>\n\
+<input class=\"input\" type=\"email\" id=\"email\" name=\"email\" required autofocus autocomplete=\"email\" placeholder=\"user@example.com\">\n\
+<p class=\"hint\">Any address works &mdash; it becomes the <code>sub</code> / <code>email</code> of the issued tokens.</p>\n\
 </div>\n\
-<p class=\"ask\">Do you want to authorize this application?</p>\n\
+<details>\n<summary>{chevron}Request details</summary>\n<dl>\n\
+<dt>response_type</dt><dd>{rt}</dd>\n\
+<dt>client_id</dt><dd>{client_id_dd}</dd>\n\
+<dt>redirect_uri</dt><dd>{redirect_dd}</dd>\n\
+<dt>scope</dt><dd>{scope_dd}</dd>\n\
+<dt>state</dt><dd>{state_dd}</dd>\n\
+{pkce_rows}\
+</dl>\n</details>\n\
+<div class=\"notice\">{warn}<p><b>This is a mock consent screen.</b> No real account is involved and nothing is authorized &mdash; \
+it exists to test OAuth 2.0 clients. {delivery} If you didn&rsquo;t expect this page, close it.</p></div>\n\
 </div>\n\
-<div class=\"card-footer\">\n\
+<div class=\"actions\">\n\
+<button class=\"btn btn-outline\" type=\"submit\" name=\"decision\" value=\"decline\" formnovalidate>Decline</button>\n\
 <button class=\"btn btn-primary\" type=\"submit\" name=\"decision\" value=\"approve\">{check_icon}Approve</button>\n\
-<button class=\"btn btn-outline\" type=\"submit\" name=\"decision\" value=\"decline\">{x_icon}Decline</button>\n\
-<a class=\"footer-link\" href=\"/oauth2\">About this mock</a>\n\
 </div>\n\
-</form>\n\
-</div>",
-        warn_icon = warn_icon,
-        check_icon = check_icon,
-        x_icon = x_icon,
-        flow = html_escape(flow),
-        hidden_response_type = hidden("response_type", response_type),
-        hidden_client_id = hidden("client_id", client_id),
-        hidden_redirect_uri = hidden("redirect_uri", redirect_uri),
-        hidden_state = hidden("state", state),
-        hidden_scope = hidden("scope", scope),
-        hidden_challenge = hidden("code_challenge", challenge),
-        hidden_method = hidden("code_challenge_method", pkce_method),
+</form>",
+        initial = html_escape(&initial),
         client_id = html_escape(client_id),
-        scope_display = scope_display,
-        redirect_uri = html_escape(redirect_uri),
+        redirect_host = html_escape(&redirect_host),
+        badges = badges.join(""),
+        rt = dd(response_type),
+        client_id_dd = dd(client_id),
+        redirect_dd = dd(redirect_uri),
+        scope_dd = dd(scope),
+        state_dd = dd(state),
+        warn = warn_icon(),
     );
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
         .insert_header(("X-Robots-Tag", "noindex"))
-        .body(page_shell("httpcan OAuth2 Consent", &card))
+        .body(page_shell(
+            "httpcan OAuth2 Consent",
+            "OAuth 2.0 mock server",
+            &card,
+            &[
+                ("/oauth2", "About this mock"),
+                (
+                    "/.well-known/oauth-authorization-server",
+                    "Discovery metadata",
+                ),
+            ],
+        ))
 }

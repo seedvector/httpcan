@@ -172,6 +172,40 @@ async fn redirect_to_get_with_query_url() {
     assert_eq!(location, "https://example.com");
 }
 
+/// Browsers (Accept: text/html) get a 200 interstitial instead of a 302: no
+/// Location header, destination host surfaced, URL escaped, noindex.
+#[actix_web::test]
+async fn redirect_to_browser_gets_interstitial() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::get()
+        .uri("/redirect-to?url=https%3A%2F%2Fevil.example.net%2Fa%3Fx%3D%22%3E%3Cscript%3E")
+        .insert_header(("Accept", "text/html,application/xhtml+xml"))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert!(resp.headers().get("location").is_none());
+    assert_eq!(resp.headers().get("X-Robots-Tag").unwrap(), "noindex");
+    let body = String::from_utf8(test::read_body(resp).await.to_vec()).unwrap();
+    assert!(body.contains("evil.example.net"), "host shown");
+    assert!(!body.contains("<script>"), "raw script must not survive");
+    assert!(body.contains("rel=\"noopener noreferrer\""));
+}
+
+/// Non-http(s) destinations render no clickable link at all.
+#[actix_web::test]
+async fn redirect_to_browser_blocks_unsafe_scheme() {
+    let app = test::init_service(create_app(cfg())).await;
+    let req = test::TestRequest::get()
+        .uri("/redirect-to?url=javascript%3Aalert(1)")
+        .insert_header(("Accept", "text/html"))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = String::from_utf8(test::read_body(resp).await.to_vec()).unwrap();
+    assert!(!body.contains("href=\"javascript:"));
+    assert!(body.contains("aria-disabled=\"true\""));
+}
+
 /// GET /redirect-to without a url param is rejected with 400 BAD_REQUEST.
 #[actix_web::test]
 async fn redirect_to_get_missing_url_is_bad_request() {

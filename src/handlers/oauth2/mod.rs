@@ -273,16 +273,6 @@ pub(crate) fn token_success(
         .json(body)
 }
 
-/// HTML-escape every dynamic field rendered into the consent and error pages.
-/// There is no template layer here, so this is the only XSS defense.
-pub(crate) fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&#39;")
-}
-
 /// Validate that a redirect target is an absolute http(s) URI. RFC 6749
 /// §3.1.2.4: requests failing this must NOT be redirected.
 pub(crate) fn is_http_url(uri: &str) -> bool {
