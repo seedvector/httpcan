@@ -121,3 +121,29 @@ async fn response_headers_post_sets_headers() {
         "bar"
     );
 }
+
+/// The JSON body of /response-headers reports its own Content-Length, so the
+/// value must match the actual body size (and the header).
+#[actix_web::test]
+async fn response_headers_content_length_matches_body() {
+    let app = test::init_service(create_app(cfg())).await;
+    for uri in [
+        "/response-headers",
+        "/response-headers?X-Test=bar&X-Test=baz",
+    ] {
+        let req = test::TestRequest::get().uri(uri).to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let header = resp
+            .headers()
+            .get("content-length")
+            .map(|v| v.to_str().unwrap().to_string());
+        let body = test::read_body(resp).await;
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let reported = json["Content-Length"].as_str().unwrap().to_string();
+        assert_eq!(reported, body.len().to_string(), "{uri}");
+        if let Some(header) = header {
+            assert_eq!(header, reported, "{uri}");
+        }
+    }
+}
