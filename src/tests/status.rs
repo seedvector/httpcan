@@ -121,3 +121,25 @@ async fn response_headers_post_sets_headers() {
         "bar"
     );
 }
+
+/// Codes outside 100-999 can't be sent as a real status, so they are
+/// rejected like any other invalid code instead of falling back to 200.
+#[actix_web::test]
+async fn status_out_of_range_code_is_bad_request() {
+    let app = test::init_service(create_app(cfg())).await;
+    for uri in [
+        "/status/99",
+        "/status/1000",
+        "/status/0",
+        "/status/200,1000",
+    ] {
+        for method in [actix_web::http::Method::GET, actix_web::http::Method::POST] {
+            let req = test::TestRequest::default()
+                .method(method.clone())
+                .uri(uri)
+                .to_request();
+            let resp = test::call_service(&app, req).await;
+            assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "{method} {uri}");
+        }
+    }
+}
