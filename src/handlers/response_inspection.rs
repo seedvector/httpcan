@@ -165,11 +165,16 @@ pub async fn response_headers_get_handler(
         }
     }
 
-    // Add standard headers that would be set by the framework
-    headers_map.insert(
-        "Content-Type".to_string(),
-        Value::String("application/json".to_string()),
-    );
+    // Only supply the JSON default when no Content-Type was requested.
+    let has_content_type = multi_value_params
+        .keys()
+        .any(|key| key.eq_ignore_ascii_case("Content-Type"));
+    if !has_content_type {
+        headers_map.insert(
+            "Content-Type".to_string(),
+            Value::String("application/json".to_string()),
+        );
+    }
 
     // The body reports its own Content-Length, so re-serialize until the
     // value matches the body size (like httpbin does). This settles within a
@@ -194,9 +199,10 @@ pub async fn response_headers_get_handler(
         }
     }
 
-    Ok(response_builder
-        .content_type("application/json")
-        .body(json_string))
+    if !has_content_type {
+        response_builder.content_type("application/json");
+    }
+    Ok(response_builder.body(json_string))
 }
 
 pub async fn response_headers_post_handler(
