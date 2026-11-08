@@ -41,6 +41,11 @@ fn parse_weighted_codes(codes_str: &str) -> Result<Vec<WeightedChoice>, String> 
         };
 
         let code = code_str.parse::<u16>().map_err(|_| "Invalid status code")?;
+        // Only 100-999 can be sent as a real status line; anything else would
+        // otherwise fall back to 200 further down.
+        if StatusCode::from_u16(code).is_err() {
+            return Err("Invalid status code".to_string());
+        }
 
         if weight < 0.0 {
             return Err("Weight cannot be negative".to_string());
