@@ -122,6 +122,40 @@ async fn response_headers_post_sets_headers() {
     );
 }
 
+/// The JSON body of /response-headers reports its own Content-Length, so the
+/// value must match the actual body size (and the header).
+#[actix_web::test]
+async fn response_headers_content_length_matches_body() {
+    let app = test::init_service(create_app(cfg())).await;
+    for uri in [
+        "/response-headers",
+        "/response-headers?X-Test=bar&X-Test=baz",
+        "/response-headers?Content-Type=text/plain",
+        "/response-headers?content-type=text/plain",
+        "/response-headers?CoNtEnT-TyPe=text/plain",
+    ] {
+        for method in [actix_web::http::Method::GET, actix_web::http::Method::POST] {
+            let req = test::TestRequest::default()
+                .method(method.clone())
+                .uri(uri)
+                .to_request();
+            let resp = test::call_service(&app, req).await;
+            assert_eq!(resp.status(), StatusCode::OK);
+            let header = resp
+                .headers()
+                .get("content-length")
+                .map(|v| v.to_str().unwrap().to_string());
+            let body = test::read_body(resp).await;
+            let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+            let reported = json["Content-Length"].as_str().unwrap().to_string();
+            assert_eq!(reported, body.len().to_string(), "{method} {uri}");
+            if let Some(header) = header {
+                assert_eq!(header, reported, "{method} {uri}");
+            }
+        }
+    }
+}
+
 /// Codes outside 100-999 can't be sent as a real status, so they are
 /// rejected like any other invalid code instead of falling back to 200.
 #[actix_web::test]
@@ -141,5 +175,53 @@ async fn status_out_of_range_code_is_bad_request() {
             let resp = test::call_service(&app, req).await;
             assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "{method} {uri}");
         }
+    }
+}
+
+#[actix_web::test]
+async fn response_headers_get_preserves_content_type() {
+    let app = test::init_service(create_app(cfg())).await;
+    for (uri, expected) in [
+        ("/response-headers", "application/json"),
+        ("/response-headers?Content-Type=text/plain", "text/plain"),
+        ("/response-headers?content-type=text/plain", "text/plain"),
+        ("/response-headers?CoNtEnT-TyPe=text/plain", "text/plain"),
+    ] {
+        let req = test::TestRequest::get().uri(uri).to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers()
+                .get("content-type")
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            expected,
+            "{uri}"
+        );
+    }
+}
+
+#[actix_web::test]
+async fn response_headers_post_preserves_content_type() {
+    let app = test::init_service(create_app(cfg())).await;
+    for (uri, expected) in [
+        ("/response-headers", "application/json"),
+        ("/response-headers?Content-Type=text/plain", "text/plain"),
+        ("/response-headers?content-type=text/plain", "text/plain"),
+        ("/response-headers?CoNtEnT-TyPe=text/plain", "text/plain"),
+    ] {
+        let req = test::TestRequest::post().uri(uri).to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers()
+                .get("content-type")
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            expected,
+            "{uri}"
+        );
     }
 }

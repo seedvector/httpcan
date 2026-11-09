@@ -152,63 +152,57 @@ pub async fn response_headers_get_handler(
         return Ok(builder.body(body.clone()));
     }
 
-    // Build response with iterative header reflection like httpbin
-    let mut iteration_count = 0;
-    const MAX_ITERATIONS: usize = 10; // Prevent infinite loops
-
-    loop {
-        let mut response_builder = HttpResponse::Ok();
-
-        // Add query parameters as actual response headers
-        for (key, values) in &multi_value_params {
-            for value in values {
-                response_builder.append_header((key.as_str(), value.as_str()));
-            }
+    // Prepare the headers map for the JSON response
+    let mut headers_map: BTreeMap<String, Value> = BTreeMap::new();
+    for (key, values) in &multi_value_params {
+        if values.len() == 1 {
+            headers_map.insert(key.clone(), Value::String(values[0].clone()));
+        } else {
+            headers_map.insert(
+                key.clone(),
+                Value::Array(values.iter().map(|v| Value::String(v.clone())).collect()),
+            );
         }
+    }
 
-        // Prepare the headers map for JSON response
-        let mut headers_map: BTreeMap<String, Value> = BTreeMap::new();
-
-        // Add query parameters to the JSON response
-        for (key, values) in &multi_value_params {
-            if values.len() == 1 {
-                headers_map.insert(key.clone(), Value::String(values[0].clone()));
-            } else {
-                headers_map.insert(
-                    key.clone(),
-                    Value::Array(values.iter().map(|v| Value::String(v.clone())).collect()),
-                );
-            }
-        }
-
-        // Add standard headers that would be set by the framework
+    // Only supply the JSON default when no Content-Type was requested.
+    let has_content_type = multi_value_params
+        .keys()
+        .any(|key| key.eq_ignore_ascii_case("Content-Type"));
+    if !has_content_type {
         headers_map.insert(
             "Content-Type".to_string(),
             Value::String("application/json".to_string()),
         );
+    }
 
-        // Calculate content length for the JSON
-        let json_string = serde_json::to_string(&headers_map)?;
+    // The body reports its own Content-Length, so re-serialize until the
+    // value matches the body size (like httpbin does). This settles within a
+    // couple of rounds; the cap is just a safety net.
+    const MAX_ITERATIONS: usize = 10;
+    let mut json_string = serde_json::to_string(&headers_map)?;
+    for _ in 0..MAX_ITERATIONS {
         let content_length = json_string.len().to_string();
-        headers_map.insert(
-            "Content-Length".to_string(),
-            Value::String(content_length.clone()),
-        );
+        if headers_map.get("Content-Length") == Some(&Value::String(content_length.clone())) {
+            break;
+        }
+        headers_map.insert("Content-Length".to_string(), Value::String(content_length));
+        json_string = serde_json::to_string(&headers_map)?;
+    }
 
-        // Set Content-Length header on response
-        response_builder.append_header(("Content-Length", content_length));
+    let mut response_builder = HttpResponse::Ok();
 
-        // Check if we need another iteration (like httpbin does)
-        let _current_json = serde_json::to_string(&headers_map)?;
-
-        iteration_count += 1;
-
-        // For simplicity, we'll do a fixed number of iterations like httpbin's logic
-        // In httpbin, it iterates until response data doesn't change
-        if iteration_count >= 2 || iteration_count >= MAX_ITERATIONS {
-            return Ok(response_builder.json(headers_map));
+    // Add query parameters as actual response headers
+    for (key, values) in &multi_value_params {
+        for value in values {
+            response_builder.append_header((key.as_str(), value.as_str()));
         }
     }
+
+    if !has_content_type {
+        response_builder.content_type("application/json");
+    }
+    Ok(response_builder.body(json_string))
 }
 
 pub async fn response_headers_post_handler(
