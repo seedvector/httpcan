@@ -67,13 +67,14 @@ curl https://httpcan.org/ip
 - **Echo**: `/echo` reflects the request body and headers (any method).
 - **Methods**: the HTTP `QUERY` method (a safe, idempotent request with a body) is accepted on `/anything`, `/anything/{anything}` and `/echo`, and the dedicated `/query` endpoint echoes URL args plus the parsed body. `/method` echoes any method name; `/head`, `/options`, `/trace` and `/query` are dedicated echo endpoints; GET endpoints also answer `HEAD`.
 - **Auth**: Basic auth with username only; JWT decoding and inspection at `/jwt-bearer`.
-- **Status**: the response content type follows `Accept`, then the request's `Content-Type`, then a default. Custom bodies via query or body. `?header=Name:Value` injects response headers (repeatable, e.g. `Retry-After` for rate-limit testing).
+- **Status**: the response content type follows `Accept`, then the request's `Content-Type`, then a default. Custom bodies via query or body. `?header=Name:Value` injects response headers (repeatable, e.g. `Retry-After` for rate-limit testing); framing and hop-by-hop header names (plus `Proxy-*`) are dropped.
 - **Redirects**: `POST /redirect-to` accepts `application/x-www-form-urlencoded`, `multipart/form-data` and `application/json`. Browser clients get an open-redirect warning page (below).
 - **Streaming**: SSE and NDJSON endpoints with `count`, `delay`, and OpenAI/Ollama formats.
 - **File uploads**: multiple files with the same field name come back as an array on every multipart endpoint.
 - **Body encoding**: POST to `/gzip`, `/deflate`, `/brotli`, `/zstd` or `/base64` returns the request body in that encoding.
 - **Headers**: duplicate and non-ASCII request headers are kept instead of being dropped or crashing the server.
 - **Observability**: `/healthz` liveness probe; `/tags` exposes `HTTPCAN_*` environment variables; every response carries `Server-Timing` and `X-Httpcan-Version` headers.
+- **Response headers safety** (httpbin #756/#757 parity): `/response-headers` refuses renderable Content-Types (`text/html`, SVG, XML, script MIME types) with 400 and silently drops framing, hop-by-hop, `Refresh` and `Proxy-*` header names; `/status?header=` drops only framing/hop-by-hop names, so `Refresh` remains testable there.
 
 ### Open-redirect protection on `/redirect-to`
 

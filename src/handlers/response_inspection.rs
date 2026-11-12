@@ -125,12 +125,90 @@ fn parse_multi_value_query_string(query_string: &str) -> BTreeMap<String, Vec<St
     params
 }
 
+/// Media types a browser renders as a document or runs as script. A caller of
+/// `/response-headers` may not pick one, or a crafted link would show their
+/// text as a page on this host (httpbin #756). Any `+xml` subtype is refused
+/// too.
+const RENDERABLE_MEDIA_TYPES: &[&str] = &[
+    "text/html",
+    "application/xhtml+xml",
+    "image/svg+xml",
+    "text/xml",
+    "application/xml",
+    "application/javascript",
+    "application/x-javascript",
+    "application/ecmascript",
+    "application/x-ecmascript",
+    "text/javascript",
+    "text/ecmascript",
+    "text/x-ecmascript",
+    "text/x-javascript",
+    "text/jscript",
+    "text/livescript",
+    "text/javascript1.0",
+    "text/javascript1.1",
+    "text/javascript1.2",
+    "text/javascript1.3",
+    "text/javascript1.4",
+    "text/javascript1.5",
+];
+
+/// Header names `/response-headers` will not set (httpbin #757). Framing and
+/// hop-by-hop headers would put a conflicting Content-Length or
+/// Transfer-Encoding on the wire (response desync behind a proxy), and Refresh
+/// is a browser redirect that skips `/redirect-to`. Proxy-* header names are
+/// refused too.
+const RESERVED_RESPONSE_HEADERS: &[&str] = &[
+    "content-length",
+    "transfer-encoding",
+    "connection",
+    "keep-alive",
+    "proxy-connection",
+    "te",
+    "trailer",
+    "upgrade",
+    "refresh",
+    "x-content-type-options",
+];
+
+fn caller_may_not_set(header: &str) -> bool {
+    let header = header.to_ascii_lowercase();
+    RESERVED_RESPONSE_HEADERS.contains(&header.as_str()) || header.starts_with("proxy-")
+}
+
+fn is_renderable_media_type(content_type: &str) -> bool {
+    let media_type = content_type
+        .split(';')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase();
+    RENDERABLE_MEDIA_TYPES.contains(&media_type.as_str()) || media_type.ends_with("+xml")
+}
+
 pub async fn response_headers_get_handler(
     req: HttpRequest,
     _query: web::Query<HashMap<String, String>>, // Keep for compatibility but use manual parsing
 ) -> Result<HttpResponse> {
     // Parse query string manually to support multi-value parameters
     let multi_value_params = parse_multi_value_query_string(req.query_string());
+    // httpbin #756: a renderable Content-Type would let a crafted link render
+    // the caller's text as a page on this host, so it is refused outright.
+    for (key, values) in &multi_value_params {
+        if key.eq_ignore_ascii_case("content-type")
+            && values.iter().any(|v| is_renderable_media_type(v))
+        {
+            return Ok(HttpResponse::BadRequest()
+                .content_type("text/plain; charset=utf-8")
+                .body("this Content-Type is not allowed\n"));
+        }
+    }
+    // httpbin #757: framing, hop-by-hop, Refresh and Proxy-* params are
+    // dropped without an error; every other parameter still becomes a header.
+    let multi_value_params: BTreeMap<String, Vec<String>> = multi_value_params
+        .into_iter()
+        .filter(|(key, _)| !caller_may_not_set(key))
+        .collect();
     // #655: ?body=<text> (and optional ?status=<code>) return a custom body
     // instead of the JSON header dump. Other query params still become headers.
     if let Some(body) = multi_value_params.get("body").and_then(|v| v.last()) {

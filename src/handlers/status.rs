@@ -338,9 +338,31 @@ pub async fn status_options_handler(
     Ok(response)
 }
 
+/// Header names `/status?header=` will not inject: framing and hop-by-hop
+/// headers (plus Proxy-*) belong to the server or the proxy in front, not the
+/// caller (httpbin #757 reserves the same names on `/response-headers`).
+/// Refresh and X-Content-Type-Options stay settable here.
+const RESERVED_STATUS_HEADERS: &[&str] = &[
+    "content-length",
+    "transfer-encoding",
+    "connection",
+    "keep-alive",
+    "proxy-connection",
+    "te",
+    "trailer",
+    "upgrade",
+];
+
+fn is_framing_or_hop_by_hop(name: &str) -> bool {
+    let name = name.to_ascii_lowercase();
+    RESERVED_STATUS_HEADERS.contains(&name.as_str()) || name.starts_with("proxy-")
+}
+
 /// Parse repeatable `?header=Name:Value` query params into header overrides for
 /// the /status endpoint (httpbin #413/#579). The value is passed through verbatim,
 /// so both Retry-After formats (relative seconds or absolute HTTP-date) work.
+/// Framing and hop-by-hop header names (plus Proxy-*) are dropped; Refresh
+/// stays settable (httpbin #757 parity, scoped to framing only here).
 fn parse_status_header_overrides(req: &HttpRequest) -> Vec<(String, String)> {
     url::form_urlencoded::parse(req.query_string().as_bytes())
         .filter(|(k, _)| k.as_ref() == "header")
@@ -355,6 +377,7 @@ fn parse_status_header_overrides(req: &HttpRequest) -> Vec<(String, String)> {
                 Some((name, value))
             }
         })
+        .filter(|(name, _)| !is_framing_or_hop_by_hop(name))
         .collect()
 }
 

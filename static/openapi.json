@@ -3531,19 +3531,23 @@
         ],
         "summary": "Returns a set of response headers from the query string.",
         "operationId": "getResponseHeaders",
-        "description": "Echoes query parameters as response headers; ?body= and ?status= override the response body and status code.",
+        "description": "Echoes query parameters as response headers; ?body= and ?status= override the response body and status code. Framing, hop-by-hop, Refresh and Proxy-* header names are dropped; renderable Content-Types (HTML, SVG, XML, script types) are refused with 400 (httpbin #756/#757).",
         "parameters": [
           {
             "name": "freeform",
             "in": "query",
             "allowEmptyValue": true,
             "schema": {},
-            "description": "Each name=value query pair becomes a response header"
+            "description": "Each name=value query pair becomes a response header. Framing/hop-by-hop names, Refresh and Proxy-* are dropped; renderable Content-Types are refused."
           }
         ],
         "responses": {
           "200": {
             "description": "Response headers.",
+            "content": {}
+          },
+          "400": {
+            "description": "Renderable Content-Type refused.",
             "content": {}
           }
         }
@@ -3554,19 +3558,23 @@
         ],
         "summary": "Returns a set of response headers from the query string.",
         "operationId": "postResponseHeaders",
-        "description": "Echoes query parameters as response headers; ?body= and ?status= override the response body and status code.",
+        "description": "Echoes query parameters as response headers; ?body= and ?status= override the response body and status code. Framing, hop-by-hop, Refresh and Proxy-* header names are dropped; renderable Content-Types (HTML, SVG, XML, script types) are refused with 400 (httpbin #756/#757).",
         "parameters": [
           {
             "name": "freeform",
             "in": "query",
             "allowEmptyValue": true,
             "schema": {},
-            "description": "Each name=value query pair becomes a response header"
+            "description": "Each name=value query pair becomes a response header. Framing/hop-by-hop names, Refresh and Proxy-* are dropped; renderable Content-Types are refused."
           }
         ],
         "responses": {
           "200": {
             "description": "Response headers.",
+            "content": {}
+          },
+          "400": {
+            "description": "Renderable Content-Type refused.",
             "content": {}
           }
         }
@@ -3579,7 +3587,7 @@
         ],
         "summary": "Returns the given status code, or a random pick from a list.",
         "operationId": "getStatusCodes",
-        "description": "Returns the given status, or a random one from a comma-separated list; supports ?header= injection, a custom body, and trailing path segments, and weighted random picks via 'code:weight'.",
+        "description": "Returns the given status, or a random one from a comma-separated list; supports ?header= injection, a custom body, and trailing path segments, and weighted random picks via 'code:weight'. Framing and hop-by-hop header names (plus Proxy-*) are dropped from ?header=; Refresh stays settable.",
         "parameters": [
           {
             "name": "codes",
@@ -3603,7 +3611,7 @@
           {
             "name": "header",
             "in": "query",
-            "description": "Response header to inject, formatted 'Name:Value'. Repeatable to add multiple (e.g. ?header=Retry-After:120)",
+            "description": "Response header to inject, formatted 'Name:Value'. Repeatable to add multiple (e.g. ?header=Retry-After:120). Framing/hop-by-hop names (plus Proxy-*) are dropped; Refresh stays settable.",
             "schema": {
               "type": "string"
             }

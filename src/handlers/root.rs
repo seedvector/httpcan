@@ -125,7 +125,7 @@ const CATEGORIES: &[Category] = &[
             Endpoint { methods: "GET", path: "/cache", badge: None, desc: "Returns 304 if If-Modified-Since or If-None-Match is present, 200 otherwise.", curl: "curl -i -H 'If-None-Match: \"abc123\"' {base}/cache" },
             Endpoint { methods: "GET", path: "/cache/{value}", badge: None, desc: "Sets a Cache-Control header for the given number of seconds.", curl: "curl -i {base}/cache/60" },
             Endpoint { methods: "GET", path: "/etag/{etag}", badge: Some(Badge::Enhanced), desc: "Validates If-Match/If-None-Match against the given ETag; supports weak W/\"...\" validators.", curl: "curl -i -H 'If-None-Match: \"abc123\"' {base}/etag/abc123" },
-            Endpoint { methods: "GET/POST", path: "/response-headers", badge: Some(Badge::Enhanced), desc: "Echoes query parameters as response headers; ?body= and ?status= override the response body and status code.", curl: "curl -i '{base}/response-headers?Content-Type=text/plain&X-Foo=bar'" },
+            Endpoint { methods: "GET/POST", path: "/response-headers", badge: Some(Badge::Enhanced), desc: "Echoes query parameters as response headers; ?body= and ?status= override the response body and status code. Renderable Content-Types are refused; framing, Refresh and Proxy-* header names are dropped.", curl: "curl -i '{base}/response-headers?Content-Type=text/plain&X-Foo=bar'" },
         ],
     },
     Category {
