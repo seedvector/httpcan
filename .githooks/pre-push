@@ -1,0 +1,22 @@
+#!/bin/sh
+# Mirror the CI gates (ci.yml) before code reaches GitHub:
+#   cargo fmt --all --check
+#   RUSTFLAGS="-D warnings" cargo clippy --all-targets --all-features
+# Only branch pushes are gated; tag-only pushes pass through untouched.
+# Emergencies: git push --no-verify
+set -e
+
+BRANCH=
+while read -r local_ref local_sha remote_ref remote_sha; do
+    case "$remote_ref" in
+        refs/heads/*) BRANCH=1 ;;
+    esac
+done
+
+[ -n "$BRANCH" ] || exit 0
+
+echo "pre-push: cargo fmt --all --check"
+cargo fmt --all --check
+
+echo "pre-push: cargo clippy --all-targets --all-features (RUSTFLAGS=-D warnings)"
+RUSTFLAGS="-D warnings" cargo clippy --all-targets --all-features
