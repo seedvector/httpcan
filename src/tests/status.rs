@@ -297,7 +297,11 @@ async fn response_headers_refuses_renderable_content_types() {
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), StatusCode::OK);
     assert_eq!(
-        resp.headers().get("content-type").unwrap().to_str().unwrap(),
+        resp.headers()
+            .get("content-type")
+            .unwrap()
+            .to_str()
+            .unwrap(),
         "text/plain"
     );
 }
@@ -352,8 +356,5 @@ async fn status_header_overrides_drop_framing_and_hop_by_hop() {
         resp.headers().get("refresh").unwrap().to_str().unwrap(),
         "5"
     );
-    assert_eq!(
-        resp.headers().get("x-ok").unwrap().to_str().unwrap(),
-        "yes"
-    );
+    assert_eq!(resp.headers().get("x-ok").unwrap().to_str().unwrap(), "yes");
 }
